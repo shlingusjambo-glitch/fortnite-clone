@@ -1178,6 +1178,14 @@ export function buildModels(r: Renderer): Models {
     }
     b.box([0, 1.9, 5.12], [2.9, 1.0, 0.06], C.glass);                                   // front windshield
     b.box([0, 0.3, 5.2], [3.3, 0.35, 0.22], rgb(0xcccccc));                            // front bumper
+    b.box([0, 1.15, 0], [3.34, 0.22, 10.2], C.white); b.box([0, 0.95, 0], [3.34, 0.1, 10.2], C.yellow);   // side stripes
+    b.box([0, 2.55, 0], [3.34, 0.1, 10.2], dk(C.bus, 0.7));                                                  // roof edge line
+    for (let i = 0; i < 6; i++) { b.box([0, 1.9, -3.05 + i * 1.5], [3.4, 1.06, 0.06], dk(C.bus, 0.75)); }     // window pillars
+    for (const sx of [-1.2, 1.2]) { b.sphere([sx, 1.0, 5.15], 0.22, rgb(0xfff8d0), 10, 1, true); b.box([sx, 0.62, -5.12], [0.5, 0.25, 0.05], rgb(0xd83030)); }   // headlights, tail lights
+    b.box([0, 0.75, 5.18], [2.2, 0.45, 0.06], rgb(0x333333)); for (let k = 0; k < 4; k++) b.box([0, 0.6 + k * 0.1, 5.2], [2.0, 0.02, 0.02], rgb(0x888888));   // grille
+    b.box([0, 2.25, 5.14], [2.4, 0.3, 0.06], rgb(0x1a1a20)); b.box([0, 2.25, 5.18], [1.6, 0.14, 0.02], C.yellow);   // destination sign
+    for (const sx of [-1.85, 1.85]) b.box([sx, 2.0, 4.6], [0.3, 0.35, 0.12], rgb(0x1e1e22));                   // mirrors
+    b.box([0, 0.45, -5.15], [1.5, 0.3, 0.06], C.white);                                                        // rear plate
     b.rbox([0, 2.8, 0], [3.1, 0.16, 9.8], rgb(0x728aa0), 0.04);                        // roof rack
     // Turbo Thrusters on sides of bus
     for (const sx of [-1.8, 1.8]) {
@@ -1206,6 +1214,9 @@ export function buildModels(r: Renderer): Models {
       const a = (i / 16) * Math.PI * 2;
       b.cyl([Math.cos(a) * 2.3, -12.4, Math.sin(a) * 2.3], 0.03, 0.03, 5.4, rgb(0xb0a060), 6);
     }
+    for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283; b.push(mul(translate(0, 0, 0), rotY(a))); b.box([7.9 * 0.999, 0, 0], [0.12, 8.5, 0.35], dk(C.balloon, 0.7)); b.pop(); }   // gore seams
+    b.torus([0, -6.6, 0], 5.2, 0.12, rgb(0xb0a060), 24, 6);                                 // load ring
+    b.box([0, 2, 0], [0.4, 9, 0.4], dk(C.balloon, 0.6)); b.box([0, 2, 0], [0.4, 9, 0.4], dk(C.balloon, 0.6));
   });
 
   // Glider: Classic military umbrella / canopy glider (Image 2)
