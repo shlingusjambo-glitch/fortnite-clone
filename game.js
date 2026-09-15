@@ -213,7 +213,7 @@ void main(){
       gl.bindBuffer(gl.ARRAY_BUFFER, buf), gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
       for (let i = 0; i < 3; i++)
         gl.enableVertexAttribArray(i), gl.vertexAttribPointer(i, 3, gl.FLOAT, !1, 36, i * 12);
-      return gl.bindVertexArray(null), { vao, n: data.length / 9 };
+      return gl.bindVertexArray(null), { vao, n: data.length / 9, data };
     }
     draw(m, mat, tint = [1, 1, 1], alpha = 1, style = 0, shadow = !0, two = !1) {
       if (!m) {
@@ -1641,6 +1641,22 @@ void main(){
     }
     svg.innerHTML = '<rect width="100" height="60" fill="#3b8fc4"/>' + s + '<ellipse cx="50" cy="52" rx="40" ry="10" fill="#e8f6ff" opacity="0.55"/>';
   }
+  var BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain"]), baked = [];
+  {
+    let cells = /* @__PURE__ */ new Map();
+    for (let s of W.statics) {
+      if (!BAKE.has(s.mesh) || !M[s.mesh]?.data) continue;
+      let key = Math.floor(s.pos[0] / 48) + "," + Math.floor(s.pos[2] / 48), cell = cells.get(key);
+      cell || (cell = { data: [], c: [(Math.floor(s.pos[0] / 48) + 0.5) * 48, 0, (Math.floor(s.pos[2] / 48) + 0.5) * 48] }, cells.set(key, cell));
+      let src = M[s.mesh].data, m = trs(s.pos, s.yaw), c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
+      for (let i = 0; i < src.length; i += 9) {
+        let p = transformPoint(m, [src[i], src[i + 1], src[i + 2]]), nx = src[i + 3], nz = src[i + 5];
+        cell.data.push(p[0], p[1], p[2], nx * c + nz * sn, src[i + 4], -nx * sn + nz * c, src[i + 6], src[i + 7], src[i + 8]);
+      }
+      s.baked = !0;
+    }
+    for (let cell of cells.values()) baked.push({ mesh: R.upload(new Float32Array(cell.data)), c: cell.c });
+  }
   var AC = null;
   function beep(f, dur, type = "square", vol = 0.08, slide = 0) {
     if (!AC || (vol *= S.master * S.sfx, vol <= 5e-4)) return;
@@ -2021,6 +2037,9 @@ void main(){
       q.hp -= dmg;
       let m = q.type === "rock" ? "stone" : "wood", n = q.type === "bush" ? 3 : weak ? 24 : 10;
       giveMat(m, n), fx.push({ kind: "dmg", t: 0.7, pos: h.p, text: weak ? "CRITICAL +" + n : "+" + n, head: weak }), beep(weak ? 950 : 500, 0.1, "square", 0.06), q.hp <= 0 ? (q.dead = 30, P.weakT = 0) : mark();
+    } else if (h.kind === "static" && h.ref.baked) {
+      let s = h.ref;
+      giveMat(s.mesh === "crate" || s.mesh === "fence" || s.mesh === "bench" || s.mesh === "hedge" ? "wood" : "metal", 5), fx.push({ kind: "dmg", t: 0.7, pos: h.p, text: "+5" }), beep(430, 0.1, "square", 0.06);
     } else if (h.kind === "static") {
       let s = h.ref, dmg = weak ? 100 : 45, mat = s.mesh === "car" || s.mesh === "truck" || s.mesh === "lamp" ? "metal" : s.mesh.startsWith("house") ? "wood" : "stone", n = weak ? 18 : 7;
       s.hp = (s.hp ?? 300) - dmg, s.shake = 0.28, giveMat(mat, n), fx.push({ kind: "dmg", t: 0.7, pos: h.p, text: weak ? "CRITICAL +" + n : "+" + n, head: weak }), beep(weak ? 900 : 430, 0.1, "square", 0.06), s.hp <= 0 ? (s.dead = !0, s.boxes.length = 0, P.weakT = 0) : mark();
@@ -2875,7 +2894,8 @@ void main(){
     R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, !1), R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
     let cull = P.state === "play" ? [130, 190, 320][S.viewDist] : 900, vis = (p) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && (p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18;
     for (let q of W.props) !q.dead && vis(q.pos) && R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
-    for (let s of W.statics) if (!s.dead && vis(s.pos)) {
+    for (let bk of baked) Math.abs(bk.c[0] - camPos[0]) < cull + 34 && Math.abs(bk.c[2] - camPos[2]) < cull + 34 && (bk.c[0] - camPos[0]) * camFwd[0] + (bk.c[2] - camPos[2]) * camFwd[2] > -50 && R.draw(bk.mesh, trs([0, 0, 0]), [1, 1, 1], 1, 0, !0, !0);
+    for (let s of W.statics) if (!s.dead && !s.baked && vis(s.pos)) {
       let sh = s.shake || 0, sp = sh ? [s.pos[0] + Math.sin(t * 95) * sh * 0.12, s.pos[1], s.pos[2] + Math.cos(t * 81) * sh * 0.12] : s.pos;
       R.draw(s.mesh.startsWith("house") ? W.houseMeshes[+s.mesh.slice(5)] : M[s.mesh], trs(sp, s.yaw), [1, 1, 1], 1, 0, s.mesh !== "dash");
     }

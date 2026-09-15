@@ -121,7 +121,7 @@ void main(){
   o = vec4(sky, 1.0);
 }`;
 
-export interface Mesh { vao: WebGLVertexArrayObject; n: number; }
+export interface Mesh { vao: WebGLVertexArrayObject; n: number; data?: Float32Array; }
 interface Item { m: Mesh; mat: M4; tint: V3; alpha: number; style: number; shadow: boolean; two: boolean; }
 export interface Cam { pos: V3; fwd: V3; fov: number; aspect: number; }
 
@@ -161,7 +161,7 @@ export class Renderer {
     const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
     for (let i = 0; i < 3; i++) { gl.enableVertexAttribArray(i); gl.vertexAttribPointer(i, 3, gl.FLOAT, false, 36, i * 12); }
     gl.bindVertexArray(null);
-    return { vao, n: data.length / 9 };
+    return { vao, n: data.length / 9, data };
   }
   draw(m: Mesh, mat: M4, tint: V3 = [1, 1, 1], alpha = 1, style = 0, shadow = true, two = false) { if (!m) { console.error('draw(): undefined mesh', new Error().stack); return; } this.items.push({ m, mat, tint, alpha, style, shadow, two }); }
 

@@ -1,5 +1,5 @@
 import { V3, M4, add, sub, scale, norm, len, clamp, lerp, rand, mul, perspective, lookAt, trs, translate, rotY, rotX, rotZ, transformPoint } from './math.js';
-import { Renderer } from './gl.js';
+import { Renderer, Mesh } from './gl.js';
 import { buildModels, buildCharacter, editedPiece, CharMesh, SKINS, Skin } from './models.js';
 import { World, terrainH, Piece, PieceType, Mat, Box, Prop, POIS, SIZE, TILES } from './world.js';
 
@@ -17,6 +17,27 @@ const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600
 (H.bigmap.querySelector('canvas') as HTMLCanvasElement).getContext('2d')!.drawImage(mapCv, 0, 0); W.drawLabels(H.bigmap.querySelector('canvas') as HTMLCanvasElement);
 // lobby crystal background
 { const svg = $('lobbybg'); let s = ''; const pts: [number, number][] = []; for (let i = 0; i < 60; i++) pts.push([rand(-10, 110), rand(-10, 70)]); for (let i = 0; i < 60; i++) { const a = pts[i], b = pts[(i * 7 + 3) % 60], c = pts[(i * 13 + 5) % 60]; const l = 35 + rand(0, 35); s += `<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${c[0]},${c[1]}" fill="hsl(${198 + rand(-6, 6)},${60 + rand(0, 20)}%,${l}%)" opacity="0.7"/>`; } svg.innerHTML = `<rect width="100" height="60" fill="#3b8fc4"/>` + s + `<ellipse cx="50" cy="52" rx="40" ry="10" fill="#e8f6ff" opacity="0.55"/>`; }
+
+// ---------------- baked static clutter ----------------
+// Small indestructible street/yard props (hedges, fences, dashes, crates, benches...) are merged per 48m cell into one
+// mesh each: ~600 draw calls become ~40. Cars, houses and lamps stay individual (they can be harvested / shake).
+const BAKE = new Set(['dash', 'hedge', 'fence', 'mailbox', 'bench', 'crate', 'dumpster', 'fountain']);
+const baked: { mesh: Mesh; c: V3 }[] = [];
+{
+  const cells = new Map<string, { data: number[]; c: V3 }>();
+  for (const s of W.statics) {
+    if (!BAKE.has(s.mesh) || !M[s.mesh]?.data) continue;
+    const key = Math.floor(s.pos[0] / 48) + ',' + Math.floor(s.pos[2] / 48);
+    let cell = cells.get(key); if (!cell) { cell = { data: [], c: [(Math.floor(s.pos[0] / 48) + 0.5) * 48, 0, (Math.floor(s.pos[2] / 48) + 0.5) * 48] }; cells.set(key, cell); }
+    const src = M[s.mesh].data!, m = trs(s.pos, s.yaw), c = Math.cos(s.yaw), sn = Math.sin(s.yaw);
+    for (let i = 0; i < src.length; i += 9) {
+      const p = transformPoint(m, [src[i], src[i + 1], src[i + 2]]), nx = src[i + 3], nz = src[i + 5];
+      cell.data.push(p[0], p[1], p[2], nx * c + nz * sn, src[i + 4], -nx * sn + nz * c, src[i + 6], src[i + 7], src[i + 8]);
+    }
+    s.baked = true;
+  }
+  for (const cell of cells.values()) baked.push({ mesh: R.upload(new Float32Array(cell.data)), c: cell.c });
+}
 
 // ---------------- audio ----------------
 let AC: AudioContext | null = null;
@@ -337,6 +358,7 @@ function swingPickaxe() {
   const weak=!!(P.weakRef===h.ref&&P.weakPos&&len(sub(h.p,P.weakPos))<.9), mark=()=>{P.weakRef=h.ref;P.weakPos=add(h.p,[rand(-.45,.45),rand(-.45,.45),rand(-.08,.08)]);P.weakT=4;};
   if (weak) rumble(120, 0.8, 0.85); else rumble(75, 0.45, 0.45);
   if (h.kind === 'prop') { const q = h.ref as Prop, dmg=weak?100:50; q.hp -= dmg; const m: Mat = q.type === 'rock' ? 'stone' : 'wood'; const n = q.type === 'bush' ? 3 : weak?24:10; giveMat(m, n); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: weak?'CRITICAL +'+n:'+' + n, head: weak }); beep(weak?950:500, 0.1, 'square', 0.06); if (q.hp <= 0){q.dead = 30;P.weakT=0;}else mark(); }
+  else if (h.kind === 'static' && (h.ref as typeof W.statics[number]).baked) { const s = h.ref as typeof W.statics[number]; giveMat(s.mesh === 'crate' || s.mesh === 'fence' || s.mesh === 'bench' ? 'wood' : s.mesh === 'hedge' ? 'wood' : 'metal', 5); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: '+5' }); beep(430, .1, 'square', .06); }
   else if (h.kind === 'static') { const s=h.ref as typeof W.statics[number], dmg=weak?100:45, mat:Mat=(s.mesh === 'car'||s.mesh==='truck'||s.mesh==='lamp')?'metal':s.mesh.startsWith('house')?'wood':'stone',n=weak?18:7;s.hp=(s.hp??300)-dmg;s.shake=.28;giveMat(mat,n);fx.push({kind:'dmg',t:.7,pos:h.p,text:weak?'CRITICAL +'+n:'+'+n,head:weak});beep(weak?900:430,.1,'square',.06);if(s.hp<=0){s.dead=true;s.boxes.length=0;P.weakT=0;}else mark(); }
   else if (h.kind === 'piece') { const p = h.ref as Piece; W.damagePiece(p, 50); giveMat(p.mat, 5); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: '50' }); beep(400, 0.1, 'square', 0.06); }
   else if (h.kind === 'box') { const dm = (h.ref as { d: Bot }).d; botDamage(dm, 20, 'Player', 'with a pickaxe'); P.dmg += 20; fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: '20' }); }
@@ -1060,7 +1082,8 @@ function frame(now: number) {
   const cull = P.state === 'play' ? [130, 190, 320][S.viewDist] : 900;
   const vis = (p: V3) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && ((p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18);   // ponytail: half-space cull, real frustum if draw calls ever matter
   for (const q of W.props) if (!q.dead && vis(q.pos)) R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
-  for (const s of W.statics) if (!s.dead && vis(s.pos)) {const sh=s.shake||0,sp:V3=sh?[s.pos[0]+Math.sin(t*95)*sh*.12,s.pos[1],s.pos[2]+Math.cos(t*81)*sh*.12]:s.pos;R.draw(s.mesh.startsWith('house') ? W.houseMeshes[+s.mesh.slice(5)] : M[s.mesh], trs(sp, s.yaw), [1, 1, 1], 1, 0, s.mesh !== 'dash');}
+  for (const bk of baked) if (Math.abs(bk.c[0] - camPos[0]) < cull + 34 && Math.abs(bk.c[2] - camPos[2]) < cull + 34 && (bk.c[0] - camPos[0]) * camFwd[0] + (bk.c[2] - camPos[2]) * camFwd[2] > -50) R.draw(bk.mesh, trs([0, 0, 0]), [1, 1, 1], 1, 0, true, true);
+  for (const s of W.statics) if (!s.dead && !s.baked && vis(s.pos)) {const sh=s.shake||0,sp:V3=sh?[s.pos[0]+Math.sin(t*95)*sh*.12,s.pos[1],s.pos[2]+Math.cos(t*81)*sh*.12]:s.pos;R.draw(s.mesh.startsWith('house') ? W.houseMeshes[+s.mesh.slice(5)] : M[s.mesh], trs(sp, s.yaw), [1, 1, 1], 1, 0, s.mesh !== 'dash');}
   for (const p of W.pieces.values()) {
     if (!vis(p.pos)) continue;
     const age = performance.now() / 1000 - p.born, k = clamp(age / 0.18, 0, 1), sc = 0.6 + 0.4 * k, mesh = p.edit ? editedMesh(p.type as 'wall' | 'floor', p.mat, p.edit) : M[`${p.type}_${p.mat}`];

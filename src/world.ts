@@ -73,7 +73,7 @@ export function terrainColor(x: number, z: number, y: number): Col {
 }
 
 export interface Prop { type: 'tree' | 'tree2' | 'pine' | 'rock' | 'bush'; pos: V3; yaw: number; s: number; hp: number; r: number; h: number; dead: number; }
-export interface Static { mesh: string; pos: V3; yaw: number; boxes: Box[]; aabb?: Box; hp?: number; maxHp?: number; shake?: number; dead?: boolean; }
+export interface Static { mesh: string; pos: V3; yaw: number; boxes: Box[]; aabb?: Box; baked?: boolean; hp?: number; maxHp?: number; shake?: number; dead?: boolean; }
 export type Mat = 'wood' | 'stone' | 'metal';
 export type PieceType = 'wall' | 'floor' | 'ramp' | 'pyramid';
 export interface Piece { type: PieceType; mat: Mat; pos: V3; dir: number; hp: number; maxHp: number; key: string; edit: number; born: number; }
