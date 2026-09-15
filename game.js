@@ -72,7 +72,7 @@ uniform vec3 uCam, uSun, uFog; uniform float uAlpha, uStyle, uTexel, uT, uFogD; 
 out vec4 o;
 float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }
-float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p = p * 2.08 + 3.7; a *= 0.5; } return v; }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++) { v += a * vn(p); p = p * 2.08 + 3.7; a *= 0.5; } return v; }
 // planar uv from the dominant axis of the normal (object space)
 vec2 puv(vec3 n, vec3 p){ vec3 a = abs(n); return a.y > a.x && a.y > a.z ? p.xz : (a.x > a.z ? p.zy : p.xy); }
 void main(){
@@ -100,7 +100,7 @@ void main(){
     float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.7), v3 = vn(vWorld.xz * 2.5);
     vec3 grass = col * (0.88 + 0.22 * v + 0.08 * v2 + 0.05 * v3);
     float slope = 1.0 - n.y;
-    float band = 0.5 + 0.5 * sin(vWorld.y * 2.2 + fbm(vWorld.xz * 0.3) * 3.0);
+    float band = 0.5 + 0.5 * sin(vWorld.y * 2.2 + vn(vWorld.xz * 0.3) * 3.0);
     vec3 rock = mix(vec3(0.62, 0.58, 0.50), vec3(0.82, 0.78, 0.68), band) * (0.85 + 0.3 * vn(vWorld.xz * 1.3 + vWorld.y));
     float rk = smoothstep(0.32, 0.5, slope);
     vec3 dirt = vec3(0.66, 0.54, 0.36) * (0.9 + 0.2 * v3);
@@ -1108,7 +1108,7 @@ void main(){
     let v = vnoise(x * 0.03, z * 0.03);
     return vnoise(x * 0.09 + 50, z * 0.09 + 12) > 0.86 ? rgb(11048030) : v > 0.6 ? rgb(9425998) : v > 0.4 ? rgb(10476888) : rgb(9951314);
   }
-  var TILES = (t2) => t2 === "wall" ? 9 : t2 === "floor" ? 4 : 0, MAT_HP = { wood: 150, stone: 300, metal: 500 }, World = class _World {
+  var TILES = (t2) => t2 === "wall" ? 9 : t2 === "floor" ? 4 : 0, MAT_HP = { wood: 150, stone: 300, metal: 500 }, _World = class _World {
     constructor(r) {
       __publicField(this, "terrain");
       __publicField(this, "props", []);
@@ -1119,6 +1119,8 @@ void main(){
       __publicField(this, "lootSpots", []);
       __publicField(this, "chestSpots", []);
       __publicField(this, "footprints", []);
+      /** 32m spatial hash of props + statics so collision/raycast only touch nearby objects */
+      __publicField(this, "grid", /* @__PURE__ */ new Map());
       /** lush 3D grass blade clusters with varied heights, wildflowers and wind sway */
       __publicField(this, "grassChunks", /* @__PURE__ */ new Map());
       let b = new MB(), n = Math.floor(SIZE / STEP), N = (x, z) => norm([terrainH(x - 1, z) - terrainH(x + 1, z), 2, terrainH(x, z - 1) - terrainH(x, z + 1)]);
@@ -1232,6 +1234,38 @@ void main(){
         put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), Math.random() < 0.5 ? "pine" : "rock", rand(1.2, 1.8));
         for (let q = 0; q < 2; q++) put(mx + Math.cos(a) * (mr + rand(6, 14)), mz + Math.sin(a) * (mr + rand(6, 14)), "rock", rand(1.4, 2.4));
       }
+      this.buildGrid();
+    }
+    gkey(x, z) {
+      return (Math.floor(x / _World.GC) + 512) * 4096 + Math.floor(z / _World.GC) + 512;
+    }
+    cell(x, z) {
+      let k = this.gkey(x, z), c = this.grid.get(k);
+      return c || (c = { props: [], statics: [] }, this.grid.set(k, c)), c;
+    }
+    buildGrid() {
+      this.grid.clear();
+      for (let q of this.props) this.cell(q.pos[0], q.pos[2]).props.push(q);
+      for (let s of this.statics) {
+        if (!s.boxes.length) continue;
+        let a = { min: [1 / 0, 1 / 0, 1 / 0], max: [-1 / 0, -1 / 0, -1 / 0] };
+        for (let b of s.boxes) for (let i = 0; i < 3; i++)
+          a.min[i] = Math.min(a.min[i], b.min[i]), a.max[i] = Math.max(a.max[i], b.max[i]);
+        s.aabb = a;
+        for (let x = a.min[0]; x <= a.max[0] + _World.GC; x += _World.GC) for (let z = a.min[2]; z <= a.max[2] + _World.GC; z += _World.GC) {
+          let c = this.cell(Math.min(x, a.max[0]), Math.min(z, a.max[2]));
+          c.statics.includes(s) || c.statics.push(s);
+        }
+      }
+    }
+    /** cells within rad of (x,z) */
+    near(x, z, rad) {
+      let out = [];
+      for (let cx = x - rad; cx <= x + rad + _World.GC; cx += _World.GC) for (let cz = z - rad; cz <= z + rad + _World.GC; cz += _World.GC) {
+        let c = this.grid.get(this.gkey(Math.min(cx, x + rad), Math.min(cz, z + rad)));
+        c && !out.includes(c) && out.push(c);
+      }
+      return out;
     }
     grassChunk(r, cx, cz) {
       let key = cx + "," + cz, m = this.grassChunks.get(key);
@@ -1328,8 +1362,10 @@ void main(){
     solids(x, z, rad = 10) {
       let out = [];
       for (let p of this.pieces.values()) (p.type === "wall" || p.type === "floor") && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad && out.push(...this.pieceBoxes(p));
-      for (let q of this.props) !q.dead && q.type !== "bush" && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad && out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
-      for (let s of this.statics) !s.dead && s.boxes.length && Math.abs(s.pos[0] - x) < rad + 14 && Math.abs(s.pos[2] - z) < rad + 14 && out.push(...s.boxes);
+      for (let c of this.near(x, z, rad)) {
+        for (let q of c.props) !q.dead && q.type !== "bush" && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad && out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
+        for (let s of c.statics) !s.dead && s.aabb && s.aabb.min[0] < x + rad && s.aabb.max[0] > x - rad && s.aabb.min[2] < z + rad && s.aabb.max[2] > z - rad && out.push(...s.boxes);
+      }
       return out;
     }
     groundH(x, z, feetY) {
@@ -1355,26 +1391,34 @@ void main(){
       let best = null, consider = (h) => {
         h && (!best || h.t < best.t) && (best = h);
       }, prev = o[1] - terrainH(o[0], o[2]);
-      for (let t2 = 0; t2 < maxT; t2 += 0.6) {
+      for (let t2 = 0; t2 < maxT; t2 += 1) {
         let p = add(o, scale(d, t2)), dh = p[1] - terrainH(p[0], p[2]);
         if (dh < 0) {
-          let tt = t2 - 0.6 * (-dh / (prev - dh || 1));
+          let tt = t2 - 1 * (-dh / (prev - dh || 1));
           consider({ t: tt, p: add(o, scale(d, tt)), n: [0, 1, 0], kind: "terrain" });
           break;
         }
         if (prev = dh, p[1] > 80 && d[1] > 0) break;
       }
-      for (let q of this.props) {
-        if (q.dead || q.type === "bush" || Math.abs(q.pos[0] - o[0]) > maxT + 5 || Math.abs(q.pos[2] - o[2]) > maxT + 5) continue;
-        let h = _World.rayBox(o, d, { min: [q.pos[0] - q.r, q.pos[1], q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r] }, maxT);
-        h && consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: "prop", ref: q });
-      }
-      for (let s of this.statics)
-        if (!(s.dead || !s.boxes.length || Math.abs(s.pos[0] - o[0]) > maxT + 20 || Math.abs(s.pos[2] - o[2]) > maxT + 20))
-          for (let bx of s.boxes) {
-            let h = _World.rayBox(o, d, bx, maxT);
-            h && consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: "static", ref: s });
+      let seen = /* @__PURE__ */ new Set(), tEnd = best ? best.t : maxT;
+      for (let t2 = 0; t2 <= tEnd + _World.GC; t2 += _World.GC * 0.5) {
+        let px = o[0] + d[0] * Math.min(t2, tEnd), pz = o[2] + d[2] * Math.min(t2, tEnd);
+        for (let c of this.near(px, pz, _World.GC * 0.5))
+          if (!seen.has(c)) {
+            seen.add(c);
+            for (let q of c.props) {
+              if (q.dead || q.type === "bush") continue;
+              let h = _World.rayBox(o, d, { min: [q.pos[0] - q.r, q.pos[1], q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r] }, maxT);
+              h && consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: "prop", ref: q });
+            }
+            for (let s of c.statics)
+              if (!(s.dead || !s.aabb || !_World.rayBox(o, d, s.aabb, maxT)))
+                for (let bx of s.boxes) {
+                  let h = _World.rayBox(o, d, bx, maxT);
+                  h && consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: "static", ref: s });
+                }
           }
+      }
       for (let p of this.pieces.values()) {
         let h = _World.rayBox(o, d, this.pieceBox(p), maxT);
         if (h) {
@@ -1402,6 +1446,8 @@ void main(){
       return best;
     }
   };
+  __publicField(_World, "GC", 32);
+  var World = _World;
 
   // src/main.ts
   var canvas = document.getElementById("c"), R = new Renderer(canvas), M = buildModels(R), W = new World(R), MAT_STYLE = { wood: 2, stone: 3, metal: 4 }, editCache = /* @__PURE__ */ new Map(), editedMesh = (type, mat, mask) => {
@@ -1567,7 +1613,7 @@ void main(){
     { name: "tactical skilled", skill: [0.7, 0.95], aggro: [0.45, 0.7], loot: 0.6 }
   ];
   function spawnBot(at, profileIdx = -1) {
-    let p = POIS[Math.floor(rand(0, POIS.length))], land = [p.x + rand(-p.r, p.r) * 0.8, 0, p.z + rand(-p.r, p.r) * 0.8], pr = PROFILES[profileIdx >= 0 ? profileIdx : Math.floor(rand(0, PROFILES.length))], skill = rand(pr.skill[0], pr.skill[1]), aggression = rand(pr.aggro[0], pr.aggro[1]), pos = at ? [...at] : [0, 0, 0], b = { name: botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? "ground" : "bus", dead: !1, anim: 0, weapon: at ? "ar" : null, weapons: at ? ["ar"] : [], heals: at ? 2 : 0, mats: at ? 500 : 60, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: !1, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: "loot", profile: pr.name, skill, aggression, accuracy: 0.22 + skill * 0.45, reaction: lerp(0.85, 0.15, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos], voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-0.5, 0.5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0 };
+    let p = POIS[Math.floor(rand(0, POIS.length))], land = [p.x + rand(-p.r, p.r) * 0.8, 0, p.z + rand(-p.r, p.r) * 0.8], pr = PROFILES[profileIdx >= 0 ? profileIdx : Math.floor(rand(0, PROFILES.length))], skill = rand(pr.skill[0], pr.skill[1]), aggression = rand(pr.aggro[0], pr.aggro[1]), pos = at ? [...at] : [0, 0, 0], b = { name: botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? "ground" : "bus", dead: !1, anim: 0, weapon: at ? "ar" : null, weapons: at ? ["ar"] : [], heals: at ? 2 : 0, mats: at ? 500 : 60, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: !1, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: "loot", profile: pr.name, skill, aggression, accuracy: 0.22 + skill * 0.45, reaction: lerp(0.85, 0.15, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos], voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-0.5, 0.5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null };
     return bots.push(b), b;
   }
   function toLobby() {
@@ -2144,14 +2190,18 @@ void main(){
         return b.vel[0] *= 0.8, b.vel[2] *= 0.8, L;
       let dir = [dx / L, 0, dz / L];
       if (b.state === "ground") {
-        let eye = add(b.pos, [0, 1, 0]), blocked = (dv) => {
-          let h = W.raycast(eye, dv, 2.2);
-          return h && h.kind !== "terrain";
-        };
-        if (blocked(dir)) {
-          let l = norm([dir[0] * 0.7 - dir[2] * 0.7, 0, dir[2] * 0.7 + dir[0] * 0.7]), r = norm([dir[0] * 0.7 + dir[2] * 0.7, 0, dir[2] * 0.7 - dir[0] * 0.7]);
-          blocked(l) ? blocked(r) ? b.grounded && (b.vel[1] = 9) : dir = r : dir = l;
+        if (b.probeT -= dt, b.probeT <= 0) {
+          b.probeT = 0.15, b.probeDir = null;
+          let eye = add(b.pos, [0, 1, 0]), blocked = (dv) => {
+            let h = W.raycast(eye, dv, 2.2);
+            return h && h.kind !== "terrain";
+          };
+          if (blocked(dir)) {
+            let l = norm([dir[0] * 0.7 - dir[2] * 0.7, 0, dir[2] * 0.7 + dir[0] * 0.7]), r = norm([dir[0] * 0.7 + dir[2] * 0.7, 0, dir[2] * 0.7 - dir[0] * 0.7]);
+            blocked(l) ? blocked(r) ? b.grounded && (b.vel[1] = 9) : b.probeDir = r : b.probeDir = l;
+          }
         }
+        b.probeDir && (dir = b.probeDir);
       }
       return face && (b.yaw = Math.atan2(dir[0], dir[2])), b.vel[0] = lerp(b.vel[0], dir[0] * spd, 0.12), b.vel[2] = lerp(b.vel[2], dir[2] * spd, 0.12), L;
     };
@@ -2303,7 +2353,7 @@ void main(){
     }
     b.grounded = !1, moveEntity(b, 1.75, dt) && b.state !== "ground" && (b.state = "ground", b.mode = "loot");
   }
-  var last = performance.now(), t = 0;
+  var last = performance.now(), t = 0, PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0 };
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1e3);
     last = now, t += dt, fpsN++, fpsT += dt, fpsT > 0.5 && (fpsV = Math.round(fpsN / fpsT), fpsN = 0, fpsT = 0);
@@ -2499,7 +2549,9 @@ void main(){
         }
       }
     }
+    let pf0 = performance.now();
     if (!D.pauseBots) for (let b of bots) updateBot(b, dt);
+    PROF.bots += performance.now() - pf0;
     for (let q of W.props) q.dead > 0 && (q.dead -= dt, q.dead <= 0 && (q.dead = 0, q.hp = 250));
     for (let i = fx.length - 1; i >= 0; i--)
       fx[i].t -= dt, fx[i].t <= 0 && fx.splice(i, 1);
@@ -2507,7 +2559,9 @@ void main(){
       feed[i].t -= dt, feed[i].t <= 0 && feed.splice(i, 1);
     infoT > 0 && (infoT -= dt, infoT <= 0 && (H.info.style.display = "none")), P.weakT = Math.max(0, P.weakT - dt), P.weakT <= 0 && (P.weakPos = null, P.weakRef = null);
     for (let s of W.statics) s.shake && s.shake > 0 && (s.shake = Math.max(0, s.shake - dt));
-    if (pressed.clear(), R.draw(W.terrain, trs([0, 0, 0]), [1, 1, 1], 1, 5), P.state === "play" && S.grass > 0) {
+    pressed.clear();
+    let pf1 = performance.now();
+    if (R.draw(W.terrain, trs([0, 0, 0]), [1, 1, 1], 1, 5), P.state === "play" && S.grass > 0) {
       let cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1;
       for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, !1, !0);
     }
@@ -2563,10 +2617,14 @@ void main(){
         it ? R.draw(M[it.kind], trs(hp, P.yaw, -P.pitch), [1, 1, 1], 1, 0, !1) : R.draw(M.pickaxe, mul(trs(hp, P.yaw, -P.pitch), rotX(1 + (P.swing > 0 ? Math.sin(P.swing * 6.3) * 1.2 : 0))), [1, 1, 1], 1, 0, !1);
       }
     }
-    R.shadows = S.shadows, R.scale = S.scale, R.flush({ pos: camPos, fwd: camFwd, fov, aspect }, VP, sun, P.pos, t, !0, P.state === "play" ? S.shadows > 1 ? 62 : 40 : 180), drawIcon(SKINS[P.skin]), drawHud(), gpPrev.clear();
+    R.shadows = S.shadows, R.scale = S.scale;
+    let pf2 = performance.now();
+    PROF.submit += pf2 - pf1, R.flush({ pos: camPos, fwd: camFwd, fov, aspect }, VP, sun, P.pos, t, !0, P.state === "play" ? S.shadows > 1 ? 62 : 40 : 180);
+    let pf3 = performance.now();
+    PROF.flush += pf3 - pf2, drawIcon(SKINS[P.skin]), drawHud(), PROF.hud += performance.now() - pf3, PROF.frames++, gpPrev.clear();
     for (let b of curGpButtons) gpPrev.add(b);
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  window.G = { P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+  window.G = { PROF, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
 })();

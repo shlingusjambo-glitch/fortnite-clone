@@ -55,7 +55,7 @@ const mkItem = (kind: Kind, count = 1, rar = -1): Item => ({ kind, mag: isWeapon
 interface GroundItem { item: Item; pos: V3; }
 type BotMode = 'loot' | 'rotate' | 'hunt' | 'fight' | 'box' | 'crank' | 'heal' | 'rush';
 interface Crank { c: V3; L: number; d: number; t: number; steps: number; }
-interface Bot { name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; }
+interface Bot { name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; }
 interface Fx { kind: 'dmg' | 'tracer'; t: number; pos: V3; text?: string; head?: boolean; to?: V3; }
 const ICON: Record<string, string> = {
   pickaxe: '<svg viewBox="0 0 64 64"><path d="M14 52 L44 22" stroke="#7a5a3a" stroke-width="6" stroke-linecap="round"/><path d="M30 12 Q46 8 56 26" stroke="#dfe6ee" stroke-width="8" fill="none" stroke-linecap="round"/></svg>',
@@ -144,7 +144,7 @@ function spawnBot(at?: V3, profileIdx = -1): Bot {
   const p = POIS[Math.floor(rand(0, POIS.length))], land: V3 = [p.x + rand(-p.r, p.r) * 0.8, 0, p.z + rand(-p.r, p.r) * 0.8];
   const pr = PROFILES[profileIdx >= 0 ? profileIdx : Math.floor(rand(0, PROFILES.length))];
   const skill = rand(pr.skill[0], pr.skill[1]), aggression = rand(pr.aggro[0], pr.aggro[1]), pos = at ? [...at] as V3 : [0, 0, 0] as V3;
-  const b: Bot = { name: botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? 'ground' : 'bus', dead: false, anim: 0, weapon: at ? 'ar' : null, weapons: at ? ['ar'] : [], heals: at ? 2 : 0, mats: at ? 500 : 60, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: false, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: 'loot', profile: pr.name, skill, aggression, accuracy: 0.22 + skill * 0.45, reaction: lerp(0.85, 0.15, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos] as V3, voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-.5, .5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0 };
+  const b: Bot = { name: botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? 'ground' : 'bus', dead: false, anim: 0, weapon: at ? 'ar' : null, weapons: at ? ['ar'] : [], heals: at ? 2 : 0, mats: at ? 500 : 60, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: false, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: 'loot', profile: pr.name, skill, aggression, accuracy: 0.22 + skill * 0.45, reaction: lerp(0.85, 0.15, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos] as V3, voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-.5, .5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null };
   bots.push(b); return b;
 }
 function toLobby() { P.state = 'lobby'; H.end.style.display = 'none'; P.over = false; H.lobby.style.display = 'block'; H.hud.style.display = 'none'; document.exitPointerLock(); }
@@ -546,9 +546,14 @@ function updateBot(b: Bot, dt: number) {
     const dx = tgt[0] - b.pos[0], dz = tgt[2] - b.pos[2], L = Math.hypot(dx, dz);
     if (L < 0.5) { b.vel[0] *= 0.8; b.vel[2] *= 0.8; return L; }
     let dir: V3 = [dx / L, 0, dz / L];
-    if (b.state === 'ground') {   // obstacle probe at chest height; try 45° left/right, else jump
-      const eye = add(b.pos, [0, 1.0, 0]), blocked = (dv: V3) => { const h = W.raycast(eye, dv, 2.2); return h && h.kind !== 'terrain'; };
-      if (blocked(dir)) { const l: V3 = norm([dir[0] * 0.7 - dir[2] * 0.7, 0, dir[2] * 0.7 + dir[0] * 0.7]), r: V3 = norm([dir[0] * 0.7 + dir[2] * 0.7, 0, dir[2] * 0.7 - dir[0] * 0.7]); if (!blocked(l)) dir = l; else if (!blocked(r)) dir = r; else if (b.grounded) b.vel[1] = 9; }
+    if (b.state === 'ground') {   // obstacle probe at chest height (every 0.15s); try 45° left/right, else jump
+      b.probeT -= dt;
+      if (b.probeT <= 0) {
+        b.probeT = 0.15; b.probeDir = null;
+        const eye = add(b.pos, [0, 1.0, 0]), blocked = (dv: V3) => { const h = W.raycast(eye, dv, 2.2); return h && h.kind !== 'terrain'; };
+        if (blocked(dir)) { const l: V3 = norm([dir[0] * 0.7 - dir[2] * 0.7, 0, dir[2] * 0.7 + dir[0] * 0.7]), r: V3 = norm([dir[0] * 0.7 + dir[2] * 0.7, 0, dir[2] * 0.7 - dir[0] * 0.7]); if (!blocked(l)) b.probeDir = l; else if (!blocked(r)) b.probeDir = r; else if (b.grounded) b.vel[1] = 9; }
+      }
+      if (b.probeDir) dir = b.probeDir;
     }
     if (face) b.yaw = Math.atan2(dir[0], dir[2]);
     b.vel[0] = lerp(b.vel[0], dir[0] * spd, 0.12); b.vel[2] = lerp(b.vel[2], dir[2] * spd, 0.12); return L;
@@ -701,6 +706,7 @@ function updateBot(b: Bot, dt: number) {
 
 // ---------------- main loop ----------------
 let last = performance.now(), t = 0;
+const PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0 };
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
   fpsN++; fpsT += dt; if (fpsT > 0.5) { fpsV = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
@@ -938,7 +944,9 @@ function frame(now: number) {
       }
     }
   }
+  const pf0 = performance.now();
   if (!D.pauseBots) for (const b of bots) updateBot(b, dt);
+  PROF.bots += performance.now() - pf0;
   for (const q of W.props) if (q.dead > 0) { q.dead -= dt; if (q.dead <= 0) { q.dead = 0; q.hp = 250; } }
   for (let i = fx.length - 1; i >= 0; i--) { fx[i].t -= dt; if (fx[i].t <= 0) fx.splice(i, 1); }
   for (let i = feed.length - 1; i >= 0; i--) { feed[i].t -= dt; if (feed[i].t <= 0) feed.splice(i, 1); }
@@ -948,6 +956,7 @@ function frame(now: number) {
   pressed.clear();
 
   // ---------------- render ----------------
+  const pf1 = performance.now();
   R.draw(W.terrain, trs([0, 0, 0]), [1, 1, 1], 1, 5);
   if (P.state === 'play' && S.grass > 0) { const cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1; for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, false, true); }
   R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, false);
@@ -992,10 +1001,13 @@ function frame(now: number) {
     }
   }
   R.shadows = S.shadows; R.scale = S.scale;
+  const pf2 = performance.now(); PROF.submit += pf2 - pf1;
   R.flush({ pos: camPos, fwd: camFwd, fov, aspect }, VP, sun, P.pos, t, true, P.state === 'play' ? (S.shadows > 1 ? 62 : 40) : 180);
+  const pf3 = performance.now(); PROF.flush += pf3 - pf2;
   drawIcon(SKINS[P.skin]); drawHud();
+  PROF.hud += performance.now() - pf3; PROF.frames++;
   gpPrev.clear(); for (const b of curGpButtons) gpPrev.add(b);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-(window as any).G = { P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+(window as any).G = { PROF, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };

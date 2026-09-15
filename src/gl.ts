@@ -12,7 +12,7 @@ uniform vec3 uCam, uSun, uFog; uniform float uAlpha, uStyle, uTexel, uT, uFogD; 
 out vec4 o;
 float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }
-float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p = p * 2.08 + 3.7; a *= 0.5; } return v; }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++) { v += a * vn(p); p = p * 2.08 + 3.7; a *= 0.5; } return v; }
 // planar uv from the dominant axis of the normal (object space)
 vec2 puv(vec3 n, vec3 p){ vec3 a = abs(n); return a.y > a.x && a.y > a.z ? p.xz : (a.x > a.z ? p.zy : p.xy); }
 void main(){
@@ -40,7 +40,7 @@ void main(){
     float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.7), v3 = vn(vWorld.xz * 2.5);
     vec3 grass = col * (0.88 + 0.22 * v + 0.08 * v2 + 0.05 * v3);
     float slope = 1.0 - n.y;
-    float band = 0.5 + 0.5 * sin(vWorld.y * 2.2 + fbm(vWorld.xz * 0.3) * 3.0);
+    float band = 0.5 + 0.5 * sin(vWorld.y * 2.2 + vn(vWorld.xz * 0.3) * 3.0);
     vec3 rock = mix(vec3(0.62, 0.58, 0.50), vec3(0.82, 0.78, 0.68), band) * (0.85 + 0.3 * vn(vWorld.xz * 1.3 + vWorld.y));
     float rk = smoothstep(0.32, 0.5, slope);
     vec3 dirt = vec3(0.66, 0.54, 0.36) * (0.9 + 0.2 * v3);

@@ -68,7 +68,7 @@ export function terrainColor(x: number, z: number, y: number): Col {
 }
 
 export interface Prop { type: 'tree' | 'tree2' | 'pine' | 'rock' | 'bush'; pos: V3; yaw: number; s: number; hp: number; r: number; h: number; dead: number; }
-export interface Static { mesh: string; pos: V3; yaw: number; boxes: Box[]; hp?: number; maxHp?: number; shake?: number; dead?: boolean; }
+export interface Static { mesh: string; pos: V3; yaw: number; boxes: Box[]; aabb?: Box; hp?: number; maxHp?: number; shake?: number; dead?: boolean; }
 export type Mat = 'wood' | 'stone' | 'metal';
 export type PieceType = 'wall' | 'floor' | 'ramp' | 'pyramid';
 export interface Piece { type: PieceType; mat: Mat; pos: V3; dir: number; hp: number; maxHp: number; key: string; edit: number; born: number; }
@@ -81,6 +81,24 @@ export interface Hit { t: number; p: V3; n: V3; kind: 'terrain' | 'prop' | 'piec
 export class World {
   terrain!: Mesh; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
   lootSpots: V3[] = []; chestSpots: V3[] = []; footprints: [number, number, number][] = [];
+  /** 32m spatial hash of props + statics so collision/raycast only touch nearby objects */
+  grid = new Map<number, { props: Prop[]; statics: Static[] }>();
+  static GC = 32;
+  private gkey(x: number, z: number) { return (Math.floor(x / World.GC) + 512) * 4096 + Math.floor(z / World.GC) + 512; }
+  private cell(x: number, z: number) { const k = this.gkey(x, z); let c = this.grid.get(k); if (!c) { c = { props: [], statics: [] }; this.grid.set(k, c); } return c; }
+  buildGrid() {
+    this.grid.clear();
+    for (const q of this.props) this.cell(q.pos[0], q.pos[2]).props.push(q);
+    for (const s of this.statics) {
+      if (!s.boxes.length) continue;
+      const a: Box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+      for (const b of s.boxes) for (let i = 0; i < 3; i++) { a.min[i] = Math.min(a.min[i], b.min[i]); a.max[i] = Math.max(a.max[i], b.max[i]); }
+      s.aabb = a;
+      for (let x = a.min[0]; x <= a.max[0] + World.GC; x += World.GC) for (let z = a.min[2]; z <= a.max[2] + World.GC; z += World.GC) { const c = this.cell(Math.min(x, a.max[0]), Math.min(z, a.max[2])); if (!c.statics.includes(s)) c.statics.push(s); }
+    }
+  }
+  /** cells within rad of (x,z) */
+  private near(x: number, z: number, rad: number) { const out: { props: Prop[]; statics: Static[] }[] = []; for (let cx = x - rad; cx <= x + rad + World.GC; cx += World.GC) for (let cz = z - rad; cz <= z + rad + World.GC; cz += World.GC) { const c = this.grid.get(this.gkey(Math.min(cx, x + rad), Math.min(cz, z + rad))); if (c && !out.includes(c)) out.push(c); } return out; }
   constructor(r: Renderer) {
     const b = new MB(), n = Math.floor(SIZE / STEP);
     const N = (x: number, z: number): V3 => norm([terrainH(x - 1, z) - terrainH(x + 1, z), 2, terrainH(x, z - 1) - terrainH(x, z + 1)]);
@@ -155,6 +173,7 @@ export class World {
     }
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L; for (let tt = 30; tt < L - 30; tt += rand(10, 18)) { const s = Math.random() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14); put(x, z, Math.random() < 0.8 ? 'tree' : 'bush', rand(1.3, 1.8)); } }
     for (const [mx, mz, mr] of MESAS) for (let k = 0; k < 10; k++) { const a = rand(0, 6.28); put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), Math.random() < 0.5 ? 'pine' : 'rock', rand(1.2, 1.8)); for (let q = 0; q < 2; q++) put(mx + Math.cos(a) * (mr + rand(6, 14)), mz + Math.sin(a) * (mr + rand(6, 14)), 'rock', rand(1.4, 2.4)); }
+    this.buildGrid();
   }
   /** lush 3D grass blade clusters with varied heights, wildflowers and wind sway */
   grassChunks = new Map<string, Mesh>();
@@ -244,8 +263,10 @@ export class World {
   solids(x: number, z: number, rad = 10): Box[] {
     const out: Box[] = [];
     for (const p of this.pieces.values()) if ((p.type === 'wall' || p.type === 'floor') && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad) out.push(...this.pieceBoxes(p));
-    for (const q of this.props) if (!q.dead && q.type !== 'bush' && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad) out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
-    for (const s of this.statics) if (!s.dead && s.boxes.length && Math.abs(s.pos[0] - x) < rad + 14 && Math.abs(s.pos[2] - z) < rad + 14) out.push(...s.boxes);
+    for (const c of this.near(x, z, rad)) {
+      for (const q of c.props) if (!q.dead && q.type !== 'bush' && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad) out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
+      for (const s of c.statics) if (!s.dead && s.aabb && s.aabb.min[0] < x + rad && s.aabb.max[0] > x - rad && s.aabb.min[2] < z + rad && s.aabb.max[2] > z - rad) out.push(...s.boxes);
+    }
     return out;
   }
   groundH(x: number, z: number, feetY: number): number {
@@ -275,19 +296,25 @@ export class World {
     let best: Hit | null = null;
     const consider = (h: Hit | null) => { if (h && (!best || h.t < best.t)) best = h; };
     let prev = o[1] - terrainH(o[0], o[2]);
-    for (let t = 0; t < maxT; t += 0.6) {
+    for (let t = 0; t < maxT; t += 1.0) {
       const p = add(o, scale(d, t)), dh = p[1] - terrainH(p[0], p[2]);
-      if (dh < 0) { const tt = t - 0.6 * (-dh / (prev - dh || 1)); consider({ t: tt, p: add(o, scale(d, tt)), n: [0, 1, 0], kind: 'terrain' }); break; }
+      if (dh < 0) { const tt = t - 1.0 * (-dh / (prev - dh || 1)); consider({ t: tt, p: add(o, scale(d, tt)), n: [0, 1, 0], kind: 'terrain' }); break; }
       prev = dh;
       if (p[1] > 80 && d[1] > 0) break;
     }
-    for (const q of this.props) {
-      if (q.dead || q.type === 'bush') continue;
-      if (Math.abs(q.pos[0] - o[0]) > maxT + 5 || Math.abs(q.pos[2] - o[2]) > maxT + 5) continue;
-      const h = World.rayBox(o, d, { min: [q.pos[0] - q.r, q.pos[1], q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r] }, maxT);
-      if (h) consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: 'prop', ref: q });
+    const seen = new Set<{ props: Prop[]; statics: Static[] }>(), tEnd = best ? (best as Hit).t : maxT;
+    for (let t = 0; t <= tEnd + World.GC; t += World.GC * 0.5) {
+      const px = o[0] + d[0] * Math.min(t, tEnd), pz = o[2] + d[2] * Math.min(t, tEnd);
+      for (const c of this.near(px, pz, World.GC * 0.5)) {
+        if (seen.has(c)) continue; seen.add(c);
+        for (const q of c.props) {
+          if (q.dead || q.type === 'bush') continue;
+          const h = World.rayBox(o, d, { min: [q.pos[0] - q.r, q.pos[1], q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r] }, maxT);
+          if (h) consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: 'prop', ref: q });
+        }
+        for (const s of c.statics) { if (s.dead || !s.aabb || !World.rayBox(o, d, s.aabb, maxT)) continue; for (const bx of s.boxes) { const h = World.rayBox(o, d, bx, maxT); if (h) consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: 'static', ref: s }); } }
+      }
     }
-    for (const s of this.statics) { if (s.dead || !s.boxes.length || Math.abs(s.pos[0] - o[0]) > maxT + 20 || Math.abs(s.pos[2] - o[2]) > maxT + 20) continue; for (const bx of s.boxes) { const h = World.rayBox(o, d, bx, maxT); if (h) consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: 'static', ref: s }); } }
     for (const p of this.pieces.values()) {
       const h = World.rayBox(o, d, this.pieceBox(p), maxT);
       if (!h) continue;
