@@ -723,6 +723,9 @@ function updateBot(b: Bot, dt: number) {
       const acc = clamp(b.accuracy - L / (rng * 3.4) - (Math.hypot(b.vel[0], b.vel[2]) > 4 ? 0.08 : 0), 0.06, 0.7) * (b.weapon === 'sniper' ? 0.8 : 1) * (b.enemy === 'player' ? 1 : 0.55);
       if (Math.random() < 0.2) b.aimDrift = [rand(-1.5, 1.5), rand(-.75, .75), rand(-1.5, 1.5)];
       const from = add(b.pos, [0, 1.5, 0]), to = add(add(ep!, [0, 1.2 + rand(-0.45, 0.45), 0]), scale(b.aimDrift, clamp(L / 45, .15, 1)));
+      if (L < 10 && b.skill > 0.4 && !los(from, to)) {   // enemy boxed up close: chew through the piece in the way
+        const h = W.raycast(from, norm(sub(to, from)), L); if (h && h.kind === 'piece') { W.damagePiece(h.ref as Piece, dmg * 2); fx.push({ kind: 'tracer', t: 0.06, pos: from, to: h.p }); fx.push({ kind: 'puff', t: 0.22, pos: h.p, col: [0.9, 0.85, 0.7] }); botHear(b.pos, 60, b); return; }
+      }
       if (ep![1] > b.pos[1] + 3 && L < 22 && b.skill > 0.45 && Math.random() < 0.35) {   // enemy above: shoot out the piece holding them up
         let low: Piece | null = null; for (const p of W.pieces.values()) if ((p.type === 'ramp' || p.type === 'floor') && len(sub(p.pos, ep!)) < 4.5 && (!low || p.pos[1] < low.pos[1])) low = p;
         if (low) { W.damagePiece(low, dmg * 1.5); fx.push({ kind: 'tracer', t: 0.06, pos: from, to: add(low.pos, [0, 0.5, 0]) }); botHear(b.pos, 60, b); return; }
