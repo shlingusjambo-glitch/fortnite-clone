@@ -660,6 +660,17 @@ export function buildModels(r: Renderer): Models {
     b.box([0, -0.04, 0.02], [0.03, 0.05, 0.06], gunMetal);                             // trigger guard
     for (let i = 0; i < 4; i++) b.box([0.036, 0.04, -0.06 + i * 0.03], [0.004, 0.06, 0.012], steelGrey);   // slide serrations
   });
+  M.revolver = mk(b => {
+    b.rbox([0, 0.03, 0.02], [0.06, 0.09, 0.3], gunMetal, 0.012); b.cyl([0, 0.04, 0.3], 0.016, 0.016, 0.22, steelGrey, 10, true, true);
+    b.push(rotX(1.57)); b.cyl([0, -0.06, 0.04], 0.045, 0.045, 0.12, steelGrey, 8, true, true); b.pop();                     // cylinder drum
+    b.push(mul(translate(0, -0.1, -0.1), rotX(0.4))); b.rbox([0, 0, 0], [0.05, 0.18, 0.07], rgb(0x6e4a2e), 0.015); b.pop(); // wood grip
+    b.box([0, -0.04, 0.02], [0.03, 0.05, 0.06], gunMetal); b.box([0, 0.09, -0.1], [0.02, 0.03, 0.03], gunMetal);
+  });
+  M.silenced = mk(b => {
+    b.rbox([0, 0.02, 0.06], [0.07, 0.1, 0.34], gunMetal, 0.015); b.cyl([0, 0.02, 0.4], 0.032, 0.032, 0.36, rgb(0x1a1a1e), 10, true, true);   // suppressor
+    b.push(mul(translate(0, -0.11, -0.06), rotX(0.3))); b.rbox([0, 0, 0], [0.06, 0.2, 0.08], rgb(0x3a2e24), 0.015); b.pop();
+    b.box([0, -0.04, 0.02], [0.03, 0.05, 0.06], gunMetal); b.box([0, 0.09, 0.0], [0.03, 0.04, 0.16], C.holographic);
+  });
   // Tactical Shotgun (semi-auto, drum-free, short)
   M.tac = mk(b => {
     b.rbox([0, 0, -0.02], [0.1, 0.15, 0.5], rgb(0x2f3438), 0.02);

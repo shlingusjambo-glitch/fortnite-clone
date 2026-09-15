@@ -525,6 +525,10 @@ void main(){
     }), M2.pistol = mk((b) => {
       b.rbox([0, 0.02, 0.06], [0.07, 0.1, 0.34], gunMetal, 0.015), b.cyl([0, 0.02, 0.26], 0.018, 0.018, 0.1, steelGrey, 10, !0, !0), b.push(mul(translate(0, -0.11, -0.06), rotX(0.3))), b.rbox([0, 0, 0], [0.06, 0.2, 0.08], rgb(3812900), 0.015), b.pop(), b.box([0, -0.04, 0.02], [0.03, 0.05, 0.06], gunMetal);
       for (let i = 0; i < 4; i++) b.box([0.036, 0.04, -0.06 + i * 0.03], [4e-3, 0.06, 0.012], steelGrey);
+    }), M2.revolver = mk((b) => {
+      b.rbox([0, 0.03, 0.02], [0.06, 0.09, 0.3], gunMetal, 0.012), b.cyl([0, 0.04, 0.3], 0.016, 0.016, 0.22, steelGrey, 10, !0, !0), b.push(rotX(1.57)), b.cyl([0, -0.06, 0.04], 0.045, 0.045, 0.12, steelGrey, 8, !0, !0), b.pop(), b.push(mul(translate(0, -0.1, -0.1), rotX(0.4))), b.rbox([0, 0, 0], [0.05, 0.18, 0.07], rgb(7227950), 0.015), b.pop(), b.box([0, -0.04, 0.02], [0.03, 0.05, 0.06], gunMetal), b.box([0, 0.09, -0.1], [0.02, 0.03, 0.03], gunMetal);
+    }), M2.silenced = mk((b) => {
+      b.rbox([0, 0.02, 0.06], [0.07, 0.1, 0.34], gunMetal, 0.015), b.cyl([0, 0.02, 0.4], 0.032, 0.032, 0.36, rgb(1710622), 10, !0, !0), b.push(mul(translate(0, -0.11, -0.06), rotX(0.3))), b.rbox([0, 0, 0], [0.06, 0.2, 0.08], rgb(3812900), 0.015), b.pop(), b.box([0, -0.04, 0.02], [0.03, 0.05, 0.06], gunMetal), b.box([0, 0.09, 0], [0.03, 0.04, 0.16], C.holographic);
     }), M2.tac = mk((b) => {
       b.rbox([0, 0, -0.02], [0.1, 0.15, 0.5], rgb(3093560), 0.02), b.cyl([0, 0.035, 0.2], 0.03, 0.03, 0.7, gunMetal, 12, !0, !0), b.cyl([0, -0.04, 0.2], 0.03, 0.03, 0.6, steelGrey, 12, !0, !0), b.rbox([0, -0.04, 0.42], [0.1, 0.1, 0.3], rgb(3093560), 0.02);
       for (let i = 0; i < 6; i++) b.box([0, 0.1, 0.05 + i * 0.05], [0.05, 0.03, 0.02], gunMetal);
@@ -1646,6 +1650,8 @@ void main(){
     tac: { name: "Tactical Shotgun", dmg: 7, rpm: 90, mag: 8, reload: 4.5, spread: 0.07, pellets: 10, ammo: "shells", auto: !1, hs: 1.5, range: 35, rarity: "uncommon", bloom: 0, kick: 0.03 },
     hunting: { name: "Hunting Rifle", dmg: 86, rpm: 40, mag: 1, reload: 1.9, spread: 2e-3, pellets: 1, ammo: "heavy", auto: !1, hs: 2.5, range: 500, rarity: "uncommon", bloom: 0, kick: 0.045 },
     scar: { name: "SCAR", dmg: 36, rpm: 330, mag: 30, reload: 2.1, spread: 6e-3, pellets: 1, ammo: "medium", auto: !0, hs: 1.5, range: 320, rarity: "legendary", bloom: 0.01, kick: 0.011 },
+    revolver: { name: "Revolver", dmg: 54, rpm: 55, mag: 6, reload: 2.4, spread: 8e-3, pellets: 1, ammo: "medium", auto: !1, hs: 2, range: 150, rarity: "uncommon", bloom: 0.012, kick: 0.03 },
+    silenced: { name: "Suppressed Pistol", dmg: 26, rpm: 380, mag: 16, reload: 1.4, spread: 0.01, pellets: 1, ammo: "light", auto: !1, hs: 2, range: 130, rarity: "epic", bloom: 8e-3, kick: 8e-3 },
     rpg: { name: "Rocket Launcher", dmg: 110, rpm: 45, mag: 1, reload: 3.2, spread: 0, pellets: 1, ammo: "heavy", auto: !1, hs: 1, range: 200, rarity: "epic", bloom: 0, kick: 0.06 },
     sniper: { name: "Bolt-Action Sniper Rifle", dmg: 105, rpm: 34, mag: 1, reload: 2.8, spread: 0, pellets: 1, ammo: "heavy", auto: !1, hs: 2.5, range: 600, rarity: "epic", bloom: 0, kick: 0.05 }
   }, CONS = {
@@ -1670,6 +1676,8 @@ void main(){
     pistol: '<svg viewBox="0 0 64 64"><path d="M12 28h40v8h-22l-4 14h-8l3-14h-9z" fill="#e8ecef"/></svg>',
     tac: '<svg viewBox="0 0 64 64"><path d="M4 36l14-6h38v5h-28v4h-10l-6 8h-8z" fill="#e8ecef"/><rect x="24" y="31" width="22" height="3" fill="#ff8a1e"/></svg>',
     hunting: '<svg viewBox="0 0 64 64"><path d="M4 36l12-6h46v4h-36v4h-6l-6 8h-8z" fill="#e8ecef"/><rect x="40" y="26" width="3" height="5" fill="#e8ecef"/></svg>',
+    revolver: '<svg viewBox="0 0 64 64"><path d="M10 28h44v7h-24l-4 14h-8l3-14h-11z" fill="#e8ecef"/><circle cx="30" cy="31" r="5" fill="#aaa"/></svg>',
+    silenced: '<svg viewBox="0 0 64 64"><path d="M20 28h32v8h-16l-4 14h-8l3-14h-7z" fill="#e8ecef"/><rect x="4" y="27" width="18" height="10" rx="3" fill="#666"/></svg>',
     rpg: '<svg viewBox="0 0 64 64"><rect x="4" y="28" width="52" height="10" rx="3" fill="#8a9a6a"/><path d="M56 26l6 7-6 7z" fill="#d83030"/><rect x="22" y="38" width="8" height="10" fill="#444"/></svg>',
     scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
     miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
@@ -1763,7 +1771,7 @@ void main(){
     P.state = "bus", P.hp = 100, P.shield = 0, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.pieces.clear();
     let a = rand(0, 6.28);
     bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420], bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)], bus.t = 0, bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]), P.yaw = bus.yaw, P.pitch = -0.22, storm.c = [rand(-80, 80), rand(-80, 80)], storm.r = 520, storm.phaseT = 120;
-    let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "ammo", "ammo"];
+    let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "ammo", "ammo"];
     for (let l of W.lootSpots) Math.random() < 0.75 && dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
     for (let c of W.chestSpots) Math.random() < 0.7 && chests.push({ pos: [...c], yaw: rand(0, 6.28), open: !1 });
     for (let p of POIS) for (let i = 0; i < 3; i++) {
@@ -1958,7 +1966,7 @@ void main(){
       item.mag--, P.fireCd = 60 / w.rpm, P.pitch += w.kick, beep(80, 0.3, "sawtooth", 0.15, -40), rumble(250, 0.9, 1), nades.push({ pos: add(camPos, scale(camFwd, 1.2)), vel: scale(camFwd, 34), t: 6, by: "Player", rocket: !0 }), botHear(P.pos, 90, "player");
       return;
     }
-    botHear(P.pos, 70, "player"), D.infAmmo || item.mag--, P.fireCd = 60 / w.rpm, beep(item.kind === "sniper" ? 90 : item.kind === "shotgun" ? 110 : 220, 0.12, "sawtooth", 0.12, -80);
+    item.kind !== "silenced" && botHear(P.pos, 70, "player"), D.infAmmo || item.mag--, P.fireCd = 60 / w.rpm, beep(item.kind === "sniper" ? 90 : item.kind === "shotgun" ? 110 : item.kind === "silenced" ? 500 : 220, 0.12, "sawtooth", item.kind === "silenced" ? 0.04 : 0.12, -80);
     let rDur = item.kind === "shotgun" ? 180 : item.kind === "sniper" ? 220 : item.kind === "smg" ? 75 : 100, rWeak = item.kind === "shotgun" ? 0.7 : item.kind === "sniper" ? 0.5 : item.kind === "smg" ? 0.3 : 0.5, rStrong = item.kind === "shotgun" ? 0.9 : item.kind === "sniper" ? 1 : item.kind === "smg" ? 0.3 : 0.5;
     rumble(rDur, rWeak, rStrong), P.pitch += w.kick * (P.ads ? 0.6 : 1), P.yaw += rand(-w.kick, w.kick) * 0.4, w.burst && (P.burstLeft <= 0 && (P.burstLeft = w.burst), P.burstLeft--, P.burstLeft <= 0 && (P.fireCd = 0.5));
     let boxes = botBoxes(), hitAny = !1, headAny = !1;
@@ -2388,7 +2396,7 @@ void main(){
       }
     }
   }
-  var BOT_W = { ar: [0.26, 21, 70, 22], scar: [0.26, 24, 75, 22], burst: [0.3, 21, 70, 22], smg: [0.11, 11, 40, 14], pistol: [0.22, 16, 45, 16], shotgun: [0.9, 58, 14, 6], tac: [0.5, 42, 14, 7], sniper: [1.8, 85, 220, 45], hunting: [1.4, 72, 180, 40], rpg: [3, 95, 120, 30] };
+  var BOT_W = { ar: [0.26, 21, 70, 22], scar: [0.26, 24, 75, 22], burst: [0.3, 21, 70, 22], smg: [0.11, 11, 40, 14], pistol: [0.22, 16, 45, 16], shotgun: [0.9, 58, 14, 6], tac: [0.5, 42, 14, 7], sniper: [1.8, 85, 220, 45], hunting: [1.4, 72, 180, 40], rpg: [3, 95, 120, 30], revolver: [1, 40, 50, 14], silenced: [0.24, 18, 45, 16] };
   function los(a, b) {
     let d = sub(b, a), L = len(d), h = W.raycast(a, norm(d), L);
     return !h || h.t >= L - 0.5;
@@ -2797,7 +2805,7 @@ void main(){
       if (near ? (H.info.textContent = `[E] ${isWeapon(near.item.kind) ? WEAPONS[near.item.kind].name : CONS[near.item.kind].name}`, H.info.style.display = "block", infoT = Math.max(infoT, 0.05)) : nearChest && (H.info.textContent = "[E] Open chest", H.info.style.display = "block", infoT = Math.max(infoT, 0.05)), key("KeyE")) {
         if (nearChest) {
           nearChest.open = !0, beep(400, 0.4, "triangle", 0.08, 500);
-          let pool = ["ar", "burst", "smg", "shotgun", "sniper", "tac", "hunting", "scar", "pistol"];
+          let pool = ["ar", "burst", "smg", "shotgun", "sniper", "tac", "hunting", "scar", "pistol", "revolver", "silenced"];
           dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1), nearChest.drop && (dropItem(mkItem("rpg", 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.8), dropItem(mkItem("rod"), add(nearChest.pos, [0, 0.3, 0]), 1.4), dropItem(mkItem("sniper", 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6)), dropItem(mkItem(["shieldPot", "bandage", "miniShield", "chug", "grenade", "boogie", "impulse"][Math.floor(rand(0, 7))], 3), add(nearChest.pos, [0, 0.3, 0]), 1.2), P.ammo.medium += 30, P.ammo.light += 30, P.ammo.shells += 5, P.ammo.heavy += 3, P.mats.wood += 30, info("+ ammo, +30 wood");
         } else if (near) {
           let k = near.item.kind;
