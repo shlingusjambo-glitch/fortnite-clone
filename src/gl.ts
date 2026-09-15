@@ -36,15 +36,18 @@ void main(){
     col *= mix(0.6, 1.0, smoothstep(0.0, 0.05, line)); float diag = smoothstep(0.02, 0.05, abs(fract((uv.x + uv.y) * 1.5) - 0.5)); col *= 0.88 + 0.14 * diag;
     vec2 b = abs(f - 0.12); float bolt = step(length(b), 0.04) + step(length(abs(f - 0.88)), 0.04); col *= 1.0 - bolt * 0.45; rough = 0.38;
   }
-  else if (st == 5) {            // terrain: grass detail, dirt speckle, rock strata on cliffs
-    float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.7), v3 = vn(vWorld.xz * 2.5);
-    vec3 grass = col * (0.88 + 0.22 * v + 0.08 * v2 + 0.05 * v3);
+  else if (st == 5) {            // terrain: two-tone grass with dark clumps, dry patches, dirt on slopes, strata rock on cliffs
+    float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.7), v3 = vn(vWorld.xz * 2.5), v4 = vn(vWorld.xz * 0.18 + 40.0);
+    vec3 g1 = col * vec3(0.80, 0.86, 0.70), g2 = col * vec3(0.98, 1.0, 0.85);
+    vec3 grass = mix(g1, g2, smoothstep(0.35, 0.65, v)) * (0.86 + 0.16 * v2 + 0.06 * v3);
+    grass = mix(grass, col * vec3(1.02, 0.96, 0.62), smoothstep(0.62, 0.8, v4) * 0.55);          // dry yellow patches
+    grass *= 1.0 - 0.16 * smoothstep(0.7, 0.9, vn(vWorld.xz * 3.5));                              // dark clumps
     float slope = 1.0 - n.y;
     float band = 0.5 + 0.5 * sin(vWorld.y * 2.2 + vn(vWorld.xz * 0.3) * 3.0);
-    vec3 rock = mix(vec3(0.62, 0.58, 0.50), vec3(0.82, 0.78, 0.68), band) * (0.85 + 0.3 * vn(vWorld.xz * 1.3 + vWorld.y));
-    float rk = smoothstep(0.32, 0.5, slope);
-    vec3 dirt = vec3(0.66, 0.54, 0.36) * (0.9 + 0.2 * v3);
-    float dk = smoothstep(0.2, 0.32, slope) * (1.0 - rk);
+    vec3 rock = mix(vec3(0.60, 0.56, 0.48), vec3(0.84, 0.79, 0.68), band) * (0.85 + 0.3 * vn(vWorld.xz * 1.3 + vWorld.y));
+    float rk = smoothstep(0.3, 0.48, slope);
+    vec3 dirt = vec3(0.62, 0.50, 0.34) * (0.9 + 0.2 * v3);
+    float dk = smoothstep(0.18, 0.3, slope) * (1.0 - rk);
     col = mix(mix(grass, dirt, dk), rock, rk);
     if (rk > 0.5) rough = 0.9;
   }
@@ -88,17 +91,21 @@ void main(){
   // Stylized character rim lighting for the cartoon silhouette (Image 2)
   float rim = pow(1.0 - max(dot(n, v), 0.0), 3.2) * 0.28 * max(dot(uSun, -v), 0.2);
 
-  // Chapter 1 look: warm key light, cool sky-tinted ambient in shadow, painterly soft wrap on the terminator
-  float wrap = smoothstep(-0.25, 0.6, dot(n, uSun));
-  vec3 ambient = mix(vec3(0.42, 0.50, 0.66), vec3(0.62, 0.68, 0.78), hemi);
-  float cloud = 0.72 + 0.28 * smoothstep(0.35, 0.7, vn(vWorld.xz * 0.012 + vec2(uT * 0.012, uT * 0.006)));   // drifting cloud shadows
-  vec3 key = vec3(1.0, 0.94, 0.82) * (0.30 * d + 0.28 * wrap) * lit * cloud;
-  vec3 c = col * (ambient + key + emit) + vec3(1.0, 0.96, 0.88) * spec * 0.45 + vec3(0.4, 0.7, 1.0) * rim;
+  // Chapter 1 look: warm key light with a hard-ish terminator, cool sky ambient in shadow, painterly wrap
+  float wrap = smoothstep(-0.15, 0.55, dot(n, uSun));
+  vec3 skyA = vec3(0.34, 0.42, 0.58), gndA = vec3(0.40, 0.36, 0.30);
+  vec3 ambient = mix(gndA, skyA, hemi) * 0.92;
+  float cloud = 0.75 + 0.25 * smoothstep(0.35, 0.7, vn(vWorld.xz * 0.012 + vec2(uT * 0.012, uT * 0.006)));
+  vec3 key = vec3(1.0, 0.93, 0.80) * (0.62 * d + 0.36 * wrap) * lit * cloud;
+  // generic surface breakup so flat colours read as material (skip fx / storm / water)
+  if (st == 0 || st == 1) col *= 0.93 + 0.14 * vn(vWorld.xz * 1.7 + vWorld.y * 1.3) * (0.6 + 0.4 * vn(vWorld.xz * 7.0 + vWorld.y * 5.0));
+  vec3 c = col * (ambient + key + emit) + vec3(1.0, 0.96, 0.88) * spec * 0.4 + vec3(0.4, 0.7, 1.0) * rim;
   float dist = length(vWorld - uCam);
   float f = 1.0 - exp(-dist * uFogD);
-  c = mix(c, uFog, clamp(f, 0.0, 0.92));
-  c = pow(c * 1.08, vec3(0.94));                 // crisp vibrant tone curve
-  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.12);   // slight saturation push
+  vec3 fogC = mix(uFog, vec3(0.86, 0.90, 0.97), clamp(1.0 - (vWorld.y - uCam.y) * 0.004, 0.0, 1.0));   // haze bluer/brighter toward the horizon
+  c = mix(c, fogC, clamp(f, 0.0, 0.94));
+  c = pow(c * 1.06, vec3(0.95));
+  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.02);
   o = vec4(c, uAlpha);
 }`;
 const DVS = `#version 300 es
@@ -134,7 +141,7 @@ interface Item { m: Mesh; mat: M4; tint: V3; alpha: number; style: number; shado
 export interface Cam { pos: V3; fwd: V3; fov: number; aspect: number; }
 
 // 1024 keeps the stylized soft shadow look while cutting shadow fill-rate by 75%.
-const SM = 1024;
+const SM = 2048;
 export class Renderer {
   gl: WebGL2RenderingContext; prog: WebGLProgram; dprog: WebGLProgram; sprog: WebGLProgram;
   u: Record<string, WebGLUniformLocation | null> = {}; du: Record<string, WebGLUniformLocation | null> = {}; su: Record<string, WebGLUniformLocation | null> = {};

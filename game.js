@@ -96,15 +96,18 @@ void main(){
     col *= mix(0.6, 1.0, smoothstep(0.0, 0.05, line)); float diag = smoothstep(0.02, 0.05, abs(fract((uv.x + uv.y) * 1.5) - 0.5)); col *= 0.88 + 0.14 * diag;
     vec2 b = abs(f - 0.12); float bolt = step(length(b), 0.04) + step(length(abs(f - 0.88)), 0.04); col *= 1.0 - bolt * 0.45; rough = 0.38;
   }
-  else if (st == 5) {            // terrain: grass detail, dirt speckle, rock strata on cliffs
-    float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.7), v3 = vn(vWorld.xz * 2.5);
-    vec3 grass = col * (0.88 + 0.22 * v + 0.08 * v2 + 0.05 * v3);
+  else if (st == 5) {            // terrain: two-tone grass with dark clumps, dry patches, dirt on slopes, strata rock on cliffs
+    float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.7), v3 = vn(vWorld.xz * 2.5), v4 = vn(vWorld.xz * 0.18 + 40.0);
+    vec3 g1 = col * vec3(0.80, 0.86, 0.70), g2 = col * vec3(0.98, 1.0, 0.85);
+    vec3 grass = mix(g1, g2, smoothstep(0.35, 0.65, v)) * (0.86 + 0.16 * v2 + 0.06 * v3);
+    grass = mix(grass, col * vec3(1.02, 0.96, 0.62), smoothstep(0.62, 0.8, v4) * 0.55);          // dry yellow patches
+    grass *= 1.0 - 0.16 * smoothstep(0.7, 0.9, vn(vWorld.xz * 3.5));                              // dark clumps
     float slope = 1.0 - n.y;
     float band = 0.5 + 0.5 * sin(vWorld.y * 2.2 + vn(vWorld.xz * 0.3) * 3.0);
-    vec3 rock = mix(vec3(0.62, 0.58, 0.50), vec3(0.82, 0.78, 0.68), band) * (0.85 + 0.3 * vn(vWorld.xz * 1.3 + vWorld.y));
-    float rk = smoothstep(0.32, 0.5, slope);
-    vec3 dirt = vec3(0.66, 0.54, 0.36) * (0.9 + 0.2 * v3);
-    float dk = smoothstep(0.2, 0.32, slope) * (1.0 - rk);
+    vec3 rock = mix(vec3(0.60, 0.56, 0.48), vec3(0.84, 0.79, 0.68), band) * (0.85 + 0.3 * vn(vWorld.xz * 1.3 + vWorld.y));
+    float rk = smoothstep(0.3, 0.48, slope);
+    vec3 dirt = vec3(0.62, 0.50, 0.34) * (0.9 + 0.2 * v3);
+    float dk = smoothstep(0.18, 0.3, slope) * (1.0 - rk);
     col = mix(mix(grass, dirt, dk), rock, rk);
     if (rk > 0.5) rough = 0.9;
   }
@@ -148,17 +151,21 @@ void main(){
   // Stylized character rim lighting for the cartoon silhouette (Image 2)
   float rim = pow(1.0 - max(dot(n, v), 0.0), 3.2) * 0.28 * max(dot(uSun, -v), 0.2);
 
-  // Chapter 1 look: warm key light, cool sky-tinted ambient in shadow, painterly soft wrap on the terminator
-  float wrap = smoothstep(-0.25, 0.6, dot(n, uSun));
-  vec3 ambient = mix(vec3(0.42, 0.50, 0.66), vec3(0.62, 0.68, 0.78), hemi);
-  float cloud = 0.72 + 0.28 * smoothstep(0.35, 0.7, vn(vWorld.xz * 0.012 + vec2(uT * 0.012, uT * 0.006)));   // drifting cloud shadows
-  vec3 key = vec3(1.0, 0.94, 0.82) * (0.30 * d + 0.28 * wrap) * lit * cloud;
-  vec3 c = col * (ambient + key + emit) + vec3(1.0, 0.96, 0.88) * spec * 0.45 + vec3(0.4, 0.7, 1.0) * rim;
+  // Chapter 1 look: warm key light with a hard-ish terminator, cool sky ambient in shadow, painterly wrap
+  float wrap = smoothstep(-0.15, 0.55, dot(n, uSun));
+  vec3 skyA = vec3(0.34, 0.42, 0.58), gndA = vec3(0.40, 0.36, 0.30);
+  vec3 ambient = mix(gndA, skyA, hemi) * 0.92;
+  float cloud = 0.75 + 0.25 * smoothstep(0.35, 0.7, vn(vWorld.xz * 0.012 + vec2(uT * 0.012, uT * 0.006)));
+  vec3 key = vec3(1.0, 0.93, 0.80) * (0.62 * d + 0.36 * wrap) * lit * cloud;
+  // generic surface breakup so flat colours read as material (skip fx / storm / water)
+  if (st == 0 || st == 1) col *= 0.93 + 0.14 * vn(vWorld.xz * 1.7 + vWorld.y * 1.3) * (0.6 + 0.4 * vn(vWorld.xz * 7.0 + vWorld.y * 5.0));
+  vec3 c = col * (ambient + key + emit) + vec3(1.0, 0.96, 0.88) * spec * 0.4 + vec3(0.4, 0.7, 1.0) * rim;
   float dist = length(vWorld - uCam);
   float f = 1.0 - exp(-dist * uFogD);
-  c = mix(c, uFog, clamp(f, 0.0, 0.92));
-  c = pow(c * 1.08, vec3(0.94));                 // crisp vibrant tone curve
-  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.12);   // slight saturation push
+  vec3 fogC = mix(uFog, vec3(0.86, 0.90, 0.97), clamp(1.0 - (vWorld.y - uCam.y) * 0.004, 0.0, 1.0));   // haze bluer/brighter toward the horizon
+  c = mix(c, fogC, clamp(f, 0.0, 0.94));
+  c = pow(c * 1.06, vec3(0.95));
+  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.02);
   o = vec4(c, uAlpha);
 }`, DVS = `#version 300 es
 layout(location=0) in vec3 aPos; uniform mat4 uLVP, uM; void main(){ gl_Position = uLVP * uM * vec4(aPos,1.0); }`, DFS = `#version 300 es
@@ -183,7 +190,7 @@ void main(){
     sky = mix(sky, cc, c * fade);
   }
   o = vec4(sky, 1.0);
-}`, SM = 1024, Renderer = class {
+}`, SM = 2048, Renderer = class {
     constructor(canvas2) {
       __publicField(this, "canvas", canvas2);
       __publicField(this, "gl");
@@ -256,7 +263,14 @@ void main(){
   };
 
   // src/models.ts
-  var rgb = (h) => [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255], dk = (c, k) => [c[0] * k, c[1] * k, c[2] * k], lt = (c, k) => [Math.min(1, c[0] + (1 - c[0]) * k), Math.min(1, c[1] + (1 - c[1]) * k), Math.min(1, c[2] + (1 - c[2]) * k)], MB = class {
+  var rgb = (h) => [(h >> 16 & 255) / 255, (h >> 8 & 255) / 255, (h & 255) / 255], dk = (c, k) => [c[0] * k, c[1] * k, c[2] * k];
+  function aoY(d, y0, y1, dark) {
+    for (let i = 0; i < d.length; i += 9) {
+      let t2 = Math.min(1, Math.max(0, (d[i + 1] - y0) / (y1 - y0))), k = dark + (1 - dark) * t2 * t2 * (3 - 2 * t2);
+      d[i + 6] *= k, d[i + 7] *= k, d[i + 8] *= k;
+    }
+  }
+  var lt = (c, k) => [Math.min(1, c[0] + (1 - c[0]) * k), Math.min(1, c[1] + (1 - c[1]) * k), Math.min(1, c[2] + (1 - c[2]) * k)], MB = class {
     constructor() {
       __publicField(this, "d", []);
       __publicField(this, "m", ident());
@@ -518,7 +532,10 @@ void main(){
     return b.build(r);
   }
   function buildModels(r) {
-    let M2 = {}, mk = (f) => {
+    let mkAO = (y0, y1, dark, f) => {
+      let b = new MB();
+      return f(b), aoY(b.d, y0, y1, dark), b.build(r);
+    }, M2 = {}, mk = (f) => {
       let b = new MB();
       return f(b), b.build(r);
     };
@@ -569,7 +586,7 @@ void main(){
     }), M2.grenade = mk((b) => {
       b.sphere([0, 0.15, 0], 0.14, rgb(4876858), 10, 1.2, !0), b.cyl([0, 0.3, 0], 0.05, 0.05, 0.08, rgb(8947848), 8, !0, !0), b.box([0.06, 0.34, 0], [0.12, 0.02, 0.03], rgb(13421772));
       for (let k = 0; k < 3; k++) b.torus([0, 0.08 + k * 0.07, 0], 0.14, 8e-3, rgb(3033638), 10, 4);
-    }), M2.launchpad = mk((b) => {
+    }), M2.launchpad = mkAO(0, 0.4, 0.7, (b) => {
       b.cyl([0, 0, 0], 1.5, 1.4, 0.25, rgb(2899546), 16, !0, !0), b.cyl([0, 0.25, 0], 1, 1, 0.08, C.blue, 16, !0, !0);
       for (let k = 0; k < 4; k++)
         b.push(rotY(k * 1.57)), b.box([0.5, 0.4, 0], [0.7, 0.06, 0.16], C.holographic), b.pop();
@@ -678,7 +695,7 @@ void main(){
     }), M2.pyramid_metal = mk((b) => {
       let top = [0, 2, 0], a = [-2, 0, -2], bb = [2, 0, -2], cc = [2, 0, 2], d = [-2, 0, 2];
       b.tri(a, top, bb, C.metal), b.tri(bb, top, cc, C.metal), b.tri(cc, top, d, C.metal), b.tri(d, top, a, C.metal), b.quad(a, bb, cc, d, C.metalDark);
-    }), M2.pine = mk((b) => {
+    }), M2.pine = mkAO(0, 7.5, 0.5, (b) => {
       b.cyl([0, 0, 0], 0.38, 0.14, 8.4, C.trunk, 12, !0, !0);
       for (let i = 0; i < 4; i++) {
         let a = i / 4 * Math.PI * 2;
@@ -695,7 +712,7 @@ void main(){
         b.cyl([0, y + h * 0.55, 0], rB * 0.45, 0.1, h * 0.45, lt(col, 0.12), 12, !1, !0);
       }
       b.cyl([0, 8, 0], 0.55, 0.04, 1.3, lt(C.pine, 0.1), 10, !0, !0);
-    }), M2.tree = mk((b) => {
+    }), M2.tree = mkAO(0, 6.5, 0.55, (b) => {
       b.cyl([0, 0, 0], 0.5, 0.34, 3.8, C.trunk, 14, !0, !0);
       for (let i = 0; i < 4; i++) {
         let a = i * 1.57 + 0.4;
@@ -715,7 +732,7 @@ void main(){
         b.sphere([Math.cos(a) * rr, 6.2, Math.sin(a) * rr], 1.1, i % 2 ? C.leaf : C.leaf3, 12, 0.85, !0);
       }
       b.sphere([0.3, 6.9, 0.2], 1.4, lt(C.leaf, 0.18), 12, 0.8, !0), b.sphere([-1.2, 3.9, 1.4], 0.9, dk(C.leaf2, 0.85), 10, 0.9, !0);
-    }), M2.tree2 = mk((b) => {
+    }), M2.tree2 = mkAO(0, 6.5, 0.55, (b) => {
       let bark = rgb(15262936), mark = rgb(3814960), leafA = rgb(11065418), leafB = rgb(9226298), leafC = rgb(12904544);
       b.cyl([0, 0, 0], 0.3, 0.18, 5.2, bark, 12, !0, !0);
       for (let k = 0; k < 9; k++) {
@@ -732,9 +749,9 @@ void main(){
         b.sphere([Math.cos(a) * rr, 4.8 + i % 3 * 0.7, Math.sin(a) * rr], 0.9 + i % 2 * 0.2, [leafA, leafB, leafC][i % 3], 10, 0.9, !0);
       }
       b.sphere([0.2, 6.9, 0.1], 1, leafC, 10, 0.85, !0);
-    }), M2.rock = mk((b) => {
+    }), M2.rock = mkAO(0, 1.6, 0.6, (b) => {
       b.sphere([0, 0.45, 0], 1.6, C.rock, 7, 0.7, !1), b.sphere([1, 0.3, 0.7], 1, C.rockDark, 6, 0.8, !1), b.sphere([-0.8, 0.3, -0.6], 0.85, lt(C.rock, 0.1), 6, 0.75, !1), b.sphere([0.2, 0.2, -1.1], 0.5, C.rockDark, 6, 0.8, !1), b.sphere([0.1, 1.45, 0.1], 0.8, lt(C.leaf2, 0.1), 7, 0.35, !1), b.sphere([-0.9, 0.8, -0.3], 0.3, lt(C.leaf2, 0.05), 6, 0.4, !1);
-    }), M2.bush = mk((b) => {
+    }), M2.bush = mkAO(0, 1.3, 0.6, (b) => {
       b.cyl([0, 0, 0], 0.08, 0.05, 0.4, C.trunkDark, 6, !0, !0), b.sphere([0, 0.5, 0], 1, C.leaf2, 10, 0.75, !0);
       for (let i = 0; i < 7; i++) {
         let a = i / 7 * Math.PI * 2;
@@ -745,9 +762,9 @@ void main(){
         let a = i * 1.1 + 0.3;
         b.sphere([Math.cos(a) * 0.9, 0.5 + i % 3 * 0.2, Math.sin(a) * 0.9], 0.07, C.red, 6, 1, !0);
       }
-    }), M2.hedge = mk((b) => {
+    }), M2.hedge = mkAO(0, 2, 0.6, (b) => {
       b.rbox([0, 0.7, 0], [4, 1.4, 0.9], rgb(3706676), 0.12);
-    }), M2.waterTower = mk((b) => {
+    }), M2.waterTower = mkAO(0, 6, 0.7, (b) => {
       let steel = rgb(5923694), tankCol = rgb(9411238), roofCol = rgb(4343890), legR = 3.6, H2 = 14;
       for (let i = 0; i < 4; i++) {
         let a = i / 4 * Math.PI * 2 + Math.PI / 4, x0 = Math.cos(a) * legR, z0 = Math.sin(a) * legR, x1 = Math.cos(a) * (legR * 0.75), z1 = Math.sin(a) * (legR * 0.75);
@@ -762,13 +779,13 @@ void main(){
       for (let y = H2 + 1.2; y <= H2 + 5.2; y += 1.3)
         b.torus([0, y, 0], 3.42, 0.04, rgb(3685958), 24, 6);
       b.cyl([0, H2 + 5.9, 0], 3.6, 0.1, 1.8, roofCol, 24, !0, !0), b.sphere([0, H2 + 7.8, 0], 0.25, C.gold, 10, 1, !0);
-    }), M2.barn = mk((b) => {
+    }), M2.barn = mkAO(0, 2.5, 0.65, (b) => {
       let red = rgb(11022886), white = rgb(15790318), roof = rgb(4869458);
       b.box([0, 3.5, 0], [16, 7, 22], red);
       for (let sx of [-8.05, 8.05]) for (let sz of [-11.05, 11.05])
         b.box([sx, 3.5, sz], [0.35, 7, 0.35], white);
       b.box([0, 2.5, 11.08], [4.8, 5, 0.15], white), b.box([0, 2.5, 11.16], [4.6, 4.8, 0.08], red), b.box([0, 7.5, 11.08], [2.2, 2.2, 0.12], white), b.box([0, 7.5, 11.09], [1.8, 1.8, 0.04], C.dark), b.push(mul(translate(0, 7, 0), rotX(0))), b.cyl([0, 0, 0], 8.2, 8.2, 22.4, roof, 8, !0, !0), b.pop();
-    }), M2.truck = mk((b) => {
+    }), M2.truck = mkAO(0, 1, 0.62, (b) => {
       let red = rgb(13645868), chrome = rgb(13421772);
       b.rbox([0, 0.75, 0.8], [2, 0.65, 1.8], red, 0.08), b.rbox([0, 1.35, -0.3], [1.9, 0.85, 1.6], red, 0.08), b.box([0, 1.38, 0.52], [1.7, 0.55, 0.04], C.glass), b.box([0, 1.38, -0.3], [1.92, 0.48, 1.3], C.glass), b.rbox([0, 0.85, -1.8], [2, 0.55, 2.2], red, 0.06), b.box([0, 0.65, -1.8], [1.7, 0.12, 2], rgb(4473924)), b.box([0, 0.75, 1.72], [1.6, 0.35, 0.06], chrome), b.sphere([-0.7, 0.75, 1.74], 0.12, rgb(16775376), 10, 1, !0), b.sphere([0.7, 0.75, 1.74], 0.12, rgb(16775376), 10, 1, !0);
       for (let k = 0; k < 5; k++) b.box([0, 0.62 + k * 0.07, 1.73], [1.4, 0.02, 0.02], dk(chrome, 0.7));
@@ -784,7 +801,7 @@ void main(){
       for (let sx of [-1.05, 1.05])
         for (let sz of [-1.6, 1])
           b.push(mul(translate(sx, 0.38, sz), rotZ(Math.PI / 2))), b.cyl([0, 0, 0], 0.38, 0.38, 0.26, rgb(2105894), 16, !0, !0), b.cyl([0, 0.02, 0], 0.22, 0.22, 0.28, chrome, 12, !0, !0), b.pop();
-    }), M2.car = mk((b) => {
+    }), M2.car = mkAO(0, 0.9, 0.62, (b) => {
       let y = rgb(3700950), chrome = rgb(14540253);
       b.rbox([0, 0.55, 0], [1.9, 0.52, 4.2], y, 0.08), b.rbox([0, 1.05, -0.2], [1.65, 0.52, 2.2], y, 0.08), b.box([0, 1.05, -0.2], [1.68, 0.34, 2], C.glass), b.box([0, 1.05, 0.92], [1.45, 0.35, 0.08], C.glass), b.box([0, 0.52, 2.12], [1.65, 0.18, 0.08], chrome), b.sphere([-0.65, 0.62, 2.14], 0.11, rgb(16775376), 10, 1, !0), b.sphere([0.65, 0.62, 2.14], 0.11, rgb(16775376), 10, 1, !0);
       for (let sx of [-0.96, 0.96])
@@ -800,7 +817,7 @@ void main(){
           }
           b.pop();
         }
-    }), M2.crate = mk((b) => {
+    }), M2.crate = mkAO(0, 1.2, 0.72, (b) => {
       let c = rgb(11569754);
       b.box([0, 1, 0], [2, 2, 2], c);
       for (let e of [[0, 1], [0, -1], [1, 0], [-1, 0]])
@@ -812,7 +829,12 @@ void main(){
         let a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50;
         b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(7309930) : rgb(9080710), 5, !1, !1), h > 85 && b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(15791352), 5, !1, !1);
       }
-    }), M2.bridge = mk((b) => {
+    }), M2.curb = mkAO(0, 0.3, 0.75, (b) => {
+      b.box([0, 0.12, 0], [0.5, 0.24, 8], rgb(12105390)), b.box([0.9, 0.1, 0], [1.4, 0.2, 8], rgb(11118496));
+      for (let k = -3; k <= 3; k++) b.box([0.9, 0.21, k * 1.15], [1.42, 0.01, 0.04], rgb(9407878));
+    }), M2.sign = mkAO(0, 1, 0.7, (b) => {
+      b.cyl([0, 0, 0], 0.05, 0.05, 2.6, rgb(8028038), 8, !0, !0), b.box([0, 2.5, 0], [0.9, 0.22, 0.04], rgb(3115578)), b.box([0, 2.5, 0.025], [0.7, 0.1, 0.01], C.white), b.box([0, 1.9, 0], [0.6, 0.6, 0.04], rgb(14168112)), b.box([0, 1.9, 0.025], [0.4, 0.08, 0.01], C.white);
+    }), M2.bridge = mkAO(-2, 0.5, 0.7, (b) => {
       let w = rgb(10123856);
       for (let i = 0; i < 16; i++) b.plank([0, 0.3, -3.75 + i * 0.5], [4.4, 0.16, 0.46], w, 0.02);
       for (let sx of [-2.1, 2.1]) {
@@ -820,7 +842,7 @@ void main(){
         for (let k = -3; k <= 3; k++) b.box([sx, 0.7, k * 1.2], [0.1, 0.9, 0.1], dk(w, 0.8));
       }
       for (let sz of [-3, 0, 3]) for (let sx of [-1.8, 1.8]) b.cyl([sx, -2, sz], 0.2, 0.2, 2.5, dk(w, 0.6), 8, !0, !0);
-    }), M2.beam = mk((b) => b.cyl([0, 0, 0], 0.18, 0.05, 2.4, C.white, 8, !1, !0)), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mk((b) => {
+    }), M2.beam = mk((b) => b.cyl([0, 0, 0], 0.18, 0.05, 2.4, C.white, 8, !1, !0)), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mkAO(0, 0.6, 0.7, (b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);
       for (let sx of [-0.52, 0.52]) {
         b.box([sx, 0.52, 0], [0.1, 1.06, 1.02], rgb(3814962));
@@ -830,23 +852,23 @@ void main(){
       b.box([0, 0.58, 0.49], [0.32, 0.32, 0.08], C.gold), b.cyl([0, 0.58, 0.53], 0.04, 0.04, 0.02, C.dark, 8);
     }), M2.chestOpen = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.push(mul(translate(0, 0.85, -0.45), rotX(-1.2))), b.rbox([0, 0.2, 0], [1.48, 0.34, 0.98], C.wood, 0.05), b.pop(), b.box([0, 0.55, 0], [1.32, 0.12, 0.82], C.gold);
-    }), M2.lamp = mk((b) => {
+    }), M2.lamp = mkAO(0, 1.5, 0.7, (b) => {
       b.cyl([0, 0, 0], 0.16, 0.09, 4.8, rgb(2763824), 12, !0, !0), b.cyl([0, 0, 0], 0.26, 0.18, 0.5, rgb(2763824), 12, !0, !0), b.push(mul(translate(0, 4.8, 0), rotZ(-1.35))), b.cyl([0, 0, 0], 0.07, 0.05, 1.15, rgb(2763824), 10, !0, !0), b.pop(), b.box([1.05, 4.9, 0], [0.7, 0.16, 0.36], rgb(2763824)), b.box([1.05, 4.78, 0], [0.6, 0.08, 0.3], rgb(16774864)), b.sphere([1.05, 4.7, 0], 0.16, rgb(16774864), 10, 0.8, !0);
-    }), M2.bench = mk((b) => {
+    }), M2.bench = mkAO(0, 0.5, 0.7, (b) => {
       b.box([0, 0.45, 0], [1.7, 0.08, 0.52], C.wood), b.box([0, 0.8, -0.22], [1.7, 0.48, 0.07], C.wood);
       for (let x of [-0.75, 0.75]) b.rbox([x, 0.25, 0], [0.09, 0.54, 0.54], rgb(2763824), 0.02);
-    }), M2.fence = mk((b) => {
+    }), M2.fence = mkAO(0, 0.8, 0.7, (b) => {
       for (let i = 0; i < 9; i++)
         b.box([-4 + i, 0.55, 0], [0.14, 1.1, 0.06], rgb(16053488)), b.push(mul(translate(-4 + i, 1.1, 0), rotZ(Math.PI / 4))), b.box([0, 0, 0], [0.14, 0.14, 0.06], rgb(16053488)), b.pop();
       b.box([0, 0.42, 0], [8.2, 0.09, 0.05], rgb(16053488)), b.box([0, 0.88, 0], [8.2, 0.09, 0.05], rgb(16053488));
-    }), M2.mailbox = mk((b) => {
+    }), M2.mailbox = mkAO(0, 0.8, 0.7, (b) => {
       b.cyl([0, 0, 0], 0.06, 0.06, 1.1, rgb(5917242), 8, !0, !0), b.rbox([0, 1.22, 0], [0.26, 0.26, 0.48], rgb(2909365), 0.06), b.box([0.16, 1.32, 0.12], [0.03, 0.22, 0.04], C.red);
-    }), M2.dash = mk((b) => b.box([0, 0.03, 0], [0.5, 0.06, 2.4], rgb(16053492))), M2.fountain = mk((b) => {
+    }), M2.dash = mk((b) => b.box([0, 0.03, 0], [0.5, 0.06, 2.4], rgb(16053492))), M2.fountain = mkAO(0, 1, 0.7, (b) => {
       b.cyl([0, 0, 0], 3.2, 3.2, 0.5, rgb(11451330), 24, !0, !0), b.cyl([0, 0.48, 0], 2.8, 2.8, 0.2, rgb(4570846), 24, !0, !0), b.cyl([0, 0.5, 0], 0.6, 0.8, 2.6, rgb(13029845), 16, !0, !0), b.sphere([0, 3.2, 0], 0.78, rgb(14213603), 14, 0.9, !0);
-    }), M2.dumpster = mk((b) => {
+    }), M2.dumpster = mkAO(0, 0.8, 0.7, (b) => {
       b.rbox([0, 0.7, 0], [2.2, 1.35, 1.25], rgb(3042900), 0.05), b.push(rotX(-0.25)), b.rbox([0, 1.4, -0.1], [2.25, 0.16, 1.3], rgb(2250048), 0.03), b.pop();
       for (let x of [-0.85, 0.85]) b.cyl([x, 0.12, 0.55], 0.18, 0.18, 0.16, rgb(546), 10, !0, !0);
-    }), M2.bus = mk((b) => {
+    }), M2.bus = mkAO(0, 1.2, 0.65, (b) => {
       b.rbox([0, 1.4, 0], [3.3, 2.6, 10.2], C.bus, 0.14);
       for (let i = 0; i < 6; i++)
         b.box([1.68, 1.9, -3.8 + i * 1.5], [0.06, 1, 1.1], C.glass), b.box([-1.68, 1.9, -3.8 + i * 1.5], [0.06, 1, 1.1], C.glass);
@@ -1111,13 +1133,13 @@ void main(){
       let gx = hw + 3, gz = hd - 6.5 / 2;
       k.wall("x", gz - 6.5 / 2 + T / 2, hw, hw + 6, 0.4, 3.2, p.wall2), k.wall("z", hw + 6 - T / 2, gz - 6.5 / 2, gz + 6.5 / 2, 0.4, 3.2, p.wall2), k.wall("x", gz + 6.5 / 2 - T / 2, hw, hw + 6, 0.4, 3.2, p.wall2, [{ x: gx, w: 3.6, y: 0.4, h: 2.6, door: !0 }]), k.solid([gx, 0.2, gz], [6, 0.4, 6.5], CONCRETE), b.box([gx, 3.25, gz], [6 + 0.4, 0.2, 6.5 + 0.4], p.roof), b.box([gx, 3.6, gz], [6 + 0.6, 0.5, 6.5 + 0.6], dk(p.roof, 0.9)), k.shelfRack(hw + 0.8, 0.4, gz - 6.5 / 2 + 1.2, Math.PI / 2, 2.5, 3), k.crate(hw + 6 - 1, 0.4, gz - 2, 0.9), k.barrel(hw + 6 - 1, 0.4, gz - 0.6), k.loot.push([gx, 0.5, gz + 1]), k.chests.push([hw + 6 - 1.4, 0.4, gz + 6.5 / 2 - 1.5]);
     }
-    return k.loot.push([-hw * 0.5, y0, hd * 0.5], [-hw * 0.5, y0, -hd * 0.5], [hw * 0.35, y1, hd * 0.3], [-hw * 0.55, y1, hd * 0.3]), k.chests.push([-hw + 1.5, y1, -hd + 1.5]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: garage ? w + 6 : w, d, h: H2 + d * 0.42, kind: "colonial" };
+    return k.loot.push([-hw * 0.5, y0, hd * 0.5], [-hw * 0.5, y0, -hd * 0.5], [hw * 0.35, y1, hd * 0.3], [-hw * 0.55, y1, hd * 0.3]), k.chests.push([-hw + 1.5, y1, -hd + 1.5]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: garage ? w + 6 : w, d, h: H2 + d * 0.42, kind: "colonial" };
   }
   function cottage(pi = 1, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), w = 12, d = 9, hw = w / 2, hd = d / 2, H2 = FH, T = 0.3, y0 = 0.52;
     k.solid([0, 0.2, 0], [w + 0.5, 0.4, d + 0.5], rgb(9407878)), k.floorSlab(-hw + T, hw - T, -hd + T, hd - T, 0.46, p.floor, 0.12), k.wall("x", hd - T / 2, -hw, hw, 0.4, H2 - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.6, y: 1.1, h: 1.6, sill: !0 }, { x: hw * 0.5, w: 1.6, y: 1.1, h: 1.6, sill: !0 }, { x: 0, w: 1.3, y: 0.4, h: 2.3, door: !0 }]), k.wall("x", -hd + T / 2, -hw, hw, 0.4, H2 - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }, { x: hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }]), k.wall("z", -hw + T / 2, -hd, hd, 0.4, H2 - 0.4, p.wall, [{ x: 0, w: 1.4, y: 1.1, h: 1.6 }]), k.wall("z", hw - T / 2, -hd, hd, 0.4, H2 - 0.4, p.wall, [{ x: -hd * 0.3, w: 1.4, y: 1.1, h: 1.6 }]), k.siding(w, d, 0.4, H2 - 0.4, p.wall), k.interiorWall("z", 1.2, -hd + T, hd - T, y0, FH - 0.2, -hd * 0.4), k.interiorWall("x", -hd * 0.1, 1.2, hw - T, y0, FH - 0.2, hw - 1.6), k.couch(-hw * 0.5, y0, hd * 0.55, Math.PI), k.tv(-hw * 0.5, y0, -hd * 0.1, 0), k.rug(-hw * 0.5, y0, hd * 0.3, 3, 2.4, rgb(5929530)), k.cabinet(-hw * 0.5, y0, -hd + 0.75, 4, 0.9, 0.7, rgb(15262416), rgb(5921370)), k.fridge(-hw + 0.8, y0, -hd + 0.75), k.stove(-hw * 0.2, y0, -hd + 0.75), k.bed(hw * 0.4, y0, -hd * 0.5, 0, rgb(14214848)), k.bookshelf(hw - 0.5, y0, hd * 0.6, -Math.PI / 2, 1), k.toilet(hw - 1, y0, hd - 1.2, -Math.PI / 2), k.sink(3, y0, hd - 1), k.baseboard(-hw + T, hw - T, -hd + T, hd - T, y0), k.ceilingLight(-hw * 0.5, H2 - 0.1, 0), k.ceilingLight(hw * 0.4, H2 - 0.1, 0), k.gableRoof(w, d, H2, d * 0.5, 0.7, p.roof, "x"), b.box([-hw * 0.5, H2 + d * 0.5 * 0.7, -hd * 0.3], [0.8, d * 0.5 * 1.3, 0.8], BRICK), b.box([0, 2.9, hd + 1], [3, 0.15, 2], p.roof);
     for (let x of [-1.3, 1.3]) k.solid([x, 1.45, hd + 1.8], [0.16, 2.9, 0.16], p.trim);
-    return k.solid([0, 0.2, hd + 1.1], [3, 0.4, 1.6], CONCRETE), k.door(0.65, 0.4, hd - 0.1, Math.PI * 0.6), k.loot.push([-hw * 0.5, y0, hd * 0.3], [hw * 0.4, y0, hd * 0.2]), k.chests.push([-hw + 1.2, y0, -hd + 3]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + d * 0.5, kind: "cottage" };
+    return k.solid([0, 0.2, hd + 1.1], [3, 0.4, 1.6], CONCRETE), k.door(0.65, 0.4, hd - 0.1, Math.PI * 0.6), k.loot.push([-hw * 0.5, y0, hd * 0.3], [hw * 0.4, y0, hd * 0.2]), k.chests.push([-hw + 1.2, y0, -hd + 3]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + d * 0.5, kind: "cottage" };
   }
   function shop(pi = 2, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), w = 20, d = 14, hw = w / 2, hd = d / 2, H2 = 5.2, T = 0.35, y0 = 0.42, brick = seed % 2 ? BRICK : rgb(14208952);
@@ -1132,7 +1154,7 @@ void main(){
     for (let i = 0; i < 4; i++) k.fridge(-hw + 3 + i * 1, y0, -hd + 4.7);
     k.crate(-hw + 2, y0, -hd + 1.5), k.crate(-hw + 3.2, y0, -hd + 1.5, 0.8), k.crate(-hw + 2.6, y0 + 1, -hd + 1.5, 0.8), k.barrel(hw - 2, y0, -hd + 1.5), k.shelfRack(2, y0, -hd + 2, 0, 6, 3);
     for (let x of [-6, 0, 6]) for (let z of [-2, 3]) k.ceilingLight(x, H2 - 0.1, z);
-    return k.loot.push([-hw + 6, y0, 2.6], [2, y0, 2.6], [hw - 3, y0, 0], [0, y0, -hd + 2]), k.chests.push([-hw + 1.5, y0, -hd + 1.4], [hw - 2, y0, hd - 1.5]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + 1.5, kind: "shop" };
+    return k.loot.push([-hw + 6, y0, 2.6], [2, y0, 2.6], [hw - 3, y0, 0], [0, y0, -hd + 2]), k.chests.push([-hw + 1.5, y0, -hd + 1.4], [hw - 2, y0, hd - 1.5]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + 1.5, kind: "shop" };
   }
   function gas(pi = 3, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), w = 12, d = 9, hw = w / 2, hd = d / 2, H2 = 4.2, T = 0.3, y0 = 0.42;
@@ -1144,7 +1166,7 @@ void main(){
     b.box([0, 5.4, cz], [16, 0.5, 9], rgb(15790320)), b.box([0, 5, cz], [16.2, 0.35, 9.2], rgb(12595248)), b.box([0, 5.75, cz], [16.2, 0.2, 9.2], rgb(3815994)), k.solid([0, 0.1, cz], [4.5, 0.2, 2.4], CONCRETE);
     for (let x of [-1.2, 1.2])
       k.solid([x, 1, cz], [0.9, 1.8, 0.5], rgb(15263976)), b.box([x, 1.5, cz + 0.26], [0.7, 0.5, 0.03], rgb(2109504)), b.box([x, 0.9, cz + 0.27], [0.5, 0.3, 0.03], rgb(12595248)), b.box([x + 0.3, 1.2, cz - 0.3], [0.1, 0.9, 0.1], DARK), b.cyl([x + 0.3, 1.65, cz - 0.3], 0.06, 0.06, 0.4, DARK, 6);
-    return b.box([-6.5, 0.8, cz - 2], [1.4, 1.6, 0.6], rgb(2902638)), b.box([-6.5, 1.5, cz - 2], [1.2, 0.3, 0.62], rgb(16765498)), k.loot.push([1, y0, -0.9], [-hw + 2, y0, hd - 3.5], [2, 0.3, cz]), k.chests.push([hw - 1.5, y0, -hd + 1.5]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: 18, d: d + 18, h: H2 + 1, kind: "gas" };
+    return b.box([-6.5, 0.8, cz - 2], [1.4, 1.6, 0.6], rgb(2902638)), b.box([-6.5, 1.5, cz - 2], [1.2, 0.3, 0.62], rgb(16765498)), k.loot.push([1, y0, -0.9], [-hw + 2, y0, hd - 3.5], [2, 0.3, cz]), k.chests.push([hw - 1.5, y0, -hd + 1.5]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: 18, d: d + 18, h: H2 + 1, kind: "gas" };
   }
   function barn(pi = 2, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), w = 14, d = 20, hw = w / 2, hd = d / 2, H2 = 6.5, T = 0.3, red = rgb(11023918), redD = rgb(8005152), y0 = 0.42;
@@ -1168,7 +1190,7 @@ void main(){
     }
     k.hayBale(-hw + 2, y0, -hd + 4.5), k.hayBale(-hw + 2, y0, -hd + 9, 0.3), k.hayBale(-hw + 2, y0 + 0.9, -hd + 4.5, 0.1), k.hayBale(hw - 2.5, y0, hd - 3), k.hayBale(hw - 4, y0, hd - 3, 0.5), k.hayBale(hw - 3.2, y0 + 0.9, hd - 3, 0.2), k.crate(hw - 2, y0, -hd + 2), k.crate(hw - 3.2, y0, -hd + 2, 0.8), k.barrel(hw - 1.5, y0, 0, RUST), k.barrel(hw - 2.5, y0, 0.6, RUST), k.floorSlab(-hw + T, hw - T, -hd + T, -hd + 8, 4, rgb(10123856)), b.box([0, 4.5, -hd + 8], [w - 0.6, 1, 0.06], rgb(10123856));
     for (let x = -hw + 1; x < hw; x += 1) b.box([x, 4.5, -hd + 8], [0.06, 1, 0.06], rgb(10123856));
-    return k.stairs(hw - 1.4, -hd + 8.2, y0, 3.6, 5.5, rgb(10123856)), k.hayBale(-hw + 2, 4, -hd + 2), k.hayBale(-hw + 3.5, 4, -hd + 2, 0.4), k.hayBale(0, 4, -hd + 3), k.loot.push([0, y0, 0], [0, y0, hd - 4], [-2, 4, -hd + 5], [hw - 3, y0, -hd + 5]), k.chests.push([-hw + 1.5, 4, -hd + 6]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + rh, kind: "barn" };
+    return k.stairs(hw - 1.4, -hd + 8.2, y0, 3.6, 5.5, rgb(10123856)), k.hayBale(-hw + 2, 4, -hd + 2), k.hayBale(-hw + 3.5, 4, -hd + 2, 0.4), k.hayBale(0, 4, -hd + 3), k.loot.push([0, y0, 0], [0, y0, hd - 4], [-2, 4, -hd + 5], [hw - 3, y0, -hd + 5]), k.chests.push([-hw + 1.5, 4, -hd + 6]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + rh, kind: "barn" };
   }
   function warehouse(pi = 5, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), w = 24, d = 18, hw = w / 2, hd = d / 2, H2 = 7.5, T = 0.3, wallC = rgb(9411236), y0 = 0.42;
@@ -1183,7 +1205,7 @@ void main(){
     for (let r = 0; r < 3; r++) k.shelfRack(-hw + 5 + r * 6, y0, 0, 0, 5, 4);
     k.crate(hw - 3, y0, hd - 3, 1.2), k.crate(hw - 4.4, y0, hd - 3, 1), k.crate(hw - 3.7, y0 + 1.2, hd - 3, 1), k.crate(-hw + 3, y0, hd - 3, 1.2), k.barrel(-hw + 5, y0, hd - 3, rgb(3829672)), k.barrel(-hw + 5.9, y0, hd - 3.6, rgb(14204960)), k.barrel(-hw + 5.4, y0, hd - 2.4, RUST), k.floorSlab(hw - 8, hw - T, -hd + T, hd - T, 4.2, rgb(7305860), 0.3), k.stairs(hw - 8.8, -hd + 0.5, y0, 3.8, 6, rgb(7305860)), b.box([hw - 8, 4.7, -hd + 3.5], [0.06, 1, 6], DARK), b.box([hw - 4, 4.7, hd - T], [8, 1, 0.06], DARK), k.interiorWall("x", -hd + 5, hw - 8, hw - T, 4.2, 3, hw - 4), k.table(hw - 4, 4.2, -hd + 2.5, 1.6, 0.8), k.chair(hw - 4, 4.2, -hd + 1.6, 0), k.cabinet(hw - 1.2, 4.2, -hd + 2.5, 0.6, 1.4, 1.2, rgb(8028038));
     for (let x of [-6, 0, 6]) for (let z of [-3, 3]) k.ceilingLight(x, H2 - 0.1, z);
-    return k.loot.push([-hw + 5, y0, -hd + 2.5], [0, y0, 2.5], [hw - 4, 4.3, 2], [-hw + 3, y0, hd - 5]), k.chests.push([hw - 2, 4.2, hd - 2], [-hw + 2, y0, -hd + 2]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + 2.2, kind: "warehouse" };
+    return k.loot.push([-hw + 5, y0, -hd + 2.5], [0, y0, 2.5], [hw - 4, 4.3, 2], [-hw + 3, y0, hd - 5]), k.chests.push([hw - 2, 4.2, hd - 2], [-hw + 2, y0, -hd + 2]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + 2.2, kind: "warehouse" };
   }
   function tower(pi = 0, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), wood = rgb(10123856), y = 0.2, H2 = 9;
@@ -1197,7 +1219,7 @@ void main(){
     for (let [x, z] of [[-2.4, -2.4], [2.4, -2.4], [-2.4, 2.4], [2.4, 2.4]]) b.box([x, H2 + 1.6, z], [0.2, 3.2, 0.2], wood);
     b.quad([-3.2, H2 + 3.2, -3.2], [-3.2, H2 + 3.2, 3.2], [0, H2 + 4.6, 0], [0, H2 + 4.6, 0], rgb(4868688)), b.tri([-3.2, H2 + 3.2, -3.2], [0, H2 + 4.6, 0], [3.2, H2 + 3.2, -3.2], rgb(4868688)), b.tri([3.2, H2 + 3.2, -3.2], [0, H2 + 4.6, 0], [3.2, H2 + 3.2, 3.2], rgb(4868688)), b.tri([3.2, H2 + 3.2, 3.2], [0, H2 + 4.6, 0], [-3.2, H2 + 3.2, 3.2], rgb(4868688)), b.tri([-3.2, H2 + 3.2, 3.2], [0, H2 + 4.6, 0], [-3.2, H2 + 3.2, -3.2], rgb(4868688));
     for (let i = 0; i < 14; i++) k.solid([1.8, y + (i + 1) * H2 / 14 - 0.05, 2.9 - i * 0.02], [1, 0.1, 0.5], wood);
-    return k.crate(-1.5, H2, -1.5, 0.9), k.loot.push([0, H2, 0]), k.chests.push([1.2, H2, -1.5]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: 6, d: 6, h: H2 + 4.6, kind: "tower" };
+    return k.crate(-1.5, H2, -1.5, 0.9), k.loot.push([0, H2, 0]), k.chests.push([1.2, H2, -1.5]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: 6, d: 6, h: H2 + 4.6, kind: "tower" };
   }
   function motel(pi = 4, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), rooms = 5, rw = 5, w = rooms * rw, d = 8, hw = w / 2, hd = d / 2, H2 = FH * 2, T = 0.3, wallC = rgb(14735040), y0 = 0.42;
@@ -1218,7 +1240,7 @@ void main(){
     k.wall("x", -hd + T / 2, -hw, hw, 0.4, H2, wallC, [], T), k.wall("z", -hw + T / 2, -hd, hd, 0.4, H2, wallC, [], T), k.wall("z", hw - T / 2, -hd, hd, 0.4, H2, wallC, [], T), k.floorSlab(-hw - 0.2, hw + 3.2, hd, hd + 2.4, FH, rgb(9407878), 0.25), b.box([0, FH + 0.55, hd + 2.35], [w + 3.4, 1.1, 0.06], rgb(4881050));
     for (let x = -hw; x < hw + 3.2; x += 1.2) b.box([x, FH + 0.55, hd + 2.35], [0.06, 1.1, 0.06], rgb(4881050));
     for (let x of [-hw + 1, 0, hw - 1]) k.solid([x, FH / 2, hd + 2.2], [0.2, FH, 0.2], rgb(4881050));
-    return k.stairs(hw + 2.5, hd + 2.4 - 6.4, 0.4, FH, 6.4, rgb(9407878)), b.box([0, H2 + 0.15, 0], [w + 0.6, 0.3, d + 5.4], rgb(6975092)), b.box([0, H2 + 0.5, 0], [w + 0.8, 0.2, d + 5.6], rgb(5330267)), b.box([-hw - 1.5, 5.5, hd + 3], [0.3, 11, 0.3], rgb(4881050)), b.box([-hw - 1.5, 10.5, hd + 3], [4.5, 2.2, 0.3], rgb(16049856)), b.box([-hw - 1.5, 10.5, hd + 3.2], [3.6, 1.2, 0.05], rgb(12595248)), k.chests.push([hw - 1.2, FH + 0.02, -hd + 1], [-hw + 1.2, 0.52, -hd + 1]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d: d + 3, h: H2 + 1, kind: "motel" };
+    return k.stairs(hw + 2.5, hd + 2.4 - 6.4, 0.4, FH, 6.4, rgb(9407878)), b.box([0, H2 + 0.15, 0], [w + 0.6, 0.3, d + 5.4], rgb(6975092)), b.box([0, H2 + 0.5, 0], [w + 0.8, 0.2, d + 5.6], rgb(5330267)), b.box([-hw - 1.5, 5.5, hd + 3], [0.3, 11, 0.3], rgb(4881050)), b.box([-hw - 1.5, 10.5, hd + 3], [4.5, 2.2, 0.3], rgb(16049856)), b.box([-hw - 1.5, 10.5, hd + 3.2], [3.6, 1.2, 0.05], rgb(12595248)), k.chests.push([hw - 1.2, FH + 0.02, -hd + 1], [-hw + 1.2, 0.52, -hd + 1]), aoY(b.d, -0.2, 2.2, 0.66), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d: d + 3, h: H2 + 1, kind: "motel" };
   }
   var BUILDERS = { colonial, cottage, shop, gas, barn, warehouse, tower, motel };
 
@@ -1251,6 +1273,14 @@ void main(){
   function riverMask(x, z) {
     let a = Math.abs(vnoise(x * 4e-3 + 9, z * 4e-3 + 3) - 0.5), b = Math.abs(vnoise(x * 35e-4 + 40, z * 35e-4 + 70) - 0.5), c = Math.abs(vnoise(x * 3e-3 + 80, z * 3e-3 + 20) - 0.5);
     return Math.max(1 - Math.min(a, b, c) / 0.065, 0);
+  }
+  function mesaAt(x, z) {
+    let m = 0;
+    for (let [mx, mz, mr] of MESAS) {
+      let d = Math.hypot(x - mx, z - mz);
+      m = Math.max(m, sstep((mr - d) / 7 + 1));
+    }
+    return m;
   }
   var ISLAND = [0, 0, -1100];
   function terrainH(x, z) {
@@ -1296,11 +1326,11 @@ void main(){
     if (y < 1.4) return rgb(15327130);
     if (y < 2.2) return rgb(13950090);
     let rd = roadDist(x, z);
-    if (z < -700) return rgb(9425998);
+    if (z < -700) return rgb(8177227);
     if (rd < 3.2) return rgb(7040626);
     if (rd < 4.4) return rgb(11049584);
     let v = vnoise(x * 0.03, z * 0.03);
-    return vnoise(x * 0.09 + 50, z * 0.09 + 12) > 0.86 ? rgb(11048030) : v > 0.6 ? rgb(8376125) : v > 0.4 ? rgb(9690188) : rgb(8967748);
+    return vnoise(x * 0.09 + 50, z * 0.09 + 12) > 0.86 ? rgb(11048030) : v > 0.6 ? rgb(7323202) : v > 0.4 ? rgb(8571983) : rgb(7914569);
   }
   var TILES = (t2) => t2 === "wall" ? 9 : t2 === "floor" ? 4 : 0, MAT_HP = { wood: 150, stone: 300, metal: 500 }, _World = class _World {
     constructor(r) {
@@ -1388,7 +1418,12 @@ void main(){
         for (let l of bd.loot) this.lootSpots.push(rotPt(l, k, pos));
         for (let c of bd.chests) this.chestSpots.push(rotPt(c, k, pos));
         let fa = k * Math.PI / 2, fx2 = Math.sin(fa), fz = Math.cos(fa), sx = Math.cos(fa), sz = -Math.sin(fa), front = bd.d / 2 + 5;
-        return (kind === "colonial" || kind === "cottage") && (seed % 2 === 0 && addStatic(seed % 4 ? "car" : "truck", [x + fx2 * front + sx * 5, y + 0.15, z + fz * front + sz * 5], k, [{ min: [-1.3, 0, -2.2], max: [1.3, 2.8, 3.8] }]), addStatic("mailbox", [x + fx2 * (front + 1) - sx * 3, y + 0.15, z + fz * (front + 1) - sz * 3], k, []), seed % 3 === 0 && (addStatic("fence", [x + fx2 * (front + 2) - sx * 4, y + 0.15, z + fz * (front + 2) - sz * 4], k, []), addStatic("fence", [x + fx2 * (front + 2) + sx * 4, y + 0.15, z + fz * (front + 2) + sz * 4], k, [])), addStatic("hedge", [x - sx * (bd.w / 2 + 2.5), y + 0.15, z - sz * (bd.w / 2 + 2.5)], (k + 1) % 4, [])), (kind === "shop" || kind === "gas" || kind === "motel") && (addStatic("dumpster", [x - sx * (bd.w / 2 + 3), y, z - sz * (bd.w / 2 + 3)], k, [{ min: [-1.1, 0, -0.6], max: [1.1, 1.4, 0.6] }]), addStatic("lamp", [x + fx2 * (front + 2) + sx * (bd.w / 2 - 1), y + 0.15, z + fz * (front + 2) + sz * (bd.w / 2 - 1)], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }])), kind === "warehouse" && addStatic("truck", [x + fx2 * (front + 4) - sx * 6, y + 0.15, z + fz * (front + 4) - sz * 6], k, [{ min: [-1.3, 0, -2.2], max: [1.3, 2.8, 3.8] }]), !0;
+        if (kind === "colonial" || kind === "cottage") {
+          seed % 2 === 0 && addStatic(seed % 4 ? "car" : "truck", [x + fx2 * front + sx * 5, y + 0.15, z + fz * front + sz * 5], k, [{ min: [-1.3, 0, -2.2], max: [1.3, 2.8, 3.8] }]), addStatic("mailbox", [x + fx2 * (front + 1) - sx * 3, y + 0.15, z + fz * (front + 1) - sz * 3], k, []), seed % 3 === 0 && (addStatic("fence", [x + fx2 * (front + 2) - sx * 4, y + 0.15, z + fz * (front + 2) - sz * 4], k, []), addStatic("fence", [x + fx2 * (front + 2) + sx * 4, y + 0.15, z + fz * (front + 2) + sz * 4], k, [])), addStatic("hedge", [x - sx * (bd.w / 2 + 2.5), y + 0.15, z - sz * (bd.w / 2 + 2.5)], (k + 1) % 4, []);
+          for (let c of [[-1, 1], [1, 1], [-1, -1]]) addStatic("bush", [x + sx * c[0] * (bd.w / 2 + 1.2) + fx2 * c[1] * (bd.d / 2 + 1), y + 0.15, z + sz * c[0] * (bd.w / 2 + 1.2) + fz * c[1] * (bd.d / 2 + 1)], 0, []);
+          addStatic("rock", [x - fx2 * (bd.d / 2 + 6) + sx * 5, y + 0.15, z - fz * (bd.d / 2 + 6) + sz * 5], k, []);
+        }
+        return (kind === "shop" || kind === "gas" || kind === "motel") && (addStatic("dumpster", [x - sx * (bd.w / 2 + 3), y, z - sz * (bd.w / 2 + 3)], k, [{ min: [-1.1, 0, -0.6], max: [1.1, 1.4, 0.6] }]), addStatic("lamp", [x + fx2 * (front + 2) + sx * (bd.w / 2 - 1), y + 0.15, z + fz * (front + 2) + sz * (bd.w / 2 - 1)], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }])), kind === "warehouse" && addStatic("truck", [x + fx2 * (front + 4) - sx * 6, y + 0.15, z + fz * (front + 4) - sz * 6], k, [{ min: [-1.3, 0, -2.2], max: [1.3, 2.8, 3.8] }]), !0;
       };
       for (let pi = 0; pi < POIS.length; pi++) {
         let p = POIS[pi], ty = pi % 4 * Math.PI / 2, ca = Math.cos(ty), sa = Math.sin(ty), slots = [];
@@ -1416,6 +1451,11 @@ void main(){
           let [lx, lz, lk] = slots[i], x = p.x + lx * ca + lz * sa, z = p.z - lx * sa + lz * ca, k = (lk + pi % 4) % 4;
           placeBuilding(p.kinds[i % p.kinds.length], x, z, k, pi + i, i + pi * 3);
         }
+        if (p.layout === "street" || p.layout === "grid") for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 8) for (let side of [-1, 1]) {
+          let x = p.x + ca * tt + sa * 6.2 * side, z = p.z - sa * tt + ca * 6.2 * side;
+          this.statics.push({ mesh: "curb", pos: [x, p.h - 0.1, z], yaw: ty + (side > 0 ? 0 : Math.PI), boxes: [] });
+        }
+        for (let side of [-1, 1]) this.statics.push({ mesh: "sign", pos: [p.x + ca * p.r * 0.72 * side + sa * 8, p.h - 0.1, p.z - sa * p.r * 0.72 * side + ca * 8], yaw: ty, boxes: [] });
         for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) {
           let x = p.x + ca * tt, z = p.z - sa * tt;
           this.statics.push({ mesh: "dash", pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] });
@@ -1458,6 +1498,12 @@ void main(){
         if ((p.name === "SALTY SPRINGS" || p.name === "RETAIL ROW" || p.name === "ANARCHY ACRES" || p.name === "DUSTY DEPOT") && addStatic("waterTower", [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21, 3.8] }]), p.name === "ANARCHY ACRES" || p.name === "FATAL FIELDS") for (let i = -3; i <= 3; i++)
           addStatic("fence", [p.x + i * 8, p.h, p.z - 40], 0, []), addStatic("fence", [p.x + i * 8, p.h, p.z + 40], 0, []);
       }
+      placeBuilding("cottage", ISLAND[0] + 28, ISLAND[2] + 18, 3, 1, 2), placeBuilding("cottage", ISLAND[0] - 30, ISLAND[2] - 14, 1, 4, 5), placeBuilding("tower", ISLAND[0] + 4, ISLAND[2] - 34, 0, 0, 0);
+      for (let k = 0; k < 8; k++) {
+        let a = k / 8 * 6.283 + 0.3, rr = 20 + k % 2 * 6;
+        addStatic(k % 3 === 0 ? "crate" : k % 3 === 1 ? "bush" : "rock", [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.1, ISLAND[2] + Math.sin(a) * rr], k % 4, k % 3 === 0 ? [{ min: [-1, 0, -1], max: [1, 2, 1] }] : []);
+      }
+      for (let k = -2; k <= 2; k++) this.statics.push({ mesh: "fence", pos: [ISLAND[0] + k * 6, terrainH(ISLAND[0] + k * 6, ISLAND[2] + 40) - 0.1, ISLAND[2] + 40], yaw: 0, boxes: [] });
       for (let i = 1; i < MESAS.length; i += 2) {
         let [mx, mz] = MESAS[i];
         placeBuilding(i % 4 === 1 ? "tower" : "cottage", mx, mz, i % 4, i, i), this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]);
@@ -1533,7 +1579,7 @@ void main(){
       for (let k = 0; k < 1e3; k++) {
         let x = cx * S2 + rnd() * S2, z = cz * S2 + rnd() * S2, y = terrainH(x, z);
         if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
-        let hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14, c = [0.4 + rnd() * 0.14, 0.8 + rnd() * 0.16, 0.22 + rnd() * 0.1];
+        let hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14, c = [0.34 + rnd() * 0.14, 0.66 + rnd() * 0.18, 0.2 + rnd() * 0.1];
         for (let aa of [a, a + 1.05, a + 2.1]) {
           let dx = Math.cos(aa) * w, dz = Math.sin(aa) * w, tipX = x + dx * 0.5 + Math.cos(a + 1.5) * 0.12, tipZ = z + dz * 0.5 + Math.sin(a + 1.5) * 0.12;
           g.triN([x - dx, y, z - dz], [x + dx, y, z + dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], c), g.triN([x + dx, y, z + dz], [x - dx, y, z - dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], dk(c, 0.9));
@@ -1550,20 +1596,26 @@ void main(){
       let ctx = cv.getContext("2d"), n = cv.width, px = SIZE / n, img = ctx.createImageData(n, n);
       for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
         let x = -SIZE / 2 + i * px, z = -SIZE / 2 + j * px, y = terrainH(x, z), c = y < -0.2 ? y < -4 ? rgb(3840728) : rgb(6210278) : terrainColor(x, z, y);
-        if (y > 0.5)
-          for (let [ia, ib] of ROADS) segDist(x, z, POIS[ia], POIS[ib]) < 1.6 && (c = rgb(15263968));
+        if (y > 0.5) {
+          let rd = roadDist(x, z);
+          rd < 2.2 ? c = rgb(14276300) : rd < 3.2 && (c = rgb(11052444));
+        }
+        if (y >= -0.2) {
+          let sh = 0.72 + 0.5 * Math.max(0, (terrainH(x - 2, z - 2) - terrainH(x + 2, z + 2)) / 6 + 0.5), band = 1 - 0.06 * ((Math.floor(y / 4) % 2 + 2) % 2);
+          c = [Math.min(1, c[0] * sh * band), Math.min(1, c[1] * sh * band), Math.min(1, c[2] * sh * band)], mesaAt(x, z) > 0.05 && mesaAt(x, z) < 0.9 && (c = [0.62, 0.58, 0.5]);
+        } else y > -1.2 && (c = rgb(10474728));
         let o = (j * n + i) * 4;
         img.data[o] = c[0] * 255, img.data[o + 1] = c[1] * 255, img.data[o + 2] = c[2] * 255, img.data[o + 3] = 255;
       }
-      ctx.putImageData(img, 0, 0), ctx.fillStyle = "#3f8a34";
+      ctx.putImageData(img, 0, 0);
       for (let q of this.props) if (q.type !== "bush" && q.type !== "rock") {
         let i = (q.pos[0] + SIZE / 2) / px, j = (q.pos[2] + SIZE / 2) / px;
-        ctx.fillRect(i - 0.8, j - 0.8, 1.6, 1.6);
+        ctx.fillStyle = q.type === "pine" ? "#2f6e3a" : "#3f8a34", ctx.beginPath(), ctx.arc(i, j, 1.3, 0, 6.28), ctx.fill(), ctx.fillStyle = "#1d3d22aa", ctx.beginPath(), ctx.arc(i + 0.6, j + 0.6, 1.3, 0, 6.28), ctx.fill();
       }
       ctx.fillStyle = "#e4e6e8";
       for (let s of this.statics) if (s.mesh.startsWith("house")) {
         let i = (s.pos[0] + SIZE / 2) / px, j = (s.pos[2] + SIZE / 2) / px;
-        ctx.fillRect(i - 3, j - 2.5, 6, 5);
+        ctx.fillStyle = "#5a5a60", ctx.fillRect(i - 2.5, j - 2, 6, 5), ctx.fillStyle = "#e4e6e8", ctx.fillRect(i - 3, j - 2.5, 6, 5);
       }
     }
     drawLabels(cv) {
@@ -1770,7 +1822,7 @@ void main(){
     }
     svg.innerHTML = '<rect width="100" height="60" fill="#3b8fc4"/>' + s + '<ellipse cx="50" cy="52" rx="40" ry="10" fill="#e8f6ff" opacity="0.55"/>';
   }
-  var BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain", "bridge"]), baked = [];
+  var BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain", "bridge", "curb", "sign", "bush", "rock"]), baked = [];
   {
     let cells = /* @__PURE__ */ new Map();
     for (let s of W.statics) {
@@ -2382,8 +2434,8 @@ void main(){
         uL = -2.9, fL = -1.3, zL = 0.2, uR = -0.4, fR = -1.5, zR = -0.5, thL = -0.9, thR = 0.3, shL = 1.6, shR = 0.5, drop = 0.35, yawWig = Math.sin(w) * 0.1;
     }
     a.pose === "crouch" && (drop = 0.55, thL = thR = -1.1, shL = shR = 1.5, lean = 0.35, uR = -1.35 - a.pitch, fR = -0.35, uL = -1.1 - a.pitch, fL = -1, zL = 0.55);
-    let m = mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig)), hip = mul(m, translate(0, 0.78, 0)), upper = mul(hip, rotX(lean));
-    R.draw(ch.torso, mul(upper, translate(0, -0.78, 0)), [1, 1, 1], 1, st), R.draw(ch.head, mul(mul(upper, translate(0, 0.78, 0)), rotX(-a.pitch * 0.5 - lean * 0.6)), [1, 1, 1], 1, st);
+    let m = mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig)), hip = mul(m, translate(0, 0.9, 0)), upper = mul(hip, rotX(lean));
+    R.draw(ch.torso, mul(mul(upper, translate(0, -0.78, 0)), scaleM(0.94, 1, 0.94)), [1, 1, 1], 1, st), R.draw(ch.head, mul(mul(mul(upper, translate(0, 0.78, 0)), rotX(-a.pitch * 0.5 - lean * 0.6)), scaleM(0.84, 0.84, 0.84)), [1, 1, 1], 1, st);
     let armM = (side, u, z, f) => {
       let sh = mul(mul(mul(upper, translate(side * 0.4, 0.67, 0)), rotZ(-side * z)), rotX(u));
       R.draw(ch.upperArm, sh, [1, 1, 1], 1, st);
@@ -2393,7 +2445,7 @@ void main(){
     armM(1, uL, zL, fL);
     let legM = (side, th, sh) => {
       let h = mul(mul(hip, translate(side * 0.16, 0, 0)), rotX(th));
-      R.draw(ch.thigh, h, [1, 1, 1], 1, st), R.draw(ch.shin, mul(mul(h, translate(0, -0.4, 0)), rotX(sh)), [1, 1, 1], 1, st);
+      R.draw(ch.thigh, mul(h, scaleM(1, 1.15, 1)), [1, 1, 1], 1, st), R.draw(ch.shin, mul(mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), scaleM(1, 1.12, 1)), [1, 1, 1], 1, st);
     };
     if (legM(1, thL, shL), legM(-1, thR, shR), a.held === "pickaxe") R.draw(M.pickaxe, mul(handR, mul(translate(0, 0, 0.05), rotX(1.4))));
     else if (a.held) {
@@ -2440,6 +2492,11 @@ void main(){
   $("pLobby").onclick = (e) => {
     e.stopPropagation(), toLobby();
   };
+  function fitHud() {
+    document.documentElement.style.setProperty("--hs", String(clamp(innerWidth / 1920 * 0.9, 0.5, 0.85)));
+  }
+  addEventListener("resize", fitHud);
+  fitHud();
   function fitLobby() {
     let ui = document.querySelector("#lobby .ui");
     if (!ui) return;
@@ -2969,7 +3026,7 @@ void main(){
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1e3);
     last = now, t += dt, fpsN++, fpsT += dt, fpsT > 0.5 && (fpsV = Math.round(fpsN / fpsT), fpsN = 0, fpsT = 0, P.state === "play" && (lowT = fpsV < 30 ? lowT + 0.5 : 0, lowT >= 3 && (lowT = 0, (S.shadows > 1 ? S.shadows = 1 : S.grass > 0 ? S.grass = 0 : S.scale > 0.75 ? S.scale = 0.75 : S.shadows > 0 ? S.shadows = 0 : S.scale > 0.6 ? S.scale = 0.6 : S.viewDist > 0 ? S.viewDist = 0 : -1) !== -1 && info("Low FPS: quality lowered (Settings > Video)"))));
-    let key = (c) => pressed.has(c), sun = norm([0.45, 0.8, 0.3]), aspect = innerWidth / innerHeight, gamepads = navigator.getGamepads ? navigator.getGamepads() : [], gp = null;
+    let key = (c) => pressed.has(c), sun = norm([0.55, 0.62, 0.35]), aspect = innerWidth / innerHeight, gamepads = navigator.getGamepads ? navigator.getGamepads() : [], gp = null;
     for (let g of gamepads)
       if (g && g.connected) {
         gp = g;
@@ -3213,7 +3270,7 @@ void main(){
       let cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1;
       for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, !1, !0);
     }
-    R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, !1), P.state === "island" && R.draw(W.island, trs([0, 0, 0]), [1, 1, 1], 1, 5), R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
+    R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, !1), P.state === "island" && (R.draw(W.island, trs([0, 0, 0]), [1, 1, 1], 1, 5), R.draw(M.mountains, trs([ISLAND[0], 0, ISLAND[2]]), [1, 1, 1], 1, 0, !1), R.draw(M.bus, trs([ISLAND[0] - 10, 5.6, ISLAND[2] + 36], 1.2)), R.draw(M.balloon, trs([ISLAND[0] - 10, 21.6, ISLAND[2] + 36], 1.2))), R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
     let cull = P.state === "play" ? [130, 190, 320][S.viewDist] : 900, vis = (p) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && (p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18;
     {
       let r = Math.ceil((cull + PC) / PC), kx = Math.floor(camPos[0] / PC), kz = Math.floor(camPos[2] / PC);

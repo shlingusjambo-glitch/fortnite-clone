@@ -67,12 +67,12 @@ export function terrainColor(x: number, z: number, y: number): Col {
   if (y < 1.4) return rgb(0xe9df9a);              // sand
   if (y < 2.2) return rgb(0xd4dc8a);
   const rd = roadDist(x, z);
-  if (z < -700) return rgb(0x8fd44e);
+  if (z < -700) return rgb(0x7cc64b);
   if (rd < 3.2) return rgb(0x6b6e72);             // asphalt
   if (rd < 4.4) return rgb(0xa89a70);             // dirt shoulder
   const v = vnoise(x * 0.03, z * 0.03), dirt = vnoise(x * 0.09 + 50, z * 0.09 + 12);
   if (dirt > 0.86) return rgb(0xa8945e);            // worn dirt patches
-  return v > 0.6 ? rgb(0x7fcf3d) : v > 0.4 ? rgb(0x93dc4c) : rgb(0x88d644);
+  return v > 0.6 ? rgb(0x6fbe42) : v > 0.4 ? rgb(0x82cc4f) : rgb(0x78c449);
 }
 
 export interface Prop { type: 'tree' | 'tree2' | 'pine' | 'rock' | 'bush'; pos: V3; yaw: number; s: number; hp: number; r: number; h: number; dead: number; }
@@ -154,6 +154,8 @@ export class World {
         addStatic('mailbox', [x + fx * (front + 1) - sx * 3, y + 0.15, z + fz * (front + 1) - sz * 3], k, []);
         if (seed % 3 === 0) { addStatic('fence', [x + fx * (front + 2) - sx * 4, y + 0.15, z + fz * (front + 2) - sz * 4], k, []); addStatic('fence', [x + fx * (front + 2) + sx * 4, y + 0.15, z + fz * (front + 2) + sz * 4], k, []); }
         addStatic('hedge', [x - sx * (bd.w / 2 + 2.5), y + 0.15, z - sz * (bd.w / 2 + 2.5)], (k + 1) % 4, []);
+        for (const c of [[-1, 1], [1, 1], [-1, -1]]) addStatic('bush', [x + sx * c[0] * (bd.w / 2 + 1.2) + fx * c[1] * (bd.d / 2 + 1.0), y + 0.15, z + sz * c[0] * (bd.w / 2 + 1.2) + fz * c[1] * (bd.d / 2 + 1.0)], 0, []);   // foundation shrubs
+        addStatic('rock', [x - fx * (bd.d / 2 + 6) + sx * 5, y + 0.15, z - fz * (bd.d / 2 + 6) + sz * 5], k, []);
       }
       if (kind === 'shop' || kind === 'gas' || kind === 'motel') { addStatic('dumpster', [x - sx * (bd.w / 2 + 3), y, z - sz * (bd.w / 2 + 3)], k, [{ min: [-1.1, 0, -0.6], max: [1.1, 1.4, 0.6] }]); addStatic('lamp', [x + fx * (front + 2) + sx * (bd.w / 2 - 1), y + 0.15, z + fz * (front + 2) + sz * (bd.w / 2 - 1)], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
       if (kind === 'warehouse') { addStatic('truck', [x + fx * (front + 4) - sx * 6, y + 0.15, z + fz * (front + 4) - sz * 6], k, [{ min: [-1.3, 0, -2.2], max: [1.3, 2.8, 3.8] }]); }
@@ -170,6 +172,9 @@ export class World {
         const [lx, lz, lk] = slots[i], x = p.x + lx * ca + lz * sa, z = p.z - lx * sa + lz * ca, k = (lk + (pi % 4)) % 4;
         placeBuilding(p.kinds[i % p.kinds.length], x, z, k, pi + i, i + pi * 3);
       }
+      // curbs + sidewalks along the main street, a sign at each end, shrubs against house walls
+      if (p.layout === 'street' || p.layout === 'grid') for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 8) for (const side of [-1, 1]) { const x = p.x + ca * tt + sa * 6.2 * side, z = p.z - sa * tt + ca * 6.2 * side; this.statics.push({ mesh: 'curb', pos: [x, p.h - 0.1, z], yaw: ty + (side > 0 ? 0 : Math.PI), boxes: [] }); }
+      for (const side of [-1, 1]) this.statics.push({ mesh: 'sign', pos: [p.x + ca * p.r * 0.72 * side + sa * 8, p.h - 0.1, p.z - sa * p.r * 0.72 * side + ca * 8], yaw: ty, boxes: [] });
       // street furniture along the main street
       for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) { const x = p.x + ca * tt, z = p.z - sa * tt; this.statics.push({ mesh: 'dash', pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] }); }
       for (let tt = -p.r * 0.6; tt < p.r * 0.6; tt += 24) { const x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7; addStatic('lamp', [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
@@ -193,6 +198,10 @@ export class World {
       if (p.name === 'SALTY SPRINGS' || p.name === 'RETAIL ROW' || p.name === 'ANARCHY ACRES' || p.name === 'DUSTY DEPOT') addStatic('waterTower', [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21.0, 3.8] }]);
       if (p.name === 'ANARCHY ACRES' || p.name === 'FATAL FIELDS') for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + i * 8, p.h, p.z - 40], 0, []); addStatic('fence', [p.x + i * 8, p.h, p.z + 40], 0, []); }
     }
+    // spawn island dressing: cabins, a lookout, crates and shrubs so it reads as a place, not a platform
+    placeBuilding('cottage', ISLAND[0] + 28, ISLAND[2] + 18, 3, 1, 2); placeBuilding('cottage', ISLAND[0] - 30, ISLAND[2] - 14, 1, 4, 5); placeBuilding('tower', ISLAND[0] + 4, ISLAND[2] - 34, 0, 0, 0);
+    for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283 + 0.3, rr = 20 + (k % 2) * 6; addStatic(k % 3 === 0 ? 'crate' : k % 3 === 1 ? 'bush' : 'rock', [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.1, ISLAND[2] + Math.sin(a) * rr], k % 4, k % 3 === 0 ? [{ min: [-1, 0, -1], max: [1, 2, 1] }] : []); }
+    for (let k = -2; k <= 2; k++) this.statics.push({ mesh: 'fence', pos: [ISLAND[0] + k * 6, terrainH(ISLAND[0] + k * 6, ISLAND[2] + 40) - 0.1, ISLAND[2] + 40], yaw: 0, boxes: [] });
     for (let i = 1; i < MESAS.length; i += 2) { const [mx, mz] = MESAS[i]; placeBuilding(i % 4 === 1 ? 'tower' : 'cottage', mx, mz, i % 4, i, i); this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]); }   // hilltop lookouts on the mesas
     // vegetation: authored clusters (woods, tree lines along roads/rivers) + sparse fill
     const put = (x: number, z: number, type: Prop['type'], s: number) => { const y = terrainH(x, z); if (y < 2.2) return; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) return; if (roadDist(x, z) < 6) return; this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === 'bush' ? 30 : 250, r: (type === 'rock' ? 1.4 : type === 'bush' ? 0.7 : 0.4) * s, h: (type === 'rock' ? 1.2 : type === 'bush' ? 1 : 6) * s, dead: 0 }); };
@@ -220,7 +229,7 @@ export class World {
       if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
       // Tall, lush grass blades (0.45m - 0.75m tall) matching reference images
       const hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14;
-      const c: Col = [0.4 + rnd() * 0.14, 0.8 + rnd() * 0.16, 0.22 + rnd() * 0.1];
+      const c: Col = [0.34 + rnd() * 0.14, 0.66 + rnd() * 0.18, 0.2 + rnd() * 0.1];
       // 3 intersecting blades per clump for full 3D volume
       for (const aa of [a, a + 1.05, a + 2.1]) {
         const dx = Math.cos(aa) * w, dz = Math.sin(aa) * w;
@@ -243,14 +252,18 @@ export class World {
     for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
       const x = -SIZE / 2 + i * px, z = -SIZE / 2 + j * px, y = terrainH(x, z);
       let c: Col = y < -0.2 ? (y < -4 ? rgb(0x3a9ad8) : rgb(0x5ec2e6)) : terrainColor(x, z, y);
-      if (y > 0.5) { for (const [ia, ib] of ROADS) if (segDist(x, z, POIS[ia], POIS[ib]) < 1.6) c = rgb(0xe8e8e0); }
+      if (y > 0.5) { const rd = roadDist(x, z); if (rd < 2.2) c = rgb(0xd9d6cc); else if (rd < 3.2) c = rgb(0xa8a59c); }
+      if (y >= -0.2) {   // hillshade + slight contour banding so elevation reads on the map
+        const sh = 0.72 + 0.5 * Math.max(0, (terrainH(x - 2, z - 2) - terrainH(x + 2, z + 2)) / 6 + 0.5), band = 1 - 0.06 * ((Math.floor(y / 4) % 2 + 2) % 2);
+        c = [Math.min(1, c[0] * sh * band), Math.min(1, c[1] * sh * band), Math.min(1, c[2] * sh * band)];
+        if (mesaAt(x, z) > 0.05 && mesaAt(x, z) < 0.9) c = [0.62, 0.58, 0.5];   // cliff rim
+      } else if (y > -1.2) c = rgb(0x9fd4e8);
       const o = (j * n + i) * 4; img.data[o] = c[0] * 255; img.data[o + 1] = c[1] * 255; img.data[o + 2] = c[2] * 255; img.data[o + 3] = 255;
     }
     ctx.putImageData(img, 0, 0);
-    ctx.fillStyle = '#3f8a34';
-    for (const q of this.props) if (q.type !== 'bush' && q.type !== 'rock') { const i = (q.pos[0] + SIZE / 2) / px, j = (q.pos[2] + SIZE / 2) / px; ctx.fillRect(i - 0.8, j - 0.8, 1.6, 1.6); }
+    for (const q of this.props) if (q.type !== 'bush' && q.type !== 'rock') { const i = (q.pos[0] + SIZE / 2) / px, j = (q.pos[2] + SIZE / 2) / px; ctx.fillStyle = q.type === 'pine' ? '#2f6e3a' : '#3f8a34'; ctx.beginPath(); ctx.arc(i, j, 1.3, 0, 6.28); ctx.fill(); ctx.fillStyle = '#1d3d22aa'; ctx.beginPath(); ctx.arc(i + 0.6, j + 0.6, 1.3, 0, 6.28); ctx.fill(); }
     ctx.fillStyle = '#e4e6e8';
-    for (const s of this.statics) if (s.mesh.startsWith('house')) { const i = (s.pos[0] + SIZE / 2) / px, j = (s.pos[2] + SIZE / 2) / px; ctx.fillRect(i - 3, j - 2.5, 6, 5); }
+    for (const s of this.statics) if (s.mesh.startsWith('house')) { const i = (s.pos[0] + SIZE / 2) / px, j = (s.pos[2] + SIZE / 2) / px; ctx.fillStyle = '#5a5a60'; ctx.fillRect(i - 2.5, j - 2, 6, 5); ctx.fillStyle = '#e4e6e8'; ctx.fillRect(i - 3, j - 2.5, 6, 5); }
   }
   drawLabels(cv: HTMLCanvasElement) {
     const ctx = cv.getContext('2d')!, px = SIZE / cv.width;

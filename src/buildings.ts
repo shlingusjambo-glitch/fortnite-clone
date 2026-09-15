@@ -1,5 +1,5 @@
 import { V3, mul, translate, rotY, rotZ, rotX, rand } from './math.js';
-import { MB, Col, rgb, dk, lt, C, LBox, FH } from './models.js';
+import { MB, Col, rgb, dk, lt, C, LBox, FH, aoY } from './models.js';
 
 /** A generated building: mesh data in `b`, collision boxes, and loot spawn points (all local space, front = +z). */
 export interface Building { b: MB; boxes: LBox[]; loot: V3[]; chests: V3[]; w: number; d: number; h: number; kind: string; }
@@ -148,6 +148,7 @@ export function colonial(pi = 0, seed = 0): Building {
     k.loot.push([gx, 0.5, gz + 1]); k.chests.push([hw + gw - 1.4, 0.4, gz + gd / 2 - 1.5]);
   }
   k.loot.push([-hw * 0.5, y0, hd * 0.5], [-hw * 0.5, y0, -hd * 0.5], [hw * 0.35, y1, hd * 0.3], [-hw * 0.55, y1, hd * 0.3]); k.chests.push([-hw + 1.5, y1, -hd + 1.5]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: garage ? w + 6 : w, d, h: H + d * 0.42, kind: 'colonial' };
 }
 
@@ -170,6 +171,7 @@ export function cottage(pi = 1, seed = 0): Building {
   b.box([0, 2.9, hd + 1.0], [3.0, 0.15, 2.0], p.roof); for (const x of [-1.3, 1.3]) k.solid([x, 1.45, hd + 1.8], [0.16, 2.9, 0.16], p.trim);
   k.solid([0, 0.2, hd + 1.1], [3.0, 0.4, 1.6], CONCRETE); k.door(0.65, 0.4, hd - 0.1, Math.PI * 0.6);
   k.loot.push([-hw * 0.5, y0, hd * 0.3], [hw * 0.4, y0, hd * 0.2]); k.chests.push([-hw + 1.2, y0, -hd + 3]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H + d * 0.5, kind: 'cottage' };
 }
 
@@ -194,6 +196,7 @@ export function shop(pi = 2, seed = 0): Building {
   k.crate(-hw + 2, y0, -hd + 1.5); k.crate(-hw + 3.2, y0, -hd + 1.5, 0.8); k.crate(-hw + 2.6, y0 + 1, -hd + 1.5, 0.8); k.barrel(hw - 2, y0, -hd + 1.5); k.shelfRack(2, y0, -hd + 2, 0, 6, 3);
   for (const x of [-6, 0, 6]) for (const z of [-2, 3]) k.ceilingLight(x, H - 0.1, z);
   k.loot.push([-hw + 6, y0, 2.6], [2, y0, 2.6], [hw - 3, y0, 0], [0, y0, -hd + 2]); k.chests.push([-hw + 1.5, y0, -hd + 1.4], [hw - 2, y0, hd - 1.5]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H + 1.5, kind: 'shop' };
 }
 
@@ -216,6 +219,7 @@ export function gas(pi = 3, seed = 0): Building {
   for (const x of [-1.2, 1.2]) { k.solid([x, 1.0, cz], [0.9, 1.8, 0.5], rgb(0xe8e8e8)); b.box([x, 1.5, cz + 0.26], [0.7, 0.5, 0.03], rgb(0x203040)); b.box([x, 0.9, cz + 0.27], [0.5, 0.3, 0.03], rgb(0xc03030)); b.box([x + 0.3, 1.2, cz - 0.3], [0.1, 0.9, 0.1], DARK); b.cyl([x + 0.3, 1.65, cz - 0.3], 0.06, 0.06, 0.4, DARK, 6); }
   b.box([-6.5, 0.8, cz - 2], [1.4, 1.6, 0.6], rgb(0x2c4a6e)); b.box([-6.5, 1.5, cz - 2], [1.2, 0.3, 0.62], rgb(0xffd23a));   // ice box / vending
   k.loot.push([1, y0, -0.9], [-hw + 2, y0, hd - 3.5], [2, 0.3, cz]); k.chests.push([hw - 1.5, y0, -hd + 1.5]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: 18, d: d + 18, h: H + 1, kind: 'gas' };
 }
 
@@ -247,6 +251,7 @@ export function barn(pi = 2, seed = 0): Building {
   k.stairs(hw - 1.4, -hd + 8.2, y0, 3.6, 5.5, rgb(0x9a7a50));
   k.hayBale(-hw + 2, 4.0, -hd + 2); k.hayBale(-hw + 3.5, 4.0, -hd + 2, 0.4); k.hayBale(0, 4.0, -hd + 3);
   k.loot.push([0, y0, 0], [0, y0, hd - 4], [-2, 4.0, -hd + 5], [hw - 3, y0, -hd + 5]); k.chests.push([-hw + 1.5, 4.0, -hd + 6]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H + rh, kind: 'barn' };
 }
 
@@ -272,6 +277,7 @@ export function warehouse(pi = 5, seed = 0): Building {
   k.table(hw - 4, 4.2, -hd + 2.5, 1.6, 0.8); k.chair(hw - 4, 4.2, -hd + 1.6, 0); k.cabinet(hw - 1.2, 4.2, -hd + 2.5, 0.6, 1.4, 1.2, rgb(0x7a7f86));
   for (const x of [-6, 0, 6]) for (const z of [-3, 3]) k.ceilingLight(x, H - 0.1, z);
   k.loot.push([-hw + 5, y0, -hd + 2.5], [0, y0, 2.5], [hw - 4, 4.3, 2], [-hw + 3, y0, hd - 5]); k.chests.push([hw - 2, 4.2, hd - 2], [-hw + 2, y0, -hd + 2]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H + 2.2, kind: 'warehouse' };
 }
 
@@ -288,6 +294,7 @@ export function tower(pi = 0, seed = 0): Building {
   // ladder as steep step boxes on the +z side
   for (let i = 0; i < 14; i++) k.solid([1.8, y + (i + 1) * H / 14 - 0.05, 2.9 - i * 0.02], [1.0, 0.1, 0.5], wood);
   k.crate(-1.5, H, -1.5, 0.9); k.loot.push([0, H, 0]); k.chests.push([1.2, H, -1.5]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w: 6, d: 6, h: H + 4.6, kind: 'tower' };
 }
 
@@ -311,6 +318,7 @@ export function motel(pi = 4, seed = 0): Building {
   b.box([0, H + 0.15, 0], [w + 0.6, 0.3, d + 5.4], rgb(0x6a6e74)); b.box([0, H + 0.5, 0], [w + 0.8, 0.2, d + 5.6], rgb(0x51555b));
   b.box([-hw - 1.5, 5.5, hd + 3], [0.3, 11, 0.3], rgb(0x4a7a9a)); b.box([-hw - 1.5, 10.5, hd + 3], [4.5, 2.2, 0.3], rgb(0xf4e6c0)); b.box([-hw - 1.5, 10.5, hd + 3.2], [3.6, 1.2, 0.05], rgb(0xc03030));   // sign
   k.chests.push([hw - 1.2, FH + 0.02, -hd + 1.0], [-hw + 1.2, 0.52, -hd + 1.0]);
+  aoY(b.d, -0.2, 2.2, 0.66);
   return { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d: d + 3, h: H + 1, kind: 'motel' };
 }
 

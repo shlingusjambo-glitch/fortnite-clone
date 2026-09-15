@@ -1,4 +1,4 @@
-import { V3, M4, add, sub, scale, norm, len, clamp, lerp, rand, mul, perspective, lookAt, trs, translate, rotY, rotX, rotZ, transformPoint } from './math.js';
+import { V3, M4, add, sub, scale, norm, len, clamp, lerp, rand, mul, perspective, lookAt, trs, translate, rotY, rotX, rotZ, transformPoint, scaleM } from './math.js';
 import { Renderer, Mesh } from './gl.js';
 import { buildModels, buildCharacter, editedPiece, CharMesh, SKINS, Skin } from './models.js';
 import { World, terrainH, Piece, PieceType, Mat, Box, Prop, POIS, SIZE, TILES, ISLAND } from './world.js';
@@ -21,7 +21,7 @@ const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600
 // ---------------- baked static clutter ----------------
 // Small indestructible street/yard props (hedges, fences, dashes, crates, benches...) are merged per 48m cell into one
 // mesh each: ~600 draw calls become ~40. Cars, houses and lamps stay individual (they can be harvested / shake).
-const BAKE = new Set(['dash', 'hedge', 'fence', 'mailbox', 'bench', 'crate', 'dumpster', 'fountain', 'bridge']);
+const BAKE = new Set(['dash', 'hedge', 'fence', 'mailbox', 'bench', 'crate', 'dumpster', 'fountain', 'bridge', 'curb', 'sign', 'bush', 'rock']);
 const baked: { mesh: Mesh; c: V3 }[] = [];
 {
   const cells = new Map<string, { data: number[]; c: V3 }>();
@@ -557,13 +557,13 @@ function drawChar(ch: CharMesh, root: M4, a: AnimIn) {
   }
   if (a.pose === 'crouch') { drop = 0.55; thL = thR = -1.1; shL = shR = 1.5; lean = 0.35; uR = -1.35 - a.pitch; fR = -0.35; uL = -1.1 - a.pitch; fL = -1.0; zL = 0.55; }
   const m = mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig));
-  const hip = mul(m, translate(0, 0.78, 0));
+  const hip = mul(m, translate(0, 0.9, 0));
   const upper = mul(hip, rotX(lean));                                     // torso + arms + head pivot at hips
-  R.draw(ch.torso, mul(upper, translate(0, -0.78, 0)), [1, 1, 1], 1, st);
-  R.draw(ch.head, mul(mul(upper, translate(0, 0.78, 0)), rotX(-a.pitch * 0.5 - lean * 0.6)), [1, 1, 1], 1, st);
+  R.draw(ch.torso, mul(mul(upper, translate(0, -0.78, 0)), scaleM(0.94, 1, 0.94)), [1, 1, 1], 1, st);
+  R.draw(ch.head, mul(mul(mul(upper, translate(0, 0.78, 0)), rotX(-a.pitch * 0.5 - lean * 0.6)), scaleM(0.84, 0.84, 0.84)), [1, 1, 1], 1, st);
   const armM = (side: number, u: number, z: number, f: number) => { const sh = mul(mul(mul(upper, translate(side * 0.4, 0.67, 0)), rotZ(-side * z)), rotX(u)); R.draw(ch.upperArm, sh, [1, 1, 1], 1, st); const el = mul(mul(sh, translate(0, -0.32, 0)), rotX(f)); R.draw(ch.foreArm, el, [1, 1, 1], 1, st); return mul(el, translate(0, -0.33, 0)); };
   const handR = armM(-1, uR, zR, fR); armM(1, uL, zL, fL);
-  const legM = (side: number, th: number, sh: number) => { const h = mul(mul(hip, translate(side * 0.16, 0, 0)), rotX(th)); R.draw(ch.thigh, h, [1, 1, 1], 1, st); R.draw(ch.shin, mul(mul(h, translate(0, -0.4, 0)), rotX(sh)), [1, 1, 1], 1, st); };
+  const legM = (side: number, th: number, sh: number) => { const h = mul(mul(hip, translate(side * 0.16, 0, 0)), rotX(th)); R.draw(ch.thigh, mul(h, scaleM(1, 1.15, 1)), [1, 1, 1], 1, st); R.draw(ch.shin, mul(mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), scaleM(1, 1.12, 1)), [1, 1, 1], 1, st); };
   legM(1, thL, shL); legM(-1, thR, shR);
   if (a.held === 'pickaxe') R.draw(M.pickaxe, mul(handR, mul(translate(0, 0, 0.05), rotX(1.4))));
   else if (a.held) { const aiming = a.pose === 'aim' || a.pose === 'crouch'; const gm = aiming ? mul(mul(upper, translate(-0.38, 0.55, 0.3)), mul(rotY(-0.2), rotX(-a.pitch * 0.6))) : mul(mul(upper, translate(-0.3, 0.1, 0.25)), mul(rotY(0.5), rotX(-0.9))); R.draw(M[a.held], mul(gm, trs([0, 0, 0], 0, 0, 1.6))); }
@@ -583,6 +583,8 @@ $('lobbySettings').onclick = () => settingsOpen(true);
 $('pSettings').onclick = (e) => { e.stopPropagation(); settingsOpen(true); };
 $('pResume').onclick = (e) => { e.stopPropagation(); canvas.requestPointerLock(); };
 $('pLobby').onclick = (e) => { e.stopPropagation(); toLobby(); };
+function fitHud() { document.documentElement.style.setProperty('--hs', String(clamp(innerWidth / 1920 * 0.9, 0.5, 0.85))); }
+addEventListener('resize', fitHud); fitHud();
 function fitLobby() { const ui = document.querySelector<HTMLElement>('#lobby .ui'); if (!ui) return; const sc = Math.min(innerWidth / 1600, innerHeight / 900); ui.style.transform = `scale(${sc})`; ui.style.left = (innerWidth - 1600 * sc) / 2 + 'px'; ui.style.top = (innerHeight - 900 * sc) / 2 + 'px'; }
 addEventListener('resize', fitLobby); fitLobby(); refreshLobby(); lastEmote = PR.emote; if (!PR.unlocked.includes(P.skin)) P.skin = 0;
 // emotes: B opens the wheel (or repeats the last emote); bots emote when idle or after a kill
@@ -937,7 +939,7 @@ function frame(now: number) {
     if (P.state === 'play') { lowT = fpsV < 30 ? lowT + 0.5 : 0; if (lowT >= 3) { lowT = 0; const step = S.shadows > 1 ? (S.shadows = 1) : S.grass > 0 ? (S.grass = 0) : S.scale > 0.75 ? (S.scale = 0.75) : S.shadows > 0 ? (S.shadows = 0) : S.scale > 0.6 ? (S.scale = 0.6) : S.viewDist > 0 ? (S.viewDist = 0) : -1; if (step !== -1) info('Low FPS: quality lowered (Settings > Video)'); } }
   }
   const key = (c: string) => pressed.has(c);
-  const sun = norm([0.45, 0.8, 0.3] as V3), aspect = innerWidth / innerHeight;
+  const sun = norm([0.55, 0.62, 0.35] as V3), aspect = innerWidth / innerHeight;
 
   // --- Gamepad input processing ---
   const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
@@ -1207,7 +1209,7 @@ function frame(now: number) {
   for (const tc of W.terrainChunks) { const dx = tc.c[0] - camPos[0], dz = tc.c[2] - camPos[2], dist = Math.hypot(dx, dz); if (P.state === 'play' && dist > tc.r && (dist - tc.r > [420, 600, 900][S.viewDist] || dx * camFwd[0] + dz * camFwd[2] < -tc.r)) continue; R.draw(tc.mesh, trs([0, 0, 0]), [1, 1, 1], 1, 5); }
   if (P.state === 'play' && S.grass > 0) { const cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1; for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, false, true); }
   R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, false);
-  if (P.state === 'island') R.draw(W.island, trs([0, 0, 0]), [1, 1, 1], 1, 5);
+  if (P.state === 'island') { R.draw(W.island, trs([0, 0, 0]), [1, 1, 1], 1, 5); R.draw(M.mountains, trs([ISLAND[0], 0, ISLAND[2]]), [1, 1, 1], 1, 0, false); R.draw(M.bus, trs([ISLAND[0] - 10, 5.6, ISLAND[2] + 36], 1.2)); R.draw(M.balloon, trs([ISLAND[0] - 10, 21.6, ISLAND[2] + 36], 1.2)); }
   R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, false);
   const cull = P.state === 'play' ? [130, 190, 320][S.viewDist] : 900;
   const vis = (p: V3) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && ((p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18);   // ponytail: half-space cull, real frustum if draw calls ever matter

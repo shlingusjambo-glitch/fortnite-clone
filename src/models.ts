@@ -4,6 +4,8 @@ import { Renderer, Mesh } from './gl.js';
 export type Col = V3;
 export const rgb = (h: number): Col => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
 export const dk = (c: Col, k: number): Col => [c[0] * k, c[1] * k, c[2] * k];
+/** bake a vertical ambient-occlusion gradient into vertex colours: darker near y0, full colour by y1 */
+export function aoY(d: number[], y0: number, y1: number, dark: number) { for (let i = 0; i < d.length; i += 9) { const t = Math.min(1, Math.max(0, (d[i + 1] - y0) / (y1 - y0))), k = dark + (1 - dark) * t * t * (3 - 2 * t); d[i + 6] *= k; d[i + 7] *= k; d[i + 8] *= k; } }
 export const lt = (c: Col, k: number): Col => [Math.min(1, c[0] + (1 - c[0]) * k), Math.min(1, c[1] + (1 - c[1]) * k), Math.min(1, c[2] + (1 - c[2]) * k)];
 
 /**
@@ -579,6 +581,7 @@ export function editedPiece(r: Renderer, type: 'wall' | 'floor', mat: string, ma
 
 /** Build all high-poly game models, weapons, build pieces, and props */
 export function buildModels(r: Renderer): Models {
+  const mkAO = (y0: number, y1: number, dark: number, f: (b: MB) => void) => { const b = new MB(); f(b); aoY(b.d, y0, y1, dark); return b.build(r); };
   const M: Models = {};
   const mk = (f: (b: MB) => void) => { const b = new MB(); f(b); return b.build(r); };
 
@@ -729,7 +732,7 @@ export function buildModels(r: Renderer): Models {
   // consumables: mini shield, chug jug
   M.miniShield = mk(b => { b.cyl([0, 0.02, 0], 0.09, 0.1, 0.22, rgb(0x3aa2ff), 12, true, true); b.cyl([0, 0.26, 0], 0.05, 0.05, 0.06, C.white, 10, true, true); b.box([0, 0.14, 0.1], [0.1, 0.08, 0.01], C.white); });
   M.grenade = mk(b => { b.sphere([0, 0.15, 0], 0.14, rgb(0x4a6a3a), 10, 1.2, true); b.cyl([0, 0.3, 0], 0.05, 0.05, 0.08, rgb(0x888888), 8, true, true); b.box([0.06, 0.34, 0], [0.12, 0.02, 0.03], rgb(0xcccccc)); for (let k = 0; k < 3; k++) b.torus([0, 0.08 + k * 0.07, 0], 0.14, 0.008, rgb(0x2e4a26), 10, 4); });
-  M.launchpad = mk(b => { b.cyl([0, 0, 0], 1.5, 1.4, 0.25, rgb(0x2c3e5a), 16, true, true); b.cyl([0, 0.25, 0], 1.0, 1.0, 0.08, C.blue, 16, true, true); for (let k = 0; k < 4; k++) { b.push(rotY(k * 1.57)); b.box([0.5, 0.4, 0], [0.7, 0.06, 0.16], C.holographic); b.pop(); } b.cyl([0, 0.3, 0], 0.25, 0.25, 0.3, C.yellow, 10, true, true); for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283; b.box([Math.cos(a) * 1.25, 0.16, Math.sin(a) * 1.25], [0.2, 0.1, 0.2], C.yellow); } });
+  M.launchpad = mkAO(0, 0.4, 0.7, b => { b.cyl([0, 0, 0], 1.5, 1.4, 0.25, rgb(0x2c3e5a), 16, true, true); b.cyl([0, 0.25, 0], 1.0, 1.0, 0.08, C.blue, 16, true, true); for (let k = 0; k < 4; k++) { b.push(rotY(k * 1.57)); b.box([0.5, 0.4, 0], [0.7, 0.06, 0.16], C.holographic); b.pop(); } b.cyl([0, 0.3, 0], 0.25, 0.25, 0.3, C.yellow, 10, true, true); for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283; b.box([Math.cos(a) * 1.25, 0.16, Math.sin(a) * 1.25], [0.2, 0.1, 0.2], C.yellow); } });
   M.bushItem = mk(b => { b.sphere([0, 0.25, 0], 0.25, C.leaf2, 8, 0.8, true); b.sphere([0.15, 0.3, 0.1], 0.16, C.leaf3, 8, 0.8, true); b.sphere([-0.15, 0.32, -0.05], 0.15, C.leaf, 8, 0.8, true); });
   M.boogie = mk(b => { b.sphere([0, 0.16, 0], 0.16, rgb(0xc9c9d8), 12, 1, true); for (let k = 0; k < 10; k++) { const a = k * 2.4, y = 0.16 + Math.sin(k * 1.7) * 0.1; b.sphere([Math.cos(a) * 0.14, y, Math.sin(a) * 0.14], 0.03, [C.red, C.blue, C.yellow, rgb(0xff3ec9)][k % 4], 6, 1, true); } b.cyl([0, 0.32, 0], 0.04, 0.04, 0.06, rgb(0x888888), 8, true, true); });
   M.impulse = mk(b => { b.sphere([0, 0.16, 0], 0.15, C.blue, 12, 1, true); b.torus([0, 0.16, 0], 0.16, 0.02, C.holographic, 14, 6); b.cyl([0, 0.32, 0], 0.04, 0.04, 0.06, rgb(0x888888), 8, true, true); });
@@ -928,7 +931,7 @@ export function buildModels(r: Renderer): Models {
 
   // ==================== HIGH-POLY VEGETATION & NATURE ====================
   // Pine Tree: Layered conical conifer with textured needle fronds (matching Image 1 & 3)
-  M.pine = mk(b => {
+  M.pine = mkAO(0, 7.5, 0.5, b => {
     b.cyl([0, 0, 0], 0.38, 0.14, 8.4, C.trunk, 12, true, true);                         // tapered trunk
     for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; b.push(mul(translate(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3), rotY(a))); b.cyl([0, 0, 0], 0.14, 0.04, 0.7, C.trunkDark, 8, true, true); b.pop(); }
     // stacked needle tiers: each tier is a slightly scalloped cone (lobed by 8 overlapping sub-cones) with a lighter tip band
@@ -943,7 +946,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Oak Tree: Smooth organic trunk splitting into lush cartoon leaf boughs (Image 1 & 2)
-  M.tree = mk(b => {
+  M.tree = mkAO(0, 6.5, 0.55, b => {
     b.cyl([0, 0, 0], 0.5, 0.34, 3.8, C.trunk, 14, true, true);
     for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.4; b.cyl([Math.cos(a) * 0.45, 0.12, Math.sin(a) * 0.45], 0.2, 0.05, 0.5, C.trunkDark, 8, true, true); }   // root flare
     for (let i = 0; i < 5; i++) {   // boughs
@@ -960,7 +963,7 @@ export function buildModels(r: Renderer): Models {
     b.sphere([-1.2, 3.9, 1.4], 0.9, dk(C.leaf2, 0.85), 10, 0.9, true);                   // shaded underside lobe
   });
 
-  M.tree2 = mk(b => {   // birch: pale trunk with dark bark marks, airy yellow-green canopy of small lobes
+  M.tree2 = mkAO(0, 6.5, 0.55, b => {   // birch: pale trunk with dark bark marks, airy yellow-green canopy of small lobes
     const bark = rgb(0xe8e4d8), mark = rgb(0x3a3630), leafA = rgb(0xa8d84a), leafB = rgb(0x8cc83a), leafC = rgb(0xc4e860);
     b.cyl([0, 0, 0], 0.3, 0.18, 5.2, bark, 12, true, true);
     for (let k = 0; k < 9; k++) { const a = k * 2.1, y = 0.4 + k * 0.5; b.box([Math.cos(a) * 0.24, y, Math.sin(a) * 0.24], [0.14, 0.08 + (k % 3) * 0.04, 0.06], mark); }
@@ -970,7 +973,7 @@ export function buildModels(r: Renderer): Models {
     b.sphere([0.2, 6.9, 0.1], 1.0, leafC, 10, 0.85, true);
   });
 
-  M.rock = mk(b => {   // faceted boulder cluster (flat-shaded) with a sandy strata band and moss
+  M.rock = mkAO(0, 1.6, 0.6, b => {   // faceted boulder cluster (flat-shaded) with a sandy strata band and moss
     b.sphere([0, 0.45, 0], 1.6, C.rock, 7, 0.7, false);
     b.sphere([1.0, 0.3, 0.7], 1.0, C.rockDark, 6, 0.8, false);
     b.sphere([-0.8, 0.3, -0.6], 0.85, lt(C.rock, 0.1), 6, 0.75, false);
@@ -979,7 +982,7 @@ export function buildModels(r: Renderer): Models {
     b.sphere([-0.9, 0.8, -0.3], 0.3, lt(C.leaf2, 0.05), 6, 0.4, false);
   });
 
-  M.bush = mk(b => {
+  M.bush = mkAO(0, 1.3, 0.6, b => {
     b.cyl([0, 0, 0], 0.08, 0.05, 0.4, C.trunkDark, 6, true, true);
     b.sphere([0, 0.5, 0], 1.0, C.leaf2, 10, 0.75, true);
     for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; b.sphere([Math.cos(a) * 0.65, 0.35 + (i % 2) * 0.25, Math.sin(a) * 0.65], 0.6, i % 2 ? C.leaf : C.leaf3, 8, 0.8, true); }
@@ -987,13 +990,13 @@ export function buildModels(r: Renderer): Models {
     for (let i = 0; i < 6; i++) { const a = i * 1.1 + 0.3; b.sphere([Math.cos(a) * 0.9, 0.5 + (i % 3) * 0.2, Math.sin(a) * 0.9], 0.07, C.red, 6, 1, true); }   // berries
   });
 
-  M.hedge = mk(b => {
+  M.hedge = mkAO(0, 2.0, 0.6, b => {
     b.rbox([0, 0.7, 0], [4.0, 1.4, 0.9], rgb(0x388f34), 0.12);
   });
 
   // ==================== ALL-NEW TOWN & MAP PROPS ====================
   // Water Tower (Iconic landmark featured in Image 3)
-  M.waterTower = mk(b => {
+  M.waterTower = mkAO(0, 6, 0.7, b => {
     const steel = rgb(0x5a636e), tankCol = rgb(0x8f9aa6), roofCol = rgb(0x424852);
     // 4 Heavy Steel Legs with diagonal cross-braces
     const legR = 3.6, H = 14.0;
@@ -1032,7 +1035,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Red Farm Barn (Anarchy Acres / Fatal Fields style)
-  M.barn = mk(b => {
+  M.barn = mkAO(0, 2.5, 0.65, b => {
     const red = rgb(0xa83226), white = rgb(0xf0f0ee), roof = rgb(0x4a4d52);
     // Main barn hall
     b.box([0, 3.5, 0], [16.0, 7.0, 22.0], red);
@@ -1053,7 +1056,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Pickup Truck with curved cab and flatbed
-  M.truck = mk(b => {
+  M.truck = mkAO(0, 1.0, 0.62, b => {
     const red = rgb(0xd0382c), chrome = rgb(0xcccccc);
     // Hood & Cab
     b.rbox([0, 0.75, 0.8], [2.0, 0.65, 1.8], red, 0.08);                               // hood
@@ -1087,7 +1090,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Town Sedan Car
-  M.car = mk(b => {
+  M.car = mkAO(0, 0.9, 0.62, b => {
     const y = rgb(0x3878d6), chrome = rgb(0xdddddd);
     b.rbox([0, 0.55, 0], [1.9, 0.52, 4.2], y, 0.08);                                   // lower chassis
     b.rbox([0, 1.05, -0.2], [1.65, 0.52, 2.2], y, 0.08);                               // cabin
@@ -1115,15 +1118,17 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Golden Treasure Chest (Iconic glowing chest)
-  M.crate = mk(b => { const c = rgb(0xb08a5a); b.box([0, 1, 0], [2, 2, 2], c); for (const e of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { b.box([e[0], 1, e[1]], [e[0] ? 0.08 : 2.04, 2.04, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 0.06, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 1.94, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); } b.box([0, 2.02, 0], [2.04, 0.06, 2.04], dk(c, 0.8)); b.box([0.3, 1.2, 1.03], [0.7, 0.4, 0.02], rgb(0x333333)); });
+  M.crate = mkAO(0, 1.2, 0.72, b => { const c = rgb(0xb08a5a); b.box([0, 1, 0], [2, 2, 2], c); for (const e of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { b.box([e[0], 1, e[1]], [e[0] ? 0.08 : 2.04, 2.04, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 0.06, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 1.94, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); } b.box([0, 2.02, 0], [2.04, 0.06, 2.04], dk(c, 0.8)); b.box([0.3, 1.2, 1.03], [0.7, 0.4, 0.02], rgb(0x333333)); });
   M.mountains = mk(b => {   // distant faceted mountain ring beyond the island, read through fog
     let seed = 7; const rr = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     for (let i = 0; i < 44; i++) { const a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50; b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(0x6f8a6a) : rgb(0x8a8f86), 5, false, false); if (h > 85) b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(0xf0f4f8), 5, false, false); }
   });
-  M.bridge = mk(b => { const w = rgb(0x9a7a50); for (let i = 0; i < 16; i++) b.plank([0, 0.3, -3.75 + i * 0.5], [4.4, 0.16, 0.46], w, 0.02); for (const sx of [-2.1, 2.1]) { b.box([sx, 0.15, 0], [0.25, 0.4, 8], dk(w, 0.7)); b.box([sx, 1.1, 0], [0.08, 0.08, 8], dk(w, 0.8)); for (let k = -3; k <= 3; k++) b.box([sx, 0.7, k * 1.2], [0.1, 0.9, 0.1], dk(w, 0.8)); } for (const sz of [-3, 0, 3]) for (const sx of [-1.8, 1.8]) b.cyl([sx, -2, sz], 0.2, 0.2, 2.5, dk(w, 0.6), 8, true, true); });
+  M.curb = mkAO(0, 0.3, 0.75, b => { b.box([0, 0.12, 0], [0.5, 0.24, 8], rgb(0xb8b6ae)); b.box([0.9, 0.1, 0], [1.4, 0.2, 8], rgb(0xa9a7a0)); for (let k = -3; k <= 3; k++) b.box([0.9, 0.21, k * 1.15], [1.42, 0.01, 0.04], rgb(0x8f8d86)); });   // curb + sidewalk slabs
+  M.sign = mkAO(0, 1.0, 0.7, b => { b.cyl([0, 0, 0], 0.05, 0.05, 2.6, rgb(0x7a7f86), 8, true, true); b.box([0, 2.5, 0], [0.9, 0.22, 0.04], rgb(0x2f8a3a)); b.box([0, 2.5, 0.025], [0.7, 0.1, 0.01], C.white); b.box([0, 1.9, 0], [0.6, 0.6, 0.04], rgb(0xd83030)); b.box([0, 1.9, 0.025], [0.4, 0.08, 0.01], C.white); });
+  M.bridge = mkAO(-2, 0.5, 0.7, b => { const w = rgb(0x9a7a50); for (let i = 0; i < 16; i++) b.plank([0, 0.3, -3.75 + i * 0.5], [4.4, 0.16, 0.46], w, 0.02); for (const sx of [-2.1, 2.1]) { b.box([sx, 0.15, 0], [0.25, 0.4, 8], dk(w, 0.7)); b.box([sx, 1.1, 0], [0.08, 0.08, 8], dk(w, 0.8)); for (let k = -3; k <= 3; k++) b.box([sx, 0.7, k * 1.2], [0.1, 0.9, 0.1], dk(w, 0.8)); } for (const sz of [-3, 0, 3]) for (const sx of [-1.8, 1.8]) b.cyl([sx, -2, sz], 0.2, 0.2, 2.5, dk(w, 0.6), 8, true, true); });
   M.beam = mk(b => b.cyl([0, 0, 0], 0.18, 0.05, 2.4, C.white, 8, false, true));
   M.glow = mk(b => b.sphere([0, 0.4, 0], 1.0, rgb(0xffd23a), 12, 0.9, true));
-  M.chest = mk(b => {
+  M.chest = mkAO(0, 0.6, 0.7, b => {
     b.rbox([0, 0.35, 0], [1.44, 0.70, 0.94], C.woodDark, 0.04);                        // chest base
     b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);                            // lid
     // Heavy iron reinforcement bands with rivets
@@ -1148,7 +1153,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Street Lamp with Curved Arm & Glass Globe
-  M.lamp = mk(b => {
+  M.lamp = mkAO(0, 1.5, 0.7, b => {
     b.cyl([0, 0, 0], 0.16, 0.09, 4.8, rgb(0x2a2c30), 12, true, true);
     b.cyl([0, 0, 0], 0.26, 0.18, 0.5, rgb(0x2a2c30), 12, true, true);                     // base
     b.push(mul(translate(0, 4.8, 0), rotZ(-1.35)));
@@ -1159,13 +1164,13 @@ export function buildModels(r: Renderer): Models {
     b.sphere([1.05, 4.7, 0], 0.16, rgb(0xfff6d0), 10, 0.8, true);
   });
 
-  M.bench = mk(b => {
+  M.bench = mkAO(0, 0.5, 0.7, b => {
     b.box([0, 0.45, 0], [1.7, 0.08, 0.52], C.wood);
     b.box([0, 0.80, -0.22], [1.7, 0.48, 0.07], C.wood);
     for (const x of [-0.75, 0.75]) b.rbox([x, 0.25, 0], [0.09, 0.54, 0.54], rgb(0x2a2c30), 0.02);
   });
 
-  M.fence = mk(b => {
+  M.fence = mkAO(0, 0.8, 0.7, b => {
     for (let i = 0; i < 9; i++) {
       b.box([-4 + i, 0.55, 0], [0.14, 1.1, 0.06], rgb(0xf4f4f0));
       b.push(mul(translate(-4 + i, 1.1, 0), rotZ(Math.PI / 4)));
@@ -1176,7 +1181,7 @@ export function buildModels(r: Renderer): Models {
     b.box([0, 0.88, 0], [8.2, 0.09, 0.05], rgb(0xf4f4f0));
   });
 
-  M.mailbox = mk(b => {
+  M.mailbox = mkAO(0, 0.8, 0.7, b => {
     b.cyl([0, 0, 0], 0.06, 0.06, 1.1, rgb(0x5a4a3a), 8, true, true);
     b.rbox([0, 1.22, 0], [0.26, 0.26, 0.48], rgb(0x2c64b5), 0.06);
     b.box([0.16, 1.32, 0.12], [0.03, 0.22, 0.04], C.red);                               // red flag
@@ -1184,14 +1189,14 @@ export function buildModels(r: Renderer): Models {
 
   M.dash = mk(b => b.box([0, 0.03, 0], [0.5, 0.06, 2.4], rgb(0xf4f4f4)));
 
-  M.fountain = mk(b => {
+  M.fountain = mkAO(0, 1.0, 0.7, b => {
     b.cyl([0, 0, 0], 3.2, 3.2, 0.5, rgb(0xaebbc2), 24, true, true);
     b.cyl([0, 0.48, 0], 2.8, 2.8, 0.2, rgb(0x45bede), 24, true, true);
     b.cyl([0, 0.5, 0], 0.6, 0.8, 2.6, rgb(0xc6d1d5), 16, true, true);
     b.sphere([0, 3.2, 0], 0.78, rgb(0xd8e1e3), 14, 0.9, true);
   });
 
-  M.dumpster = mk(b => {
+  M.dumpster = mkAO(0, 0.8, 0.7, b => {
     b.rbox([0, 0.7, 0], [2.2, 1.35, 1.25], rgb(0x2e6e54), 0.05);
     b.push(rotX(-0.25));
     b.rbox([0, 1.4, -0.1], [2.25, 0.16, 1.3], rgb(0x225540), 0.03);
@@ -1200,7 +1205,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Battle Bus with Turbo Jet Engines and Hot Air Balloon (Image 2)
-  M.bus = mk(b => {
+  M.bus = mkAO(0, 1.2, 0.65, b => {
     b.rbox([0, 1.4, 0], [3.3, 2.6, 10.2], C.bus, 0.14);
     for (let i = 0; i < 6; i++) {
       b.box([1.68, 1.9, -3.8 + i * 1.5], [0.06, 1.0, 1.1], C.glass);
