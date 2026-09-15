@@ -676,6 +676,7 @@ function updateBot(b: Bot, dt: number) {
     const hpTotal = b.hp + b.shield, underFire = t - b.lastHit < 2.5;
     // ---------- mode selection ----------
     if (b.mode !== 'heal' && hpTotal < 45 && b.heals > 0 && (!ep || len(sub(ep, b.pos)) > 14 || b.skill > 0.6)) { b.mode = 'heal'; b.healT = 0; b.boxAt = null; }
+    else if (b.mode !== 'heal' && !ep && t - b.lastHit > 6 && b.heals > 1 && (b.shield < 50 || b.hp < 70) && Math.random() < dt * 0.3) { b.mode = 'heal'; b.healT = 0; b.boxAt = null; }   // top up out of combat
     if (ep && b.weapon && b.mode !== 'heal') {
       const L = len(sub(ep, b.pos)), higher = ep[1] > b.pos[1] + 2.5;
       const wantsCrank = b.skill > 0.55 && L < 46 && (b.aggression > 0.6 || higher) && (b.mats >= 60 || D.infMats);
