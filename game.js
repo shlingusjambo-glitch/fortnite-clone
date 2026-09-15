@@ -389,15 +389,15 @@ void main(){
     { name: "Renegade", skin: rgb(10710087), top: rgb(8537142), top2: rgb(4009001), pants: rgb(6049085), boots: rgb(2367516), hair: rgb(1709588), hat: "cap", style: 0, female: !0 },
     { name: "Arctic Ace", skin: rgb(15454898), top: rgb(15659767), top2: rgb(9484244), pants: rgb(8427691), boots: rgb(3292746), hair: rgb(14413560), hat: "beanie", style: 1 },
     { name: "Neon Striker", skin: rgb(7556152), top: rgb(2237501), top2: rgb(3205316), pants: rgb(1975350), boots: rgb(1184796), hair: rgb(11815679), hat: "spiky", style: 1 },
-    { name: "Black Knight", skin: rgb(14201999), top: rgb(1776418), top2: rgb(13111342), pants: rgb(2302763), boots: rgb(1315864), hair: rgb(2829107), hat: "beanie", style: 0 },
+    { name: "Black Knight", skin: rgb(14201999), top: rgb(1776418), top2: rgb(13111342), pants: rgb(2302763), boots: rgb(1315864), hair: rgb(2829107), hat: "knight", style: 0 },
     { name: "Rust Lord", skin: rgb(14726284), top: rgb(11880223), top2: rgb(3947588), pants: rgb(4864556), boots: rgb(2761760), hair: rgb(9067050), hat: "cap", style: 0 },
     { name: "Brite Bomber", skin: rgb(15845797), top: rgb(16727753), top2: rgb(9167103), pants: rgb(7093503), boots: rgb(16727753), hair: rgb(12078335), hat: "hair", style: 0, female: !0 },
     { name: "Raven", skin: rgb(10132136), top: rgb(1381664), top2: rgb(5913855), pants: rgb(1052696), boots: rgb(789522), hair: rgb(921108), hat: "beanie", style: 1 },
     { name: "Renegade Raider", skin: rgb(15253658), top: rgb(9050642), top2: rgb(2763312), pants: rgb(3881796), boots: rgb(1710622), hair: rgb(3810328), hat: "cap", style: 0, female: !0 },
-    { name: "Aerial Assault Trooper", skin: rgb(14266508), top: rgb(2834218), top2: rgb(6978106), pants: rgb(4872762), boots: rgb(1973794), hair: rgb(2760212), hat: "beanie", style: 0 },
+    { name: "Aerial Assault Trooper", skin: rgb(14266508), top: rgb(2834218), top2: rgb(6978106), pants: rgb(4872762), boots: rgb(1973794), hair: rgb(2760212), hat: "helmet", style: 0 },
     { name: "Blue Squire", skin: rgb(15780004), top: rgb(2250188), top2: rgb(14212584), pants: rgb(1719434), boots: rgb(2763312), hair: rgb(5913114), hat: "hair", style: 0 },
     { name: "Tower Recon Specialist", skin: rgb(13208168), top: rgb(12034940), top2: rgb(4868666), pants: rgb(6974026), boots: rgb(2761760), hair: rgb(1709072), hat: "cap", style: 0 },
-    { name: "Red Knight", skin: rgb(15253658), top: rgb(9048594), top2: rgb(2763312), pants: rgb(2829107), boots: rgb(1710622), hair: rgb(9048594), hat: "beanie", style: 0, female: !0 },
+    { name: "Red Knight", skin: rgb(15253658), top: rgb(9048594), top2: rgb(2763312), pants: rgb(2829107), boots: rgb(1710622), hair: rgb(9048594), hat: "knight", style: 0, female: !0 },
     { name: "Sparkle Specialist", skin: rgb(15845797), top: rgb(16734899), top2: rgb(6217983), pants: rgb(2759236), boots: rgb(1710622), hair: rgb(3811866), hat: "hair", style: 1, female: !0 },
     { name: "Grid Leader", skin: rgb(10213882), top: rgb(15704804), top2: rgb(9229823), pants: rgb(10213882), boots: rgb(15704804), hair: rgb(10213882), hat: "spiky", style: 1 }
   ];
@@ -437,7 +437,15 @@ void main(){
             b.cyl([sx, 0.3, 0.05], 0.04, 0.02, 0.12, s.hair, 8, !0, !0);
         } else if (s.female && s.hat === "hair")
           b.sphere([0, 0.31, -0.03], 0.255, s.hair, 16, 1.05, !0), b.sphere([0, 0.36, -0.22], 0.13, s.hair, 14, 1, !0), b.torus([0, 0.36, -0.16], 0.07, 0.02, C.orange, 12, 6), b.rbox([0, 0.39, 0.14], [0.32, 0.06, 0.12], s.hair, 0.02);
-        else if (s.hat === "beanie")
+        else if (s.hat === "knight") {
+          b.sphere([0, 0.3, 0], 0.27, s.hair, 16, 1.1, !0, [0, 0.55]), b.cyl([0, 0.2, 0], 0.265, 0.265, 0.24, s.hair, 18, !1, !0), b.box([0, 0.27, 0.24], [0.3, 0.035, 0.06], rgb(1052692)), b.box([0, 0.18, 0.25], [0.04, 0.16, 0.04], dk(s.hair, 0.7));
+          for (let k = 0; k < 5; k++) b.box([-0.08 + k * 0.04, 0.12, 0.255], [0.012, 0.06, 0.02], rgb(1052692));
+          b.box([0, 0.48, -0.02], [0.05, 0.16, 0.34], s.top2), b.sphere([0, 0.56, -0.16], 0.08, s.top2, 8, 1, !0);
+        } else if (s.hat === "helmet") {
+          b.sphere([0, 0.31, 0], 0.275, s.hair, 16, 1, !0, [0, 0.55]), b.torus([0, 0.2, 0], 0.27, 0.02, dk(s.hair, 0.7), 18, 6), b.box([0, 0.36, 0.22], [0.36, 0.09, 0.08], rgb(1710624));
+          for (let sx of [-0.09, 0.09]) b.cyl([sx, 0.36, 0.26], 0.05, 0.05, 0.03, C.holographic, 10, !0, !0);
+          b.box([0, 0.14, 0.12], [0.03, 0.14, 0.03], rgb(1710624));
+        } else if (s.hat === "beanie")
           b.sphere([0, 0.32, 0], 0.265, s.hair, 16, 1.08, !0, [0, 0.5]), b.cyl([0, 0.31, 0], 0.255, 0.265, 0.11, dk(s.hair, 0.85), 18, !1, !0), b.sphere([0, 0.48, -0.02], 0.06, dk(s.hair, 0.7), 10, 1, !0);
         else if (s.hat === "spiky") {
           b.sphere([0, 0.31, -0.02], 0.255, s.hair, 16, 1.05, !0);

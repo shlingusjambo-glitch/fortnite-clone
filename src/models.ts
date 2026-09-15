@@ -169,7 +169,7 @@ export interface Skin {
   pants: Col;
   boots: Col;
   hair: Col;
-  hat: 'beanie' | 'cap' | 'hair' | 'spiky' | 'blonde';
+  hat: 'beanie' | 'cap' | 'hair' | 'spiky' | 'blonde' | 'knight' | 'helmet';
   style: number;
   ribs?: boolean;
   female?: boolean;
@@ -183,15 +183,15 @@ export const SKINS: Skin[] = [
   { name: 'Renegade', skin: rgb(0xa36c47), top: rgb(0x824436), top2: rgb(0x3d2c29), pants: rgb(0x5c4d3d), boots: rgb(0x24201c), hair: rgb(0x1a1614), hat: 'cap', style: 0, female: true },
   { name: 'Arctic Ace', skin: rgb(0xebd2b2), top: rgb(0xeef2f7), top2: rgb(0x90b7d4), pants: rgb(0x8098ab), boots: rgb(0x323e4a), hair: rgb(0xdbeef8), hat: 'beanie', style: 1 },
   { name: 'Neon Striker', skin: rgb(0x734c38), top: rgb(0x22243d), top2: rgb(0x30e8c4), pants: rgb(0x1e2436), boots: rgb(0x12141c), hair: rgb(0xb44aff), hat: 'spiky', style: 1 },
-  { name: 'Black Knight', skin: rgb(0xd8b48f), top: rgb(0x1b1b22), top2: rgb(0xc8102e), pants: rgb(0x23232b), boots: rgb(0x141418), hair: rgb(0x2b2b33), hat: 'beanie', style: 0 },
+  { name: 'Black Knight', skin: rgb(0xd8b48f), top: rgb(0x1b1b22), top2: rgb(0xc8102e), pants: rgb(0x23232b), boots: rgb(0x141418), hair: rgb(0x2b2b33), hat: 'knight', style: 0 },
   { name: 'Rust Lord', skin: rgb(0xe0b48c), top: rgb(0xb5471f), top2: rgb(0x3c3c44), pants: rgb(0x4a3a2c), boots: rgb(0x2a2420), hair: rgb(0x8a5a2a), hat: 'cap', style: 0 },
   { name: 'Brite Bomber', skin: rgb(0xf1c9a5), top: rgb(0xff3ec9), top2: rgb(0x8be0ff), pants: rgb(0x6c3cff), boots: rgb(0xff3ec9), hair: rgb(0xb84cff), hat: 'hair', style: 0, female: true },
   { name: 'Raven', skin: rgb(0x9a9aa8), top: rgb(0x151520), top2: rgb(0x5a3cff), pants: rgb(0x101018), boots: rgb(0x0c0c12), hair: rgb(0x0e0e14), hat: 'beanie', style: 1 },
   { name: 'Renegade Raider', skin: rgb(0xe8c09a), top: rgb(0x8a1a12), top2: rgb(0x2a2a30), pants: rgb(0x3b3b44), boots: rgb(0x1a1a1e), hair: rgb(0x3a2418), hat: 'cap', style: 0, female: true },
-  { name: 'Aerial Assault Trooper', skin: rgb(0xd9b08c), top: rgb(0x2b3f2a), top2: rgb(0x6a7a3a), pants: rgb(0x4a5a3a), boots: rgb(0x1e1e22), hair: rgb(0x2a1e14), hat: 'beanie', style: 0 },
+  { name: 'Aerial Assault Trooper', skin: rgb(0xd9b08c), top: rgb(0x2b3f2a), top2: rgb(0x6a7a3a), pants: rgb(0x4a5a3a), boots: rgb(0x1e1e22), hair: rgb(0x2a1e14), hat: 'helmet', style: 0 },
   { name: 'Blue Squire', skin: rgb(0xf0c8a4), top: rgb(0x2255cc), top2: rgb(0xd8dde8), pants: rgb(0x1a3c8a), boots: rgb(0x2a2a30), hair: rgb(0x5a3a1a), hat: 'hair', style: 0 },
   { name: 'Tower Recon Specialist', skin: rgb(0xc98a68), top: rgb(0xb7a37c), top2: rgb(0x4a4a3a), pants: rgb(0x6a6a4a), boots: rgb(0x2a2420), hair: rgb(0x1a1410), hat: 'cap', style: 0 },
-  { name: 'Red Knight', skin: rgb(0xe8c09a), top: rgb(0x8a1212), top2: rgb(0x2a2a30), pants: rgb(0x2b2b33), boots: rgb(0x1a1a1e), hair: rgb(0x8a1212), hat: 'beanie', style: 0, female: true },
+  { name: 'Red Knight', skin: rgb(0xe8c09a), top: rgb(0x8a1212), top2: rgb(0x2a2a30), pants: rgb(0x2b2b33), boots: rgb(0x1a1a1e), hair: rgb(0x8a1212), hat: 'knight', style: 0, female: true },
   { name: 'Sparkle Specialist', skin: rgb(0xf1c9a5), top: rgb(0xff5ab3), top2: rgb(0x5ee0ff), pants: rgb(0x2a1a44), boots: rgb(0x1a1a1e), hair: rgb(0x3a2a1a), hat: 'hair', style: 1, female: true },
   { name: 'Grid Leader', skin: rgb(0x9bd9fa), top: rgb(0xefa2e4), top2: rgb(0x8cd5ff), pants: rgb(0x9bd9fa), boots: rgb(0xefa2e4), hair: rgb(0x9bd9fa), hat: 'spiky', style: 1 },
 ];
@@ -320,6 +320,18 @@ export function buildCharacter(r: Renderer, s: Skin, bulk = 1): CharMesh {
         b.sphere([0, 0.36, -0.22], 0.13, s.hair, 14, 1.0, true);                         // high ponytail bun
         b.torus([0, 0.36, -0.16], 0.07, 0.02, C.orange, 12, 6);                           // hairband
         b.rbox([0, 0.39, 0.14], [0.32, 0.06, 0.12], s.hair, 0.02);                      // bangs
+      } else if (s.hat === 'knight') {   // full great-helm with visor slit, plume in the skin's accent colour
+        b.sphere([0, 0.3, 0], 0.27, s.hair, 16, 1.1, true, [0, 0.55]);
+        b.cyl([0, 0.2, 0], 0.265, 0.265, 0.24, s.hair, 18, false, true);
+        b.box([0, 0.27, 0.24], [0.3, 0.035, 0.06], rgb(0x101014));                       // visor slit
+        b.box([0, 0.18, 0.25], [0.04, 0.16, 0.04], dk(s.hair, 0.7));                     // nasal bar
+        for (let k = 0; k < 5; k++) b.box([-0.08 + k * 0.04, 0.12, 0.255], [0.012, 0.06, 0.02], rgb(0x101014));   // breaths
+        b.box([0, 0.48, -0.02], [0.05, 0.16, 0.34], s.top2); b.sphere([0, 0.56, -0.16], 0.08, s.top2, 8, 1, true);   // crest + plume
+      } else if (s.hat === 'helmet') {   // military helmet with strap and goggles
+        b.sphere([0, 0.31, 0], 0.275, s.hair, 16, 1.0, true, [0, 0.55]);
+        b.torus([0, 0.2, 0], 0.27, 0.02, dk(s.hair, 0.7), 18, 6);
+        b.box([0, 0.36, 0.22], [0.36, 0.09, 0.08], rgb(0x1a1a20)); for (const sx of [-0.09, 0.09]) b.cyl([sx, 0.36, 0.26], 0.05, 0.05, 0.03, C.holographic, 10, true, true);   // goggles
+        b.box([0, 0.14, 0.12], [0.03, 0.14, 0.03], rgb(0x1a1a20));                        // chin strap
       } else if (s.hat === 'beanie') {
         // Skull Trooper / Arctic Ace beanie
         b.sphere([0, 0.32, 0], 0.265, s.hair, 16, 1.08, true, [0, 0.5]);
