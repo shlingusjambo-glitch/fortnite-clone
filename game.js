@@ -578,6 +578,8 @@ void main(){
         let a = k / 8 * 6.283;
         b.box([Math.cos(a) * 1.25, 0.16, Math.sin(a) * 1.25], [0.2, 0.1, 0.2], C.yellow);
       }
+    }), M2.bushItem = mk((b) => {
+      b.sphere([0, 0.25, 0], 0.25, C.leaf2, 8, 0.8, !0), b.sphere([0.15, 0.3, 0.1], 0.16, C.leaf3, 8, 0.8, !0), b.sphere([-0.15, 0.32, -0.05], 0.15, C.leaf, 8, 0.8, !0);
     }), M2.boogie = mk((b) => {
       b.sphere([0, 0.16, 0], 0.16, rgb(13224408), 12, 1, !0);
       for (let k = 0; k < 10; k++) {
@@ -1802,6 +1804,7 @@ void main(){
     miniShield: { name: "Small Shield Potion", dur: 2, rarity: "uncommon", use: () => P.shield < 50 && (P.shield = Math.min(50, P.shield + 25), !0) },
     chug: { name: "Chug Jug", dur: 15, rarity: "legendary", use: () => (P.hp < 100 || P.shield < 100) && (P.hp = 100, P.shield = 100, !0) },
     grenade: { name: "Grenade", dur: 0, rarity: "uncommon", use: () => !1 },
+    bushItem: { name: "Bush", dur: 1, rarity: "legendary", use: () => (P.bush = !0, !0) },
     launchpad: { name: "Launch Pad", dur: 0, rarity: "epic", use: () => !1 },
     boogie: { name: "Boogie Bomb", dur: 0, rarity: "rare", use: () => !1 },
     impulse: { name: "Impulse Grenade", dur: 0, rarity: "rare", use: () => !1 },
@@ -1826,6 +1829,7 @@ void main(){
     scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
     miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
     grenade: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="14" ry="16" fill="#4a6a3a"/><rect x="26" y="14" width="12" height="10" fill="#888"/><rect x="36" y="12" width="12" height="5" fill="#ccc"/></svg>',
+    bushItem: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="18" fill="#45a932"/><circle cx="20" cy="30" r="10" fill="#5fc944"/><circle cx="44" cy="30" r="10" fill="#76de4e"/><circle cx="32" cy="22" r="9" fill="#5fc944"/></svg>',
     launchpad: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="44" rx="24" ry="8" fill="#2c88f5"/><ellipse cx="32" cy="42" rx="14" ry="5" fill="#8cd5ff"/><path d="M32 10l10 14h-6v10h-8v-10h-6z" fill="#ffe22e"/></svg>',
     boogie: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="16" fill="#c9c9d8"/><circle cx="26" cy="30" r="3" fill="#ff3ec9"/><circle cx="38" cy="40" r="3" fill="#3ddcf5"/><circle cx="36" cy="28" r="2" fill="#ffe22e"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
     impulse: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="15" fill="#2c88f5"/><circle cx="32" cy="36" r="8" fill="#8cd5ff"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
@@ -1879,6 +1883,7 @@ void main(){
     emote: 0,
     emoteT: 0,
     stunT: 0,
+    bush: !1,
     editing: null,
     editMask: 0,
     rampRot: 0,
@@ -1913,10 +1918,10 @@ void main(){
   }
   var dropItem = (item, pos, spread = 0) => items.push({ item, pos: [pos[0] + rand(-spread, spread), pos[1], pos[2] + rand(-spread, spread)] });
   function startMatch() {
-    P.state = "bus", P.hp = 100, P.shield = 0, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.clearPieces(), pads.length = 0, nades.length = 0;
+    P.state = "bus", P.hp = 100, P.shield = 0, P.bush = !1, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.clearPieces(), pads.length = 0, nades.length = 0;
     let a = rand(0, 6.28);
     bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420], bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)], bus.t = 0, bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]), P.yaw = bus.yaw, P.pitch = -0.22, storm.c = [rand(-80, 80), rand(-80, 80)], storm.r = 520, storm.phaseT = 120;
-    let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "launchpad", "ammo", "ammo"];
+    let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "launchpad", "bushItem", "ammo", "ammo"];
     for (let l of W.lootSpots) Math.random() < 0.75 && dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
     for (let c of W.chestSpots) Math.random() < 0.7 && chests.push({ pos: [...c], yaw: rand(0, 6.28), open: !1 });
     for (let p of POIS) for (let i = 0; i < 3; i++) {
@@ -2055,7 +2060,7 @@ void main(){
   }
   function damage(n, by = "the storm") {
     if (D.invuln || P.dead || P.over) return;
-    rumble(Math.min(400, n * 8 + 120), 0.7, 0.95);
+    rumble(Math.min(400, n * 8 + 120), 0.7, 0.95), P.bush = !1;
     let s = Math.min(P.shield, n);
     P.shield -= s, P.hp -= n - s, H.flash.style.opacity = "0.3", setTimeout(() => H.flash.style.opacity = "0", 80), beep(120, 0.2, "sawtooth", 0.1, -60), P.hp <= 0 && (P.hp = 0, P.dead = !0, addFeed(`${by} eliminated <span class="me">Player</span>`), banner("YOU WERE ELIMINATED", "BY " + by.toUpperCase(), 4), setTimeout(() => endScreen(!1, by), 4e3));
   }
@@ -2105,9 +2110,10 @@ void main(){
     for (let w of dm.weapons) dropItem(mkItem(w), add(dm.pos, [0, 0.2, 0]), 1.2);
     dropItem(mkItem("bandage", 3), add(dm.pos, [0, 0.2, 0]), 1), dm.heals > 1 && dropItem(mkItem("shieldPot", 1), add(dm.pos, [0, 0.2, 0]), 1.3), P.alive <= 1 && !P.dead && !P.over && P.state === "play" && setTimeout(() => endScreen(!0), 800);
   }
+  var lastShot = -9;
   function shoot(item) {
     let w = WEAPONS[item.kind];
-    if (item.kind === "rpg") {
+    if (lastShot = t, P.bush = !1, item.kind === "rpg") {
       item.mag--, P.fireCd = 60 / w.rpm, P.pitch += w.kick, beep(80, 0.3, "sawtooth", 0.15, -40), rumble(250, 0.9, 1), nades.push({ pos: add(camPos, scale(camFwd, 1.2)), vel: scale(camFwd, 34), t: 6, by: "Player", rocket: !0 }), botHear(P.pos, 90, "player");
       return;
     }
@@ -2618,7 +2624,7 @@ void main(){
         };
         if (!P.dead && P.state === "play") {
           let d = len(sub(P.pos, b.pos));
-          d < best && visible(P.pos, d) && (best = d, found = "player");
+          d < best && !(P.bush && d > 10 && t - lastShot > 3) && visible(P.pos, d) && (best = d, found = "player");
         }
         for (let o of bots) if (o !== b && !o.dead && o.state === "ground") {
           let d = len(sub(o.pos, b.pos));
@@ -2741,7 +2747,7 @@ void main(){
           let item = null, idist = b.weapon ? 40 : 140;
           for (let g of items) {
             let k = g.item.kind;
-            if (!(isWeapon(k) ? !b.weapon || b.weapons.length < 3 && !b.weapons.includes(k) || b.weapon === "smg" && k !== "smg" : k === "ammo" || k === "boogie" || k === "impulse" || k === "launchpad" ? !1 : k === "grenade" ? b.nades < 3 : b.heals < 3)) continue;
+            if (!(isWeapon(k) ? !b.weapon || b.weapons.length < 3 && !b.weapons.includes(k) || b.weapon === "smg" && k !== "smg" : k === "ammo" || k === "boogie" || k === "impulse" || k === "launchpad" || k === "bushItem" ? !1 : k === "grenade" ? b.nades < 3 : b.heals < 3)) continue;
             let d = len(sub(g.pos, b.pos));
             d < idist && (idist = d, item = g);
           }
@@ -3098,7 +3104,7 @@ void main(){
     let pose = P.emoteT > 0 ? "emote" : P.state === "sky" ? "sky" : P.state === "glide" ? "glide" : P.swim ? "sky" : P.crouch ? "crouch" : P.build || P.editing ? "build" : P.slot >= 0 && it && it.kind !== "ammo" ? "aim" : "pick", held = P.state !== "play" || P.build || P.editing || P.swim || P.emoteT > 0 ? void 0 : it ? it.kind : "pickaxe";
     if (P.state !== "bus" && !P.dead) {
       let gY = W.groundH(P.pos[0], P.pos[2], P.pos[1]);
-      if (R.draw(M.shadow, trs([P.pos[0], gY + 0.03, P.pos[2]]), [1, 1, 1], 0.3, 0, !1), (P.thirdPerson || P.state !== "play") && !P.scoped)
+      if (R.draw(M.shadow, trs([P.pos[0], gY + 0.03, P.pos[2]]), [1, 1, 1], 0.3, 0, !1), P.bush && P.state === "play" && R.draw(M.bush, trs([P.pos[0], P.pos[1] - 0.1, P.pos[2]], t * 0.2, 0, 1.6)), (P.thirdPerson || P.state !== "play") && !P.scoped)
         drawChar(CHARS[P.skin], trs(P.pos, P.yaw), { anim: P.anim, speed: Math.hypot(P.vel[0], P.vel[2]), grounded: P.grounded, pitch: P.pitch, pose, swing: P.swing, held, sprint: P.sprint && Math.hypot(P.vel[0], P.vel[2]) > 6, emote: P.emote });
       else if (!P.build) {
         let hp = add(add(camPos, scale(camFwd, 0.6)), add(scale(right(), -0.3), [0, -0.3 + (P.swing > 0 ? Math.sin(P.swing * 12) * 0.1 : 0), 0]));

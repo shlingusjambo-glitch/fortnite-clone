@@ -62,7 +62,7 @@ const BOT_VOICES = ['smak-mouth.mp3','ninjalaughing.mp3','ninja-your-trash-kid.m
 function botVoice(b: Bot) { if (b.voiceCd > 0 || len(sub(b.pos, P.pos)) > 55) return; b.voiceCd = rand(12, 25); const a = new Audio('Audio/' + BOT_VOICES[Math.floor(rand(0, BOT_VOICES.length))]); a.volume = clamp(1 - len(sub(b.pos, P.pos)) / 65, .08, .55) * S.master * S.voice; if (a.volume > 0.01) a.play().catch(() => {}); }
 
 // ---------------- items & weapons ----------------
-type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'revolver' | 'silenced' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'boogie' | 'impulse' | 'launchpad' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
+type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'revolver' | 'silenced' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'boogie' | 'impulse' | 'launchpad' | 'bushItem' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const RAR_MULT = [0.85, 0.93, 1, 1.08, 1.16];
 type Ammo = 'light' | 'medium' | 'heavy' | 'shells';
@@ -86,6 +86,7 @@ const CONS: Record<string, { name: string; dur: number; rarity: string; use: () 
   miniShield: { name: 'Small Shield Potion', dur: 2, rarity: 'uncommon', use: () => P.shield < 50 && ((P.shield = Math.min(50, P.shield + 25)), true) },
   chug: { name: 'Chug Jug', dur: 15, rarity: 'legendary', use: () => (P.hp < 100 || P.shield < 100) && ((P.hp = 100), (P.shield = 100), true) },
   grenade: { name: 'Grenade', dur: 0, rarity: 'uncommon', use: () => false },
+  bushItem: { name: 'Bush', dur: 1, rarity: 'legendary', use: () => { P.bush = true; return true; } },
   launchpad: { name: 'Launch Pad', dur: 0, rarity: 'epic', use: () => false },
   boogie: { name: 'Boogie Bomb', dur: 0, rarity: 'rare', use: () => false },
   impulse: { name: 'Impulse Grenade', dur: 0, rarity: 'rare', use: () => false },
@@ -119,6 +120,7 @@ const ICON: Record<string, string> = {
   scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
   miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
   grenade: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="14" ry="16" fill="#4a6a3a"/><rect x="26" y="14" width="12" height="10" fill="#888"/><rect x="36" y="12" width="12" height="5" fill="#ccc"/></svg>',
+  bushItem: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="18" fill="#45a932"/><circle cx="20" cy="30" r="10" fill="#5fc944"/><circle cx="44" cy="30" r="10" fill="#76de4e"/><circle cx="32" cy="22" r="9" fill="#5fc944"/></svg>',
   launchpad: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="44" rx="24" ry="8" fill="#2c88f5"/><ellipse cx="32" cy="42" rx="14" ry="5" fill="#8cd5ff"/><path d="M32 10l10 14h-6v10h-8v-10h-6z" fill="#ffe22e"/></svg>',
   boogie: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="16" fill="#c9c9d8"/><circle cx="26" cy="30" r="3" fill="#ff3ec9"/><circle cx="38" cy="40" r="3" fill="#3ddcf5"/><circle cx="36" cy="28" r="2" fill="#ffe22e"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
   impulse: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="15" fill="#2c88f5"/><circle cx="32" cy="36" r="8" fill="#8cd5ff"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
@@ -141,7 +143,7 @@ const P = {
   inv: [null, null, null, null, null] as (Item | null)[], slot: -1,
   build: false, piece: 'wall' as PieceType, fireCd: 0, reload: 0, swing: 0, useT: 0, useDur: 0,
   scoped: false, ads: false, thirdPerson: true, anim: 0, hurtCd: 0, kills: 0, alive: 100, matchT: 0, thanked: false, dmg: 0, dead: false, over: false,
-  bloom: 0, burstLeft: 0, equipT: 0, swim: false, emote: 0, emoteT: 0, stunT: 0, editing: null as Piece | null, editMask: 0, rampRot: 0, fishing: 0, nextDrop: 90, weakPos:null as V3|null, weakRef:null as any, weakT:0,
+  bloom: 0, burstLeft: 0, equipT: 0, swim: false, emote: 0, emoteT: 0, stunT: 0, bush: false, editing: null as Piece | null, editMask: 0, rampRot: 0, fishing: 0, nextDrop: 90, weakPos:null as V3|null, weakRef:null as any, weakT:0,
 };
 const SDEF = { sensX: 1, sensY: 1, adsSens: 0.7, scopeSens: 0.5, invertY: false, toggleSprint: false, turbo: true, padSens: 1, rumble: true, master: 0.8, sfx: 0.8, voice: 0.7, music: 0.5, fov: 80, scale: 1, shadows: 2, grass: 1, viewDist: 1, showFps: true, streamer: false };
 // low-end defaults (Chromebooks: few cores / little RAM / no discrete GPU) unless the player saved their own settings
@@ -180,7 +182,7 @@ function addFeed(html: string) { feed.push({ html, t: 12 }); if (feed.length > 5
 const dropItem = (item: Item, pos: V3, spread = 0) => items.push({ item, pos: [pos[0] + rand(-spread, spread), pos[1], pos[2] + rand(-spread, spread)] });
 
 function startMatch() {
-  P.state = 'bus'; P.hp = 100; P.shield = 0; P.kills = 0; P.alive = 100; P.matchT = 0; P.thanked = false; P.slot = -1; P.inv.fill(null); P.build = false;
+  P.state = 'bus'; P.hp = 100; P.shield = 0; P.bush = false; P.kills = 0; P.alive = 100; P.matchT = 0; P.thanked = false; P.slot = -1; P.inv.fill(null); P.build = false;
   P.mats = { wood: 0, stone: 0, metal: 30 }; P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 };
   items.length = 0; bots.length = 0; chests.length = 0; feed.length = 0; W.clearPieces(); pads.length = 0; nades.length = 0;
   const a = rand(0, 6.28); bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420]; bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)]; bus.t = 0;
@@ -188,7 +190,7 @@ function startMatch() {
   storm.c = [rand(-80, 80), rand(-80, 80)]; storm.r = 520; storm.phaseT = 120;
   // loot + bots per POI
   // loot lives inside buildings (kit spawn points) plus a little floor loot outdoors
-  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'rpg', 'revolver', 'silenced', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'boogie', 'impulse', 'launchpad', 'ammo', 'ammo'];
+  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'rpg', 'revolver', 'silenced', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'boogie', 'impulse', 'launchpad', 'bushItem', 'ammo', 'ammo'];
   for (const l of W.lootSpots) if (Math.random() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
   for (const c of W.chestSpots) if (Math.random() < 0.7) chests.push({ pos: [...c] as V3, yaw: rand(0, 6.28), open: false });
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z); if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]); }
@@ -285,6 +287,7 @@ function botBoxes(): Box[] {
 function damage(n: number, by = 'the storm') {
   if (D.invuln || P.dead || P.over) return;
   rumble(Math.min(400, n * 8 + 120), 0.7, 0.95);
+  P.bush = false;
   const s = Math.min(P.shield, n); P.shield -= s; P.hp -= n - s; H.flash.style.opacity = '0.3'; setTimeout(() => (H.flash.style.opacity = '0'), 80); beep(120, 0.2, 'sawtooth', 0.1, -60);
   if (P.hp <= 0) { P.hp = 0; P.dead = true; addFeed(`${by} eliminated <span class="me">Player</span>`); banner('YOU WERE ELIMINATED', 'BY ' + by.toUpperCase(), 4); setTimeout(() => endScreen(false, by), 4000); }
 }
@@ -333,8 +336,9 @@ function botDamage(dm: Bot, n: number, by: string, how = 'with a weapon') {
   for (const w of dm.weapons) dropItem(mkItem(w), add(dm.pos, [0, 0.2, 0]), 1.2); dropItem(mkItem('bandage', 3), add(dm.pos, [0, 0.2, 0]), 1); if (dm.heals > 1) dropItem(mkItem('shieldPot', 1), add(dm.pos, [0, 0.2, 0]), 1.3);
   if (P.alive <= 1 && !P.dead && !P.over && P.state === 'play') setTimeout(() => endScreen(true), 800);
 }
+let lastShot = -9;
 function shoot(item: Item) {
-  const w = WEAPONS[item.kind];
+  const w = WEAPONS[item.kind]; lastShot = t; P.bush = false;
   if (item.kind === 'rpg') { item.mag--; P.fireCd = 60 / w.rpm; P.pitch += w.kick; beep(80, 0.3, 'sawtooth', 0.15, -40); rumble(250, 0.9, 1); nades.push({ pos: add(camPos, scale(camFwd, 1.2)), vel: scale(camFwd, 34), t: 6, by: 'Player', rocket: true }); botHear(P.pos, 90, 'player'); return; }
   // Gunfire is evidence, not wall vision: nearby bots investigate the sound but do not gain a target lock.
   if (item.kind !== 'silenced') botHear(P.pos, 70, 'player');
@@ -679,7 +683,7 @@ function updateBot(b: Bot, dt: number) {
       b.retarget = lerp(0.5, 0.15, b.skill); let found: Bot | 'player' | null = null, best = 95;
       const eye = add(b.pos, [0, 1.6, 0]);
       const visible = (p: V3, d: number) => { const v = norm(sub(p, eye)); const facing = v[0] * fw[0] + v[2] * fw[2]; if (facing < 0.25 && d > 9) return false; if (Math.random() > clamp(1.4 - d / 95, 0.15, 1)) return false; return los(eye, add(p, [0, 1.2, 0])); };
-      if (!P.dead && P.state === 'play') { const d = len(sub(P.pos, b.pos)); if (d < best && visible(P.pos, d)) { best = d; found = 'player'; } }
+      if (!P.dead && P.state === 'play') { const d = len(sub(P.pos, b.pos)); if (d < best && !(P.bush && d > 10 && t - lastShot > 3) && visible(P.pos, d)) { best = d; found = 'player'; } }
       for (const o of bots) if (o !== b && !o.dead && o.state === 'ground') { const d = len(sub(o.pos, b.pos)); if (d < best && visible(o.pos, d)) { best = d; found = o; } }
       if (found) { if (b.enemy !== found) { b.seenAt = t; if (Math.random() < .16) botVoice(b); } b.enemy = found; b.lastSeen = t; const q = found === 'player' ? P.pos : found.pos; b.memory = [...q] as V3; b.memoryT = t; if (b.mode !== 'crank' && b.mode !== 'box' && b.mode !== 'heal' && b.mode !== 'rush') b.mode = 'fight'; }
       else if (b.enemy && t - b.lastSeen > lerp(2.5, 5, b.skill)) { b.enemy = null; b.mode = b.memory && b.aggression > 0.35 ? 'hunt' : 'loot'; b.crank = null; }
@@ -795,7 +799,7 @@ function updateBot(b: Bot, dt: number) {
       let chest: typeof chests[number] | null = null, cdist = b.weapon ? 30 : 120;
       for (const c of chests) if (!c.open) { const d = len(sub(c.pos, b.pos)); if (d < cdist) { cdist = d; chest = c; } }
       let item: GroundItem | null = null, idist = b.weapon ? 40 : 140;
-      for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' || k === 'boogie' || k === 'impulse' || k === 'launchpad' ? false : k === 'grenade' ? b.nades < 3 : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
+      for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' || k === 'boogie' || k === 'impulse' || k === 'launchpad' || k === 'bushItem' ? false : k === 'grenade' ? b.nades < 3 : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
       if (out) { b.mode = 'rotate'; if (!b.target || Math.hypot(b.target[0] - sc[0], b.target[2] - sc[1]) > srad * 0.5) { const a = rand(0, 6.28), rr = rand(0, srad * 0.5); b.target = [sc[0] + Math.cos(a) * rr, 0, sc[1] + Math.sin(a) * rr]; } toward(b.target, 6.5); }
       else if (b.mode === 'hunt' && b.memory && b.weapon) {
         const L = toward(b.memory, 6.5); if (L < 3) { b.memory = null; b.mode = 'loot'; }
@@ -1149,6 +1153,7 @@ function frame(now: number) {
   if (P.state !== 'bus' && !P.dead) {
     const gY = W.groundH(P.pos[0], P.pos[2], P.pos[1]);
     R.draw(M.shadow, trs([P.pos[0], gY + 0.03, P.pos[2]]), [1, 1, 1], 0.3, 0, false);
+    if (P.bush && P.state === 'play') R.draw(M.bush, trs([P.pos[0], P.pos[1] - 0.1, P.pos[2]], t * 0.2, 0, 1.6));
     if ((P.thirdPerson || P.state !== 'play') && !P.scoped) {
       drawChar(CHARS[P.skin], trs(P.pos, P.yaw), { anim: P.anim, speed: Math.hypot(P.vel[0], P.vel[2]), grounded: P.grounded, pitch: P.pitch, pose, swing: P.swing, held, sprint: P.sprint && Math.hypot(P.vel[0], P.vel[2]) > 6, emote: P.emote });
     } else if (!P.build) {
