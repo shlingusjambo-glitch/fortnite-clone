@@ -170,6 +170,15 @@ export class World {
         for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) { if ((gx + gz) % 2 === 0 && Math.random() < 0.55) continue; if (Math.random() < 0.3) continue; addStatic('hedge', [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]); }
         this.chestSpots.push([p.x + 60, p.h, p.z + 30]);
       }
+      if (p.name === 'DUSTY DEPOT' || p.name === 'FLUSH FACTORY') {   // container yard: crate stacks between the warehouses
+        for (let k = 0; k < 14; k++) { const x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = Math.random() < 0.4 ? 2 : 1; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (!ok) continue; for (let l = 0; l < h; l++) addStatic('crate', [x, p.h + l * 2, z], Math.floor(rand(0, 4)), l ? [] : [{ min: [-1, 0, -1], max: [1, 2 * h, 1] }]); }
+        this.chestSpots.push([p.x, p.h, p.z]);
+      }
+      if (p.name === 'PLEASANT PARK') {
+        for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + 40 + i * 8, p.h, p.z - 62], 0, []); addStatic('fence', [p.x + 40 + i * 8, p.h, p.z - 38], 0, []); }   // soccer pitch
+        for (let i = -2; i <= 2; i++) { this.statics.push({ mesh: 'dash', pos: [p.x + 40 + i * 6, p.h, p.z - 50], yaw: Math.PI / 2, boxes: [] }); }
+        this.statics.push({ mesh: 'dash', pos: [p.x + 40, p.h, p.z - 56], yaw: 0, boxes: [] }, { mesh: 'dash', pos: [p.x + 40, p.h, p.z - 44], yaw: 0, boxes: [] });
+      }
       if (p.name === 'PLEASANT PARK') { addStatic('fountain', [p.x, p.h, p.z], 0, [{ min: [-3, 0, -3], max: [3, 1, 3] }]); for (let a = 0; a < 6; a++) addStatic('bench', [p.x + Math.cos(a * Math.PI / 3) * 8, p.h, p.z + Math.sin(a * Math.PI / 3) * 8], a, []); }
       if (p.name === 'SALTY SPRINGS' || p.name === 'RETAIL ROW' || p.name === 'ANARCHY ACRES' || p.name === 'DUSTY DEPOT') addStatic('waterTower', [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21.0, 3.8] }]);
       if (p.name === 'ANARCHY ACRES' || p.name === 'FATAL FIELDS') for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + i * 8, p.h, p.z - 40], 0, []); addStatic('fence', [p.x + i * 8, p.h, p.z + 40], 0, []); }

@@ -1089,6 +1089,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Golden Treasure Chest (Iconic glowing chest)
+  M.crate = mk(b => { const c = rgb(0xb08a5a); b.box([0, 1, 0], [2, 2, 2], c); for (const e of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { b.box([e[0], 1, e[1]], [e[0] ? 0.08 : 2.04, 2.04, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 0.06, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 1.94, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); } b.box([0, 2.02, 0], [2.04, 0.06, 2.04], dk(c, 0.8)); b.box([0.3, 1.2, 1.03], [0.7, 0.4, 0.02], rgb(0x333333)); });
   M.glow = mk(b => b.sphere([0, 0.4, 0], 1.0, rgb(0xffd23a), 12, 0.9, true));
   M.chest = mk(b => {
     b.rbox([0, 0.35, 0], [1.44, 0.70, 0.94], C.woodDark, 0.04);                        // chest base

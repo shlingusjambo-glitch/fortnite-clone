@@ -744,6 +744,12 @@ void main(){
           }
           b.pop();
         }
+    }), M2.crate = mk((b) => {
+      let c = rgb(11569754);
+      b.box([0, 1, 0], [2, 2, 2], c);
+      for (let e of [[0, 1], [0, -1], [1, 0], [-1, 0]])
+        b.box([e[0], 1, e[1]], [e[0] ? 0.08 : 2.04, 2.04, e[1] ? 0.08 : 2.04], dk(c, 0.7)), b.box([e[0], 0.06, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)), b.box([e[0], 1.94, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7));
+      b.box([0, 2.02, 0], [2.04, 0.06, 2.04], dk(c, 0.8)), b.box([0.3, 1.2, 1.03], [0.7, 0.4, 0.02], rgb(3355443));
     }), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);
       for (let sx of [-0.52, 0.52]) {
@@ -1287,6 +1293,22 @@ void main(){
           for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++)
             (gx + gz) % 2 === 0 && Math.random() < 0.55 || Math.random() < 0.3 || addStatic("hedge", [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]);
           this.chestSpots.push([p.x + 60, p.h, p.z + 30]);
+        }
+        if (p.name === "DUSTY DEPOT" || p.name === "FLUSH FACTORY") {
+          for (let k = 0; k < 14; k++) {
+            let x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = Math.random() < 0.4 ? 2 : 1, ok = !0;
+            for (let f of footprints) Math.hypot(f[0] - x, f[1] - z) < f[2] && (ok = !1);
+            if (ok)
+              for (let l = 0; l < h; l++) addStatic("crate", [x, p.h + l * 2, z], Math.floor(rand(0, 4)), l ? [] : [{ min: [-1, 0, -1], max: [1, 2 * h, 1] }]);
+          }
+          this.chestSpots.push([p.x, p.h, p.z]);
+        }
+        if (p.name === "PLEASANT PARK") {
+          for (let i = -3; i <= 3; i++)
+            addStatic("fence", [p.x + 40 + i * 8, p.h, p.z - 62], 0, []), addStatic("fence", [p.x + 40 + i * 8, p.h, p.z - 38], 0, []);
+          for (let i = -2; i <= 2; i++)
+            this.statics.push({ mesh: "dash", pos: [p.x + 40 + i * 6, p.h, p.z - 50], yaw: Math.PI / 2, boxes: [] });
+          this.statics.push({ mesh: "dash", pos: [p.x + 40, p.h, p.z - 56], yaw: 0, boxes: [] }, { mesh: "dash", pos: [p.x + 40, p.h, p.z - 44], yaw: 0, boxes: [] });
         }
         if (p.name === "PLEASANT PARK") {
           addStatic("fountain", [p.x, p.h, p.z], 0, [{ min: [-3, 0, -3], max: [3, 1, 3] }]);
