@@ -30,7 +30,7 @@ export const POIS: POI[] = [   // Chapter 1 Season 1 layout (north = -z)
   { name: 'LUCKY LANDING', x: 60, z: 300, h: 6, r: 40, houses: 3, kinds: ['motel', 'shop', 'cottage'], layout: 'street' },
 ];
 
-const LAKES: [number, number, number][] = [[0, -40, 62], [150, 30, 26], [-110, -30, 22], [-260, 20, 30], [120, 230, 24], [-120, 190, 22], [280, 160, 26]];
+const LAKES: [number, number, number][] = [[0, -40, 62], [222, 252, 16], [252, 228, 13], [150, 30, 26], [-110, -30, 22], [-260, 20, 30], [120, 230, 24], [-120, 190, 22], [280, 160, 26]];
 /** flat-topped hills with steep rock walls: [x, z, radius, height] */
 const MESAS: [number, number, number, number][] = [[0, -40, 13, 8], [-110, 40, 30, 16], [150, -100, 34, 20], [-270, -230, 34, 16], [280, 40, 26, 14], [-290, 200, 30, 18], [130, 300, 26, 12], [300, -270, 26, 12]];
 const ROADS: [number, number][] = [[0, 1], [0, 4], [4, 3], [4, 5], [1, 9], [1, 6], [4, 6], [6, 7], [7, 8], [8, 5], [9, 10], [7, 10], [10, 13], [8, 11], [12, 9], [12, 10], [13, 11], [3, 5]];
@@ -166,6 +166,9 @@ export class World {
       // street furniture along the main street
       for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) { const x = p.x + ca * tt, z = p.z - sa * tt; this.statics.push({ mesh: 'dash', pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] }); }
       for (let tt = -p.r * 0.6; tt < p.r * 0.6; tt += 24) { const x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7; addStatic('lamp', [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
+      if (p.name === 'ANARCHY ACRES' || p.name === 'FATAL FIELDS') {   // crop rows in the fields between barns
+        for (let row = -3; row <= 3; row++) for (let c = -5; c <= 5; c++) { const x = p.x + 30 + c * 4.2, z = p.z - 30 + row * 5; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (ok) addStatic('hedge', [x, p.h - 0.3, z], 0, []); }
+      }
       if (p.name === 'WAILING WOODS') {   // hedge maze: 9x9 grid with random gaps
         for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) { if ((gx + gz) % 2 === 0 && Math.random() < 0.55) continue; if (Math.random() < 0.3) continue; addStatic('hedge', [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]); }
         this.chestSpots.push([p.x + 60, p.h, p.z + 30]);

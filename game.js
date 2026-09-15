@@ -1188,7 +1188,7 @@ void main(){
     { name: "MOISTY MIRE", x: 235, z: 240, h: 4, r: 50, houses: 3, kinds: ["cottage", "tower", "cottage"], layout: "scatter" },
     { name: "FLUSH FACTORY", x: -195, z: 260, h: 7, r: 50, houses: 4, kinds: ["warehouse", "warehouse", "shop", "tower"], layout: "grid" },
     { name: "LUCKY LANDING", x: 60, z: 300, h: 6, r: 40, houses: 3, kinds: ["motel", "shop", "cottage"], layout: "street" }
-  ], LAKES = [[0, -40, 62], [150, 30, 26], [-110, -30, 22], [-260, 20, 30], [120, 230, 24], [-120, 190, 22], [280, 160, 26]], MESAS = [[0, -40, 13, 8], [-110, 40, 30, 16], [150, -100, 34, 20], [-270, -230, 34, 16], [280, 40, 26, 14], [-290, 200, 30, 18], [130, 300, 26, 12], [300, -270, 26, 12]], ROADS = [[0, 1], [0, 4], [4, 3], [4, 5], [1, 9], [1, 6], [4, 6], [6, 7], [7, 8], [8, 5], [9, 10], [7, 10], [10, 13], [8, 11], [12, 9], [12, 10], [13, 11], [3, 5]];
+  ], LAKES = [[0, -40, 62], [222, 252, 16], [252, 228, 13], [150, 30, 26], [-110, -30, 22], [-260, 20, 30], [120, 230, 24], [-120, 190, 22], [280, 160, 26]], MESAS = [[0, -40, 13, 8], [-110, 40, 30, 16], [150, -100, 34, 20], [-270, -230, 34, 16], [280, 40, 26, 14], [-290, 200, 30, 18], [130, 300, 26, 12], [300, -270, 26, 12]], ROADS = [[0, 1], [0, 4], [4, 3], [4, 5], [1, 9], [1, 6], [4, 6], [6, 7], [7, 8], [8, 5], [9, 10], [7, 10], [10, 13], [8, 11], [12, 9], [12, 10], [13, 11], [3, 5]];
   function riverMask(x, z) {
     let a = Math.abs(vnoise(x * 4e-3 + 9, z * 4e-3 + 3) - 0.5), b = Math.abs(vnoise(x * 35e-4 + 40, z * 35e-4 + 70) - 0.5), c = Math.abs(vnoise(x * 3e-3 + 80, z * 3e-3 + 20) - 0.5);
     return Math.max(1 - Math.min(a, b, c) / 0.065, 0);
@@ -1331,6 +1331,12 @@ void main(){
           let x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7;
           addStatic("lamp", [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]);
         }
+        if (p.name === "ANARCHY ACRES" || p.name === "FATAL FIELDS")
+          for (let row = -3; row <= 3; row++) for (let c = -5; c <= 5; c++) {
+            let x = p.x + 30 + c * 4.2, z = p.z - 30 + row * 5, ok = !0;
+            for (let f of footprints) Math.hypot(f[0] - x, f[1] - z) < f[2] && (ok = !1);
+            ok && addStatic("hedge", [x, p.h - 0.3, z], 0, []);
+          }
         if (p.name === "WAILING WOODS") {
           for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++)
             (gx + gz) % 2 === 0 && Math.random() < 0.55 || Math.random() < 0.3 || addStatic("hedge", [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]);
