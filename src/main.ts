@@ -182,7 +182,7 @@ const dropItem = (item: Item, pos: V3, spread = 0) => items.push({ item, pos: [p
 function startMatch() {
   P.state = 'bus'; P.hp = 100; P.shield = 0; P.kills = 0; P.alive = 100; P.matchT = 0; P.thanked = false; P.slot = -1; P.inv.fill(null); P.build = false;
   P.mats = { wood: 0, stone: 0, metal: 30 }; P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 };
-  items.length = 0; bots.length = 0; chests.length = 0; feed.length = 0; W.pieces.clear(); pads.length = 0; nades.length = 0;
+  items.length = 0; bots.length = 0; chests.length = 0; feed.length = 0; W.clearPieces(); pads.length = 0; nades.length = 0;
   const a = rand(0, 6.28); bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420]; bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)]; bus.t = 0;
   bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]); P.yaw = bus.yaw; P.pitch = -0.22;
   storm.c = [rand(-80, 80), rand(-80, 80)]; storm.r = 520; storm.phaseT = 120;
@@ -539,7 +539,7 @@ H.dbg.querySelectorAll<HTMLButtonElement>('button[data-a]').forEach(el => el.onc
 function fortAt(c: V3, mat: Mat, size = 3) {
   const base = Math.floor((c[1] + 1) / 4) * 4, cx = Math.floor(c[0] / 4) * 4 + 2, cz = Math.floor(c[2] / 4) * 4 + 2, h = size === 3 ? 2 : 3;
   for (let lvl = 0; lvl < h; lvl++) for (let i = -1; i <= 1; i++) { const y = base + lvl * 4; W.place('wall', mat, [cx + i * 4, y, cz - 6], 0); W.place('wall', mat, [cx + i * 4, y, cz + 6], 0); W.place('wall', mat, [cx - 6, y, cz + i * 4], 1); W.place('wall', mat, [cx + 6, y, cz + i * 4], 1); if (lvl === 1) W.place('floor', mat, [cx + i * 4, y, cz], 0), W.place('floor', mat, [cx + i * 4, y, cz - 4], 0), W.place('floor', mat, [cx + i * 4, y, cz + 4], 0); }
-  W.pieces.delete(World.key('wall', [cx, base, cz + 6], 0)); W.pieces.delete(World.key('floor', [cx, base + 4, cz], 0)); W.place('ramp', mat, [cx, base, cz], 0);
+  for (const k of [World.key('wall', [cx, base, cz + 6], 0), World.key('floor', [cx, base + 4, cz], 0)]) { const p = W.pieces.get(k); if (p) W.removePiece(p); } W.place('ramp', mat, [cx, base, cz], 0);
   return [cx, base, cz] as V3;
 }
 function dbgAction(a: string) {
@@ -560,7 +560,7 @@ function dbgAction(a: string) {
     case 'xp': info('+80,000 XP'); (document.querySelector('#xp .bar') as HTMLElement).style.background = 'linear-gradient(90deg,#c46bff,#c46bff)'; break;
     case 'win': endScreen(true); toggleDbg(false); return;
     case 'die': damage(9999, 'Test'); toggleDbg(false); return;
-    case 'clear': W.pieces.clear(); break;
+    case 'clear': W.clearPieces(); break;
     case 'siege': { const c = fortAt(ahead, 'stone', 3); for (let i = 0; i < 4; i++) { const b = spawnBot([c[0] + rand(-3, 3), c[1] + 4.5, c[2] + rand(-3, 3)]); b.name = 'Defender' + (i + 1); b.weapon = i % 2 ? 'ar' : 'shotgun'; b.weapons = [b.weapon]; } for (let i = 0; i < 4; i++) { const a = i / 4 * 6.28; const b = spawnBot([c[0] + Math.cos(a) * 30, c[1] + 1, c[2] + Math.sin(a) * 30]); b.name = 'Raider' + (i + 1); b.weapon = 'ar'; b.weapons = ['ar']; b.target = c; } banner('FORTRESS SIEGE', 'DEFENDERS VS RAIDERS', 4); break; }
     case 'meteor': event = 'meteor'; eventT = 40; banner('METEOR SHOWER', 'TAKE COVER', 4); break;
     case 'edit': { const base = Math.floor((ahead[1] + 1) / 4) * 4, cx = Math.floor(ahead[0] / 4) * 4 + 2, cz = Math.floor(ahead[2] / 4) * 4 + 2; for (let i = 0; i < 6; i++) { W.place('floor', 'wood', [cx, base + 4 + i * 4, cz + i * 4], 0); W.place('ramp', 'wood', [cx, base + i * 4, cz + i * 4], 0); W.place('wall', 'wood', [cx - 2, base + i * 4, cz + i * 4], 1); W.place('wall', 'wood', [cx + 2, base + i * 4, cz + i * 4], 1); W.place('wall', 'wood', [cx, base + i * 4 + 4, cz + i * 4 + 2], 0); } banner('EDIT PRACTICE', 'BUILD YOUR WAY UP', 4); break; }
@@ -617,7 +617,7 @@ function updateEvents(dt: number) {
       meteors.splice(i, 1); beep(60, 0.5, 'sawtooth', 0.2, -30); fx.push({ kind: 'dmg', t: 1, pos: add(m.pos, [0, 2, 0]), text: 'BOOM', head: true });
       if (len(sub(P.pos, m.pos)) < 8) damage(40, 'A meteor');
       for (const b of bots) if (!b.dead && len(sub(b.pos, m.pos)) < 8) botDamage(b, 60, 'A meteor');
-      for (const p of [...W.pieces.values()]) if (len(sub(p.pos, m.pos)) < 8) W.pieces.delete(p.key);
+      for (const p of [...W.pieces.values()]) if (len(sub(p.pos, m.pos)) < 8) W.removePiece(p);
     }
   }
 }

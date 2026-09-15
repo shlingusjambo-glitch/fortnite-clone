@@ -1287,6 +1287,9 @@ void main(){
       __publicField(this, "grid", /* @__PURE__ */ new Map());
       /** lush 3D grass blade clusters with varied heights, wildflowers and wind sway */
       __publicField(this, "grassChunks", /* @__PURE__ */ new Map());
+      // ---------------- building ----------------
+      /** pieces bucketed by 8m cell for cheap ground/collision lookups */
+      __publicField(this, "pieceCells", /* @__PURE__ */ new Map());
       let n = Math.floor(SIZE / STEP), CH = 6, per = Math.ceil(n / CH), N = (x, z) => norm([terrainH(x - 1, z) - terrainH(x + 1, z), 2, terrainH(x, z - 1) - terrainH(x, z + 1)]);
       for (let ci = 0; ci < CH; ci++) for (let cj = 0; cj < CH; cj++) {
         let b = new MB();
@@ -1515,7 +1518,28 @@ void main(){
         ctx.strokeText(p.name, i, j), ctx.fillText(p.name, i, j);
       }
     }
-    // ---------------- building ----------------
+    pcKey(x, z) {
+      return Math.floor(x / 8) + "," + Math.floor(z / 8);
+    }
+    pcAdd(p) {
+      let k = this.pcKey(p.pos[0], p.pos[2]), a = this.pieceCells.get(k);
+      a || this.pieceCells.set(k, a = []), a.push(p);
+    }
+    pcDel(p) {
+      let a = this.pieceCells.get(this.pcKey(p.pos[0], p.pos[2]));
+      if (a) {
+        let i = a.indexOf(p);
+        i >= 0 && a.splice(i, 1);
+      }
+    }
+    piecesNear(x, z, rad) {
+      let out = [];
+      for (let cx = Math.floor((x - rad) / 8); cx <= Math.floor((x + rad) / 8); cx++) for (let cz = Math.floor((z - rad) / 8); cz <= Math.floor((z + rad) / 8); cz++) {
+        let a = this.pieceCells.get(cx + "," + cz);
+        a && out.push(...a);
+      }
+      return out;
+    }
     static key(type, p, dir) {
       return `${type}:${p[0]},${p[1]},${p[2]}:${type === "floor" || type === "pyramid" ? 0 : dir % 2}`;
     }
@@ -1523,10 +1547,16 @@ void main(){
       let key = _World.key(type, pos, dir);
       if (this.pieces.has(key)) return null;
       let p = { type, mat, pos, dir, hp: MAT_HP[mat], maxHp: MAT_HP[mat], key, edit: 0, born: performance.now() / 1e3 };
-      return this.pieces.set(key, p), p;
+      return this.pieces.set(key, p), this.pcAdd(p), p;
     }
     damagePiece(p, d) {
-      p.hp -= d, p.hp <= 0 && this.pieces.delete(p.key);
+      p.hp -= d, p.hp <= 0 && this.removePiece(p);
+    }
+    removePiece(p) {
+      this.pieces.delete(p.key), this.pcDel(p);
+    }
+    clearPieces() {
+      this.pieces.clear(), this.pieceCells.clear();
     }
     pieceBox(p) {
       let [x, y, z] = p.pos;
@@ -1569,7 +1599,7 @@ void main(){
     }
     solids(x, z, rad = 10) {
       let out = [];
-      for (let p of this.pieces.values()) (p.type === "wall" || p.type === "floor") && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad && out.push(...this.pieceBoxes(p));
+      for (let p of this.piecesNear(x, z, rad + 2)) (p.type === "wall" || p.type === "floor") && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad && out.push(...this.pieceBoxes(p));
       for (let c of this.near(x, z, rad)) {
         for (let q of c.props) !q.dead && q.type !== "bush" && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad && out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
         for (let s of c.statics) !s.dead && s.aabb && s.aabb.min[0] < x + rad && s.aabb.max[0] > x - rad && s.aabb.min[2] < z + rad && s.aabb.max[2] > z - rad && out.push(...s.boxes);
@@ -1578,7 +1608,7 @@ void main(){
     }
     groundH(x, z, feetY) {
       let g = terrainH(x, z);
-      for (let p of this.pieces.values()) {
+      for (let p of this.piecesNear(x, z, 3)) {
         if (p.type !== "ramp" && p.type !== "pyramid") continue;
         let h = this.slopeH(p, x, z);
         h > g && feetY > h - 1.6 && feetY < h + 0.6 && (g = h);
@@ -1850,7 +1880,7 @@ void main(){
   }
   var dropItem = (item, pos, spread = 0) => items.push({ item, pos: [pos[0] + rand(-spread, spread), pos[1], pos[2] + rand(-spread, spread)] });
   function startMatch() {
-    P.state = "bus", P.hp = 100, P.shield = 0, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.pieces.clear(), pads.length = 0, nades.length = 0;
+    P.state = "bus", P.hp = 100, P.shield = 0, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.clearPieces(), pads.length = 0, nades.length = 0;
     let a = rand(0, 6.28);
     bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420], bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)], bus.t = 0, bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]), P.yaw = bus.yaw, P.pitch = -0.22, storm.c = [rand(-80, 80), rand(-80, 80)], storm.r = 520, storm.phaseT = 120;
     let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "launchpad", "ammo", "ammo"];
@@ -2317,7 +2347,11 @@ void main(){
       let y = base + lvl * 4;
       W.place("wall", mat, [cx + i * 4, y, cz - 6], 0), W.place("wall", mat, [cx + i * 4, y, cz + 6], 0), W.place("wall", mat, [cx - 6, y, cz + i * 4], 1), W.place("wall", mat, [cx + 6, y, cz + i * 4], 1), lvl === 1 && (W.place("floor", mat, [cx + i * 4, y, cz], 0), W.place("floor", mat, [cx + i * 4, y, cz - 4], 0), W.place("floor", mat, [cx + i * 4, y, cz + 4], 0));
     }
-    return W.pieces.delete(World.key("wall", [cx, base, cz + 6], 0)), W.pieces.delete(World.key("floor", [cx, base + 4, cz], 0)), W.place("ramp", mat, [cx, base, cz], 0), [cx, base, cz];
+    for (let k of [World.key("wall", [cx, base, cz + 6], 0), World.key("floor", [cx, base + 4, cz], 0)]) {
+      let p = W.pieces.get(k);
+      p && W.removePiece(p);
+    }
+    return W.place("ramp", mat, [cx, base, cz], 0), [cx, base, cz];
   }
   function dbgAction(a) {
     let ahead = add(P.pos, scale(fwd(), 24));
@@ -2377,7 +2411,7 @@ void main(){
         damage(9999, "Test"), toggleDbg(!1);
         return;
       case "clear":
-        W.pieces.clear();
+        W.clearPieces();
         break;
       case "siege": {
         let c = fortAt(ahead, "stone", 3);
@@ -2477,7 +2511,7 @@ void main(){
       if (m.pos = add(m.pos, scale(m.vel, dt)), m.pos[1] <= W.groundH(m.pos[0], m.pos[2], m.pos[1]) + 0.5) {
         meteors.splice(i, 1), beep(60, 0.5, "sawtooth", 0.2, -30), fx.push({ kind: "dmg", t: 1, pos: add(m.pos, [0, 2, 0]), text: "BOOM", head: !0 }), len(sub(P.pos, m.pos)) < 8 && damage(40, "A meteor");
         for (let b of bots) !b.dead && len(sub(b.pos, m.pos)) < 8 && botDamage(b, 60, "A meteor");
-        for (let p of [...W.pieces.values()]) len(sub(p.pos, m.pos)) < 8 && W.pieces.delete(p.key);
+        for (let p of [...W.pieces.values()]) len(sub(p.pos, m.pos)) < 8 && W.removePiece(p);
       }
     }
   }

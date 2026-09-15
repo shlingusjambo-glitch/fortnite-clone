@@ -252,14 +252,22 @@ export class World {
   }
 
   // ---------------- building ----------------
+  /** pieces bucketed by 8m cell for cheap ground/collision lookups */
+  pieceCells = new Map<string, Piece[]>();
+  private pcKey(x: number, z: number) { return Math.floor(x / 8) + ',' + Math.floor(z / 8); }
+  private pcAdd(p: Piece) { const k = this.pcKey(p.pos[0], p.pos[2]); let a = this.pieceCells.get(k); if (!a) this.pieceCells.set(k, a = []); a.push(p); }
+  private pcDel(p: Piece) { const a = this.pieceCells.get(this.pcKey(p.pos[0], p.pos[2])); if (a) { const i = a.indexOf(p); if (i >= 0) a.splice(i, 1); } }
+  piecesNear(x: number, z: number, rad: number): Piece[] { const out: Piece[] = []; for (let cx = Math.floor((x - rad) / 8); cx <= Math.floor((x + rad) / 8); cx++) for (let cz = Math.floor((z - rad) / 8); cz <= Math.floor((z + rad) / 8); cz++) { const a = this.pieceCells.get(cx + ',' + cz); if (a) out.push(...a); } return out; }
   static key(type: PieceType, p: V3, dir: number) { return `${type}:${p[0]},${p[1]},${p[2]}:${type === 'floor' || type === 'pyramid' ? 0 : dir % 2}`; }
   place(type: PieceType, mat: Mat, pos: V3, dir: number): Piece | null {
     const key = World.key(type, pos, dir);
     if (this.pieces.has(key)) return null;
     const p: Piece = { type, mat, pos, dir, hp: MAT_HP[mat], maxHp: MAT_HP[mat], key, edit: 0, born: performance.now() / 1000 };
-    this.pieces.set(key, p); return p;
+    this.pieces.set(key, p); this.pcAdd(p); return p;
   }
-  damagePiece(p: Piece, d: number) { p.hp -= d; if (p.hp <= 0) this.pieces.delete(p.key); }
+  damagePiece(p: Piece, d: number) { p.hp -= d; if (p.hp <= 0) this.removePiece(p); }
+  removePiece(p: Piece) { this.pieces.delete(p.key); this.pcDel(p); }
+  clearPieces() { this.pieces.clear(); this.pieceCells.clear(); }
   pieceBox(p: Piece): Box {
     const [x, y, z] = p.pos;
     if (p.type === 'wall') return p.dir % 2 === 0 ? { min: [x - 2, y, z - 0.13], max: [x + 2, y + 4, z + 0.13], ref: p } : { min: [x - 0.13, y, z - 2], max: [x + 0.13, y + 4, z + 2], ref: p };
@@ -294,7 +302,7 @@ export class World {
   }
   solids(x: number, z: number, rad = 10): Box[] {
     const out: Box[] = [];
-    for (const p of this.pieces.values()) if ((p.type === 'wall' || p.type === 'floor') && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad) out.push(...this.pieceBoxes(p));
+    for (const p of this.piecesNear(x, z, rad + 2)) if ((p.type === 'wall' || p.type === 'floor') && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad) out.push(...this.pieceBoxes(p));
     for (const c of this.near(x, z, rad)) {
       for (const q of c.props) if (!q.dead && q.type !== 'bush' && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad) out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
       for (const s of c.statics) if (!s.dead && s.aabb && s.aabb.min[0] < x + rad && s.aabb.max[0] > x - rad && s.aabb.min[2] < z + rad && s.aabb.max[2] > z - rad) out.push(...s.boxes);
@@ -303,7 +311,7 @@ export class World {
   }
   groundH(x: number, z: number, feetY: number): number {
     let g = terrainH(x, z);
-    for (const p of this.pieces.values()) {
+    for (const p of this.piecesNear(x, z, 3)) {
       if (p.type !== 'ramp' && p.type !== 'pyramid') continue;
       const h = this.slopeH(p, x, z);
       if (h > g && feetY > h - 1.6 && feetY < h + 0.6) g = h;
