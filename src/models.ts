@@ -944,19 +944,21 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Boulders with faceted bevels
-  M.rock = mk(b => {
-    b.sphere([0, 0.4, 0], 1.6, C.rock, 10, 0.7, true);
-    b.sphere([0.9, 0.3, 0.6], 1.0, C.rockDark, 8, 0.8, true);
-    b.sphere([-0.7, 0.35, -0.5], 0.8, C.rock, 8, 0.75, true);
-    b.sphere([0, 1.2, 0], 0.8, lt(C.leaf2, 0.1), 8, 0.3, true);                         // moss cap
+  M.rock = mk(b => {   // faceted boulder cluster (flat-shaded) with a sandy strata band and moss
+    b.sphere([0, 0.45, 0], 1.6, C.rock, 7, 0.7, false);
+    b.sphere([1.0, 0.3, 0.7], 1.0, C.rockDark, 6, 0.8, false);
+    b.sphere([-0.8, 0.3, -0.6], 0.85, lt(C.rock, 0.1), 6, 0.75, false);
+    b.sphere([0.2, 0.2, -1.1], 0.5, C.rockDark, 6, 0.8, false);
+    b.sphere([0.1, 1.45, 0.1], 0.8, lt(C.leaf2, 0.1), 7, 0.35, false);                  // moss cap
+    b.sphere([-0.9, 0.8, -0.3], 0.3, lt(C.leaf2, 0.05), 6, 0.4, false);
   });
 
   M.bush = mk(b => {
-    b.sphere([0, 0.45, 0], 1.0, C.leaf2, 10, 0.75, true);
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      b.sphere([Math.cos(a) * 0.6, 0.35, Math.sin(a) * 0.6], 0.65, i % 2 ? C.leaf : C.leaf3, 8, 0.8, true);
-    }
+    b.cyl([0, 0, 0], 0.08, 0.05, 0.4, C.trunkDark, 6, true, true);
+    b.sphere([0, 0.5, 0], 1.0, C.leaf2, 10, 0.75, true);
+    for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; b.sphere([Math.cos(a) * 0.65, 0.35 + (i % 2) * 0.25, Math.sin(a) * 0.65], 0.6, i % 2 ? C.leaf : C.leaf3, 8, 0.8, true); }
+    b.sphere([0.2, 0.95, 0.1], 0.55, lt(C.leaf3, 0.15), 8, 0.7, true);                  // sunlit top
+    for (let i = 0; i < 6; i++) { const a = i * 1.1 + 0.3; b.sphere([Math.cos(a) * 0.9, 0.5 + (i % 3) * 0.2, Math.sin(a) * 0.9], 0.07, C.red, 6, 1, true); }   // berries
   });
 
   M.hedge = mk(b => {
