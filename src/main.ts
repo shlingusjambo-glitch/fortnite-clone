@@ -1141,7 +1141,7 @@ function frame(now: number) {
   for (const pd of pads) { R.draw(M.launchpad, trs(pd.pos, pd.t * 2)); }
   for (const n of nades) { if (n.rocket) R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))); else R.draw(M[n.kind ?? 'grenade'], trs(n.pos, n.t * 4, n.t * 3)); }
   for (const m of meteors) R.draw(M.rock, trs(m.pos, t * 3, t * 2, 1.2), [1, 0.5, 0.3]);
-  R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [0.7, 0.72, 1.0], 0.22, 7, false);
+  R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [1, 1, 1], 0.5, 9, false);
   // player
   const pose: Pose = P.emoteT > 0 ? 'emote' : P.state === 'sky' ? 'sky' : P.state === 'glide' ? 'glide' : P.swim ? 'sky' : P.crouch ? 'crouch' : P.build || P.editing ? 'build' : P.slot >= 0 && it && it.kind !== 'ammo' ? 'aim' : 'pick';
   const held = P.state !== 'play' || P.build || P.editing || P.swim || P.emoteT > 0 ? undefined : it ? it.kind : 'pickaxe';

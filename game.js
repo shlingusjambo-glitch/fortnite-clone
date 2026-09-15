@@ -127,7 +127,12 @@ void main(){
     emit = 0.4 + line * 0.5;
     rough = 0.1;
   }
-  if (st == 7) { o = vec4(col, uAlpha); return; }   // unlit (storm wall, fx)
+  if (st == 7) { o = vec4(col, uAlpha); return; }   // unlit (fx)
+  if (st == 9) {                                       // storm wall: swirling purple streaks, denser near the ground
+    float sw = vn(vec2((vWorld.x + vWorld.z) * 0.02 + uT * 0.15, vWorld.y * 0.03 - uT * 0.1)) * 0.6 + vn(vec2((vWorld.x - vWorld.z) * 0.05 - uT * 0.3, vWorld.y * 0.08)) * 0.4;
+    float ground = 1.0 - clamp(vWorld.y / 120.0, 0.0, 0.8);
+    o = vec4(mix(vec3(0.45, 0.2, 0.7), vec3(0.85, 0.6, 1.0), sw), uAlpha * (0.5 + sw * 0.9) * ground); return;
+  }
 
   float d = max(dot(n, uSun), 0.0);
   vec3 s = vSh.xyz / vSh.w * 0.5 + 0.5;
@@ -402,6 +407,8 @@ void main(){
     { name: "Tower Recon Specialist", skin: rgb(13208168), top: rgb(12034940), top2: rgb(4868666), pants: rgb(6974026), boots: rgb(2761760), hair: rgb(1709072), hat: "cap", style: 0 },
     { name: "Red Knight", skin: rgb(15253658), top: rgb(9048594), top2: rgb(2763312), pants: rgb(2829107), boots: rgb(1710622), hair: rgb(9048594), hat: "knight", style: 0, female: !0 },
     { name: "Sparkle Specialist", skin: rgb(15845797), top: rgb(16734899), top2: rgb(6217983), pants: rgb(2759236), boots: rgb(1710622), hair: rgb(3811866), hat: "hair", style: 1, female: !0 },
+    { name: "Ghoul Trooper", skin: rgb(10473610), top: rgb(3095082), top2: rgb(9162858), pants: rgb(3815978), boots: rgb(1973790), hair: rgb(1714708), hat: "hair", style: 0, female: !0 },
+    { name: "Love Ranger", skin: rgb(14211296), top: rgb(15219306), top2: rgb(16777215), pants: rgb(12632264), boots: rgb(9079440), hair: rgb(14211296), hat: "spiky", style: 1 },
     { name: "Grid Leader", skin: rgb(10213882), top: rgb(15704804), top2: rgb(9229823), pants: rgb(10213882), boots: rgb(15704804), hair: rgb(10213882), hat: "spiky", style: 1 }
   ];
   function buildCharacter(r, s, bulk = 1) {
@@ -3014,7 +3021,7 @@ void main(){
     for (let n of nades)
       n.rocket ? R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))) : R.draw(M[n.kind ?? "grenade"], trs(n.pos, n.t * 4, n.t * 3));
     for (let m of meteors) R.draw(M.rock, trs(m.pos, t * 3, t * 2, 1.2), [1, 0.5, 0.3]);
-    R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [0.7, 0.72, 1], 0.22, 7, !1);
+    R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [1, 1, 1], 0.5, 9, !1);
     let pose = P.emoteT > 0 ? "emote" : P.state === "sky" ? "sky" : P.state === "glide" ? "glide" : P.swim ? "sky" : P.crouch ? "crouch" : P.build || P.editing ? "build" : P.slot >= 0 && it && it.kind !== "ammo" ? "aim" : "pick", held = P.state !== "play" || P.build || P.editing || P.swim || P.emoteT > 0 ? void 0 : it ? it.kind : "pickaxe";
     if (P.state !== "bus" && !P.dead) {
       let gY = W.groundH(P.pos[0], P.pos[2], P.pos[1]);

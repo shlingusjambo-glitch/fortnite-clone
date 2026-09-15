@@ -67,7 +67,12 @@ void main(){
     emit = 0.4 + line * 0.5;
     rough = 0.1;
   }
-  if (st == 7) { o = vec4(col, uAlpha); return; }   // unlit (storm wall, fx)
+  if (st == 7) { o = vec4(col, uAlpha); return; }   // unlit (fx)
+  if (st == 9) {                                       // storm wall: swirling purple streaks, denser near the ground
+    float sw = vn(vec2((vWorld.x + vWorld.z) * 0.02 + uT * 0.15, vWorld.y * 0.03 - uT * 0.1)) * 0.6 + vn(vec2((vWorld.x - vWorld.z) * 0.05 - uT * 0.3, vWorld.y * 0.08)) * 0.4;
+    float ground = 1.0 - clamp(vWorld.y / 120.0, 0.0, 0.8);
+    o = vec4(mix(vec3(0.45, 0.2, 0.7), vec3(0.85, 0.6, 1.0), sw), uAlpha * (0.5 + sw * 0.9) * ground); return;
+  }
 
   float d = max(dot(n, uSun), 0.0);
   vec3 s = vSh.xyz / vSh.w * 0.5 + 0.5;

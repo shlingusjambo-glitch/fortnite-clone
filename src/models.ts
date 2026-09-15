@@ -193,6 +193,8 @@ export const SKINS: Skin[] = [
   { name: 'Tower Recon Specialist', skin: rgb(0xc98a68), top: rgb(0xb7a37c), top2: rgb(0x4a4a3a), pants: rgb(0x6a6a4a), boots: rgb(0x2a2420), hair: rgb(0x1a1410), hat: 'cap', style: 0 },
   { name: 'Red Knight', skin: rgb(0xe8c09a), top: rgb(0x8a1212), top2: rgb(0x2a2a30), pants: rgb(0x2b2b33), boots: rgb(0x1a1a1e), hair: rgb(0x8a1212), hat: 'knight', style: 0, female: true },
   { name: 'Sparkle Specialist', skin: rgb(0xf1c9a5), top: rgb(0xff5ab3), top2: rgb(0x5ee0ff), pants: rgb(0x2a1a44), boots: rgb(0x1a1a1e), hair: rgb(0x3a2a1a), hat: 'hair', style: 1, female: true },
+  { name: 'Ghoul Trooper', skin: rgb(0x9fd08a), top: rgb(0x2f3a2a), top2: rgb(0x8bd06a), pants: rgb(0x3a3a2a), boots: rgb(0x1e1e1e), hair: rgb(0x1a2a14), hat: 'hair', style: 0, female: true },
+  { name: 'Love Ranger', skin: rgb(0xd8d8e0), top: rgb(0xe83a6a), top2: rgb(0xffffff), pants: rgb(0xc0c0c8), boots: rgb(0x8a8a90), hair: rgb(0xd8d8e0), hat: 'spiky', style: 1 },
   { name: 'Grid Leader', skin: rgb(0x9bd9fa), top: rgb(0xefa2e4), top2: rgb(0x8cd5ff), pants: rgb(0x9bd9fa), boots: rgb(0xefa2e4), hair: rgb(0x9bd9fa), hat: 'spiky', style: 1 },
 ];
 
