@@ -222,6 +222,9 @@ export class World {
     for (const q of this.props) if (q.type !== 'bush' && q.type !== 'rock') { const i = (q.pos[0] + SIZE / 2) / px, j = (q.pos[2] + SIZE / 2) / px; ctx.fillRect(i - 0.8, j - 0.8, 1.6, 1.6); }
     ctx.fillStyle = '#e4e6e8';
     for (const s of this.statics) if (s.mesh.startsWith('house')) { const i = (s.pos[0] + SIZE / 2) / px, j = (s.pos[2] + SIZE / 2) / px; ctx.fillRect(i - 3, j - 2.5, 6, 5); }
+  }
+  drawLabels(cv: HTMLCanvasElement) {
+    const ctx = cv.getContext('2d')!, px = SIZE / cv.width;
     ctx.font = 'italic bold 15px Impact, Arial'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#000a'; ctx.fillStyle = '#fff';
     for (const p of POIS) { const i = (p.x + SIZE / 2) / px, j = (p.z + SIZE / 2) / px + 5; ctx.strokeText(p.name, i, j); ctx.fillText(p.name, i, j); }
   }

@@ -14,7 +14,7 @@ const LOBBY_CHAR = buildCharacter(R, SKINS[0], 1.35);
 const $ = (id: string) => document.getElementById(id)!;
 const H = { lobby: $('lobby'), hud: $('hud'), hp: $('hp'), sh: $('sh'), mats: $('mats'), bld: $('bld'), ammo: $('ammo'), wname: $('wname'), hotbar: $('hotbar'), info: $('info'), fx: $('fx'), cross: $('cross'), weak: $('weak'), hitm: $('hitm'), prog: $('prog'), flash: $('flash'), scope: $('scope'), pause: $('pause'), comp: $('comp'), fps: $('fps'), mm: $('mm'), stats: $('stats'), feed: $('feed'), banner: $('banner'), elim: $('elim'), bigmap: $('bigmap'), pl: $('pl'), end: $('end'), dbg: $('dbg'), tgt: $('tgt') };
 const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600; W.drawMap(mapCv);
-(H.bigmap.querySelector('canvas') as HTMLCanvasElement).getContext('2d')!.drawImage(mapCv, 0, 0);
+(H.bigmap.querySelector('canvas') as HTMLCanvasElement).getContext('2d')!.drawImage(mapCv, 0, 0); W.drawLabels(H.bigmap.querySelector('canvas') as HTMLCanvasElement);
 // lobby crystal background
 { const svg = $('lobbybg'); let s = ''; const pts: [number, number][] = []; for (let i = 0; i < 60; i++) pts.push([rand(-10, 110), rand(-10, 70)]); for (let i = 0; i < 60; i++) { const a = pts[i], b = pts[(i * 7 + 3) % 60], c = pts[(i * 13 + 5) % 60]; const l = 35 + rand(0, 35); s += `<polygon points="${a[0]},${a[1]} ${b[0]},${b[1]} ${c[0]},${c[1]}" fill="hsl(${198 + rand(-6, 6)},${60 + rand(0, 20)}%,${l}%)" opacity="0.7"/>`; } svg.innerHTML = `<rect width="100" height="60" fill="#3b8fc4"/>` + s + `<ellipse cx="50" cy="52" rx="40" ry="10" fill="#e8f6ff" opacity="0.55"/>`; }
 

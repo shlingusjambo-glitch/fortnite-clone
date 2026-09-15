@@ -80,12 +80,16 @@ void main(){
   // Stylized character rim lighting for the cartoon silhouette (Image 2)
   float rim = pow(1.0 - max(dot(n, v), 0.0), 3.2) * 0.28 * max(dot(uSun, -v), 0.2);
 
-  float shade = 0.52 + 0.22 * hemi + 0.45 * d * lit;
-  vec3 c = col * (shade + emit) + vec3(spec * 0.5) + vec3(0.4, 0.7, 1.0) * rim;
+  // Chapter 1 look: warm key light, cool sky-tinted ambient in shadow, painterly soft wrap on the terminator
+  float wrap = smoothstep(-0.25, 0.6, dot(n, uSun));
+  vec3 ambient = mix(vec3(0.42, 0.50, 0.66), vec3(0.62, 0.68, 0.78), hemi);
+  vec3 key = vec3(1.0, 0.94, 0.82) * (0.30 * d + 0.28 * wrap) * lit;
+  vec3 c = col * (ambient + key + emit) + vec3(1.0, 0.96, 0.88) * spec * 0.45 + vec3(0.4, 0.7, 1.0) * rim;
   float dist = length(vWorld - uCam);
   float f = 1.0 - exp(-dist * uFogD);
   c = mix(c, uFog, clamp(f, 0.0, 0.92));
-  c = pow(c * 1.05, vec3(0.96));                 // crisp vibrant tone curve
+  c = pow(c * 1.08, vec3(0.94));                 // crisp vibrant tone curve
+  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.12);   // slight saturation push
   o = vec4(c, uAlpha);
 }`;
 const DVS = `#version 300 es
