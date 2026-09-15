@@ -887,7 +887,22 @@ void main(){
           let mid = (a0 + a1) / 2, len2 = a1 - a0, yc = (b0 + b1) / 2, hh = b1 - b0;
           axis === "x" ? this.b.box([mid, yc, at], [len2, hh, T + 0.12], trim) : this.b.box([at, yc, mid], [T + 0.12, hh, len2], trim);
         };
-        if (fr(x0 - 0.12, x0, o.y - (o.door ? 0 : 0.12), o.y + o.h + 0.12), fr(x1, x1 + 0.12, o.y - (o.door ? 0 : 0.12), o.y + o.h + 0.12), fr(x0 - 0.12, x1 + 0.12, o.y + o.h, o.y + o.h + 0.12), !o.door) {
+        if (fr(x0 - 0.12, x0, o.y - (o.door ? 0 : 0.12), o.y + o.h + 0.12), fr(x1, x1 + 0.12, o.y - (o.door ? 0 : 0.12), o.y + o.h + 0.12), fr(x0 - 0.12, x1 + 0.12, o.y + o.h, o.y + o.h + 0.12), o.sill) {
+          let sc = dk(this.p.roof, 1.1), ym = o.y + o.h / 2;
+          for (let [a0, a1] of [[x0 - 0.5, x0 - 0.14], [x1 + 0.14, x1 + 0.5]]) {
+            let mid = (a0 + a1) / 2;
+            if (axis === "x") {
+              this.b.box([mid, ym, at + (at > 0 ? 0.2 : -0.2)], [a1 - a0, o.h + 0.2, 0.06], sc);
+              for (let k = -2; k <= 2; k++) this.b.box([mid, ym + k * 0.28, at + (at > 0 ? 0.24 : -0.24)], [a1 - a0 - 0.08, 0.05, 0.02], dk(sc, 0.8));
+            } else
+              this.b.box([at + (at > 0 ? 0.2 : -0.2), ym, mid], [0.06, o.h + 0.2, a1 - a0], sc);
+          }
+          if (axis === "x") {
+            this.b.box([(x0 + x1) / 2, o.y - 0.3, at + (at > 0 ? 0.3 : -0.3)], [o.w, 0.28, 0.3], rgb(6965808));
+            for (let k = 0; k < 4; k++) this.b.sphere([x0 + 0.2 + k * (o.w - 0.4) / 3, o.y - 0.08, at + (at > 0 ? 0.32 : -0.32)], 0.11, [C.red, C.yellow, rgb(16734899), C.white][k % 4], 6, 1, !0);
+          }
+        }
+        if (!o.door) {
           fr(x0 - 0.12, x1 + 0.12, o.y - 0.12, o.y);
           let mid = (x0 + x1) / 2, ym = o.y + o.h / 2;
           axis === "x" ? (this.b.box([mid, ym, at], [0.06, o.h, 0.05], trim), this.b.box([mid, ym, at], [o.w, 0.06, 0.05], trim), this.b.box([mid, o.y - 0.16, at + T / 2 + 0.1], [o.w + 0.4, 0.1, 0.28], trim)) : (this.b.box([at, ym, mid], [0.05, o.h, 0.06], trim), this.b.box([at, ym, mid], [0.05, 0.06, o.w], trim));
@@ -1059,7 +1074,7 @@ void main(){
   }
   function cottage(pi = 1, seed = 0) {
     let p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p), w = 12, d = 9, hw = w / 2, hd = d / 2, H2 = FH, T = 0.3, y0 = 0.52;
-    k.solid([0, 0.2, 0], [w + 0.5, 0.4, d + 0.5], rgb(9407878)), k.floorSlab(-hw + T, hw - T, -hd + T, hd - T, 0.46, p.floor, 0.12), k.wall("x", hd - T / 2, -hw, hw, 0.4, H2 - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.6, y: 1.1, h: 1.6 }, { x: hw * 0.5, w: 1.6, y: 1.1, h: 1.6 }, { x: 0, w: 1.3, y: 0.4, h: 2.3, door: !0 }]), k.wall("x", -hd + T / 2, -hw, hw, 0.4, H2 - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }, { x: hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }]), k.wall("z", -hw + T / 2, -hd, hd, 0.4, H2 - 0.4, p.wall, [{ x: 0, w: 1.4, y: 1.1, h: 1.6 }]), k.wall("z", hw - T / 2, -hd, hd, 0.4, H2 - 0.4, p.wall, [{ x: -hd * 0.3, w: 1.4, y: 1.1, h: 1.6 }]), k.siding(w, d, 0.4, H2 - 0.4, p.wall), k.interiorWall("z", 1.2, -hd + T, hd - T, y0, FH - 0.2, -hd * 0.4), k.interiorWall("x", -hd * 0.1, 1.2, hw - T, y0, FH - 0.2, hw - 1.6), k.couch(-hw * 0.5, y0, hd * 0.55, Math.PI), k.tv(-hw * 0.5, y0, -hd * 0.1, 0), k.rug(-hw * 0.5, y0, hd * 0.3, 3, 2.4, rgb(5929530)), k.cabinet(-hw * 0.5, y0, -hd + 0.75, 4, 0.9, 0.7, rgb(15262416), rgb(5921370)), k.fridge(-hw + 0.8, y0, -hd + 0.75), k.stove(-hw * 0.2, y0, -hd + 0.75), k.bed(hw * 0.4, y0, -hd * 0.5, 0, rgb(14214848)), k.bookshelf(hw - 0.5, y0, hd * 0.6, -Math.PI / 2, 1), k.toilet(hw - 1, y0, hd - 1.2, -Math.PI / 2), k.sink(3, y0, hd - 1), k.baseboard(-hw + T, hw - T, -hd + T, hd - T, y0), k.ceilingLight(-hw * 0.5, H2 - 0.1, 0), k.ceilingLight(hw * 0.4, H2 - 0.1, 0), k.gableRoof(w, d, H2, d * 0.5, 0.7, p.roof, "x"), b.box([-hw * 0.5, H2 + d * 0.5 * 0.7, -hd * 0.3], [0.8, d * 0.5 * 1.3, 0.8], BRICK), b.box([0, 2.9, hd + 1], [3, 0.15, 2], p.roof);
+    k.solid([0, 0.2, 0], [w + 0.5, 0.4, d + 0.5], rgb(9407878)), k.floorSlab(-hw + T, hw - T, -hd + T, hd - T, 0.46, p.floor, 0.12), k.wall("x", hd - T / 2, -hw, hw, 0.4, H2 - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.6, y: 1.1, h: 1.6, sill: !0 }, { x: hw * 0.5, w: 1.6, y: 1.1, h: 1.6, sill: !0 }, { x: 0, w: 1.3, y: 0.4, h: 2.3, door: !0 }]), k.wall("x", -hd + T / 2, -hw, hw, 0.4, H2 - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }, { x: hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }]), k.wall("z", -hw + T / 2, -hd, hd, 0.4, H2 - 0.4, p.wall, [{ x: 0, w: 1.4, y: 1.1, h: 1.6 }]), k.wall("z", hw - T / 2, -hd, hd, 0.4, H2 - 0.4, p.wall, [{ x: -hd * 0.3, w: 1.4, y: 1.1, h: 1.6 }]), k.siding(w, d, 0.4, H2 - 0.4, p.wall), k.interiorWall("z", 1.2, -hd + T, hd - T, y0, FH - 0.2, -hd * 0.4), k.interiorWall("x", -hd * 0.1, 1.2, hw - T, y0, FH - 0.2, hw - 1.6), k.couch(-hw * 0.5, y0, hd * 0.55, Math.PI), k.tv(-hw * 0.5, y0, -hd * 0.1, 0), k.rug(-hw * 0.5, y0, hd * 0.3, 3, 2.4, rgb(5929530)), k.cabinet(-hw * 0.5, y0, -hd + 0.75, 4, 0.9, 0.7, rgb(15262416), rgb(5921370)), k.fridge(-hw + 0.8, y0, -hd + 0.75), k.stove(-hw * 0.2, y0, -hd + 0.75), k.bed(hw * 0.4, y0, -hd * 0.5, 0, rgb(14214848)), k.bookshelf(hw - 0.5, y0, hd * 0.6, -Math.PI / 2, 1), k.toilet(hw - 1, y0, hd - 1.2, -Math.PI / 2), k.sink(3, y0, hd - 1), k.baseboard(-hw + T, hw - T, -hd + T, hd - T, y0), k.ceilingLight(-hw * 0.5, H2 - 0.1, 0), k.ceilingLight(hw * 0.4, H2 - 0.1, 0), k.gableRoof(w, d, H2, d * 0.5, 0.7, p.roof, "x"), b.box([-hw * 0.5, H2 + d * 0.5 * 0.7, -hd * 0.3], [0.8, d * 0.5 * 1.3, 0.8], BRICK), b.box([0, 2.9, hd + 1], [3, 0.15, 2], p.roof);
     for (let x of [-1.3, 1.3]) k.solid([x, 1.45, hd + 1.8], [0.16, 2.9, 0.16], p.trim);
     return k.solid([0, 0.2, hd + 1.1], [3, 0.4, 1.6], CONCRETE), k.door(0.65, 0.4, hd - 0.1, Math.PI * 0.6), k.loot.push([-hw * 0.5, y0, hd * 0.3], [hw * 0.4, y0, hd * 0.2]), k.chests.push([-hw + 1.2, y0, -hd + 3]), { b, boxes: k.boxes, loot: k.loot, chests: k.chests, w, d, h: H2 + d * 0.5, kind: "cottage" };
   }

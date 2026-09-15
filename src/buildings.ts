@@ -34,6 +34,8 @@ class Kit {
       // frame
       const fr = (a0: number, a1: number, b0: number, b1: number) => { const mid = (a0 + a1) / 2, len = a1 - a0, yc = (b0 + b1) / 2, hh = b1 - b0; if (axis === 'x') this.b.box([mid, yc, at], [len, hh, T + 0.12], trim); else this.b.box([at, yc, mid], [T + 0.12, hh, len], trim); };
       fr(x0 - 0.12, x0, o.y - (o.door ? 0 : 0.12), o.y + o.h + 0.12); fr(x1, x1 + 0.12, o.y - (o.door ? 0 : 0.12), o.y + o.h + 0.12); fr(x0 - 0.12, x1 + 0.12, o.y + o.h, o.y + o.h + 0.12);
+      if (o.sill) { const sc = dk(this.p.roof, 1.1), ym = o.y + o.h / 2; for (const [a0, a1] of [[x0 - 0.5, x0 - 0.14], [x1 + 0.14, x1 + 0.5]]) { const mid = (a0 + a1) / 2; if (axis === 'x') { this.b.box([mid, ym, at + (at > 0 ? 0.2 : -0.2)], [a1 - a0, o.h + 0.2, 0.06], sc); for (let k = -2; k <= 2; k++) this.b.box([mid, ym + k * 0.28, at + (at > 0 ? 0.24 : -0.24)], [a1 - a0 - 0.08, 0.05, 0.02], dk(sc, 0.8)); } else { this.b.box([at + (at > 0 ? 0.2 : -0.2), ym, mid], [0.06, o.h + 0.2, a1 - a0], sc); } }
+        if (axis === 'x') { this.b.box([(x0 + x1) / 2, o.y - 0.3, at + (at > 0 ? 0.3 : -0.3)], [o.w, 0.28, 0.3], rgb(0x6a4a30)); for (let k = 0; k < 4; k++) this.b.sphere([x0 + 0.2 + k * (o.w - 0.4) / 3, o.y - 0.08, at + (at > 0 ? 0.32 : -0.32)], 0.11, [C.red, C.yellow, rgb(0xff5ab3), C.white][k % 4], 6, 1, true); } }   // shutters + flower box
       if (!o.door) { fr(x0 - 0.12, x1 + 0.12, o.y - 0.12, o.y); const mid = (x0 + x1) / 2, ym = o.y + o.h / 2; if (axis === 'x') { this.b.box([mid, ym, at], [0.06, o.h, 0.05], trim); this.b.box([mid, ym, at], [o.w, 0.06, 0.05], trim); this.b.box([mid, o.y - 0.16, at + T / 2 + 0.1], [o.w + 0.4, 0.1, 0.28], trim); } else { this.b.box([at, ym, mid], [0.05, o.h, 0.06], trim); this.b.box([at, ym, mid], [0.05, 0.06, o.w], trim); } }
       cur = x1;
     }
@@ -154,7 +156,7 @@ export function cottage(pi = 1, seed = 0): Building {
   const p = PALETTES[pi % PALETTES.length], b = new MB(), k = new Kit(b, p);
   const w = 12, d = 9, hw = w / 2, hd = d / 2, H = FH, T = 0.3, y0 = 0.52;
   k.solid([0, 0.2, 0], [w + 0.5, 0.4, d + 0.5], rgb(0x8f8d86)); k.floorSlab(-hw + T, hw - T, -hd + T, hd - T, 0.46, p.floor, 0.12);
-  k.wall('x', hd - T / 2, -hw, hw, 0.4, H - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.6, y: 1.1, h: 1.6 }, { x: hw * 0.5, w: 1.6, y: 1.1, h: 1.6 }, { x: 0, w: 1.3, y: 0.4, h: 2.3, door: true }]);
+  k.wall('x', hd - T / 2, -hw, hw, 0.4, H - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.6, y: 1.1, h: 1.6, sill: true }, { x: hw * 0.5, w: 1.6, y: 1.1, h: 1.6, sill: true }, { x: 0, w: 1.3, y: 0.4, h: 2.3, door: true }]);
   k.wall('x', -hd + T / 2, -hw, hw, 0.4, H - 0.4, p.wall, [{ x: -hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }, { x: hw * 0.5, w: 1.4, y: 1.1, h: 1.6 }]);
   k.wall('z', -hw + T / 2, -hd, hd, 0.4, H - 0.4, p.wall, [{ x: 0, w: 1.4, y: 1.1, h: 1.6 }]);
   k.wall('z', hw - T / 2, -hd, hd, 0.4, H - 0.4, p.wall, [{ x: -hd * 0.3, w: 1.4, y: 1.1, h: 1.6 }]);
