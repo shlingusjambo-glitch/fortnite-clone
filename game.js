@@ -1982,7 +1982,7 @@ void main(){
       }
       let d = norm(add(aim, [rand(-sp, sp), rand(-sp, sp), rand(-sp, sp)])), h = W.raycast(camPos, d, w.range, boxes), end = h ? h.p : add(camPos, scale(d, w.range));
       if (fx.push({ kind: "tracer", t: 0.08, pos: add(add(P.pos, [0, eyeH() - 0.3, 0]), scale(right(), 0.35)), to: end }), !!h) {
-        if (h.kind === "box") {
+        if (fx.push({ kind: "puff", t: 0.22, pos: h.p, col: h.kind === "box" ? [1, 0.3, 0.2] : h.kind === "terrain" ? [0.7, 0.6, 0.45] : h.kind === "prop" ? [0.5, 0.7, 0.3] : [0.9, 0.85, 0.7] }), h.kind === "box") {
           let { d: dm, head } = h.ref, fall = h.t > w.range * 0.5 ? lerp(1, 0.6, (h.t - w.range * 0.5) / (w.range * 0.5)) : 1, dmg = Math.round(w.dmg * RAR_MULT[item.rar] * fall * (head ? w.hs : 1));
           botDamage(dm, dmg, "Player"), P.dmg += dmg, dm.lastHit = t, dm.enemy = "player", hitAny = !0, headAny || (headAny = head), fx.push({ kind: "dmg", t: 0.9, pos: add(h.p, [rand(-0.3, 0.3), 0.3, 0]), text: String(dmg), head });
         } else if (h.kind === "piece")
@@ -2508,8 +2508,12 @@ void main(){
           nades.push({ pos: add(from, scale(norm(sub(to, from)), 1.2)), vel: scale(norm(add(to, [rand(-2, 2) * (1 - b.accuracy), 0, rand(-2, 2) * (1 - b.accuracy)]).map((v, i) => v - from[i])), 34), t: 6, by: b.name, rocket: !0 }), botHear(b.pos, 80, b);
           return;
         }
-        let hit = Math.random() < acc && los(from, to);
-        if (fx.push({ kind: "tracer", t: 0.06, pos: from, to: hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]) }), hit) {
+        let hit = Math.random() < acc && los(from, to), tto = hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]);
+        if (fx.push({ kind: "tracer", t: 0.06, pos: from, to: tto }), len(sub(tto, P.pos)) < 30) {
+          let hh = W.raycast(from, norm(sub(tto, from)), len(sub(tto, from)) + 4);
+          hh && fx.push({ kind: "puff", t: 0.22, pos: hh.p, col: [0.75, 0.65, 0.5] });
+        }
+        if (hit) {
           let head = Math.random() < b.skill * 0.18, n = Math.round(dmg * rand(0.8, 1.1) * (head ? 1.5 : 1));
           b.enemy === "player" ? (damage(n, b.name), head && info("Headshot!")) : botDamage(b.enemy, n, b.name);
         } else if (!hit && !los(from, to)) {
@@ -2874,6 +2878,7 @@ void main(){
       R.draw(c.open ? M.chestOpen : M.chest, trs(c.pos, c.yaw), c.open ? [1, 1, 1] : [1.15, 1.1, 0.9]), !c.open && len(sub(c.pos, camPos)) < 60 && R.draw(M.glow, trs(c.pos, 0, 0, 1 + Math.sin(t * 3) * 0.08), [1, 0.85, 0.3], 0.16, 7, !1);
     for (let g of items)
       g.item.kind === "ammo" ? R.draw(M.ammo, trs(g.pos, 0.6, 0, 1.6)) : R.draw(M[g.item.kind], trs(add(g.pos, [0, 0.6 + Math.sin(t * 3) * 0.1, 0]), t * 1.5, 0, 1.3));
+    for (let f of fx) f.kind === "puff" && R.draw(M.glow, trs(f.pos, 0, 0, 0.12 + (0.22 - f.t) * 2.2), f.col ?? [1, 1, 1], f.t * 2.5, 7, !1);
     for (let f of fx) if (f.kind === "tracer" && f.to) {
       let d = sub(f.to, f.pos), L = len(d);
       R.draw(M.tracer, trs(f.pos, Math.atan2(d[0], d[2]), -Math.asin(clamp(d[1] / L, -1, 1)), [1, 1, L]), [1, 1, 1], 1, 0, !1);

@@ -68,7 +68,7 @@ interface GroundItem { item: Item; pos: V3; }
 type BotMode = 'loot' | 'rotate' | 'hunt' | 'fight' | 'box' | 'crank' | 'heal' | 'rush';
 interface Crank { c: V3; L: number; d: number; t: number; steps: number; }
 interface Bot { name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; nades: number; stunT: number; shots: number; }
-interface Fx { kind: 'dmg' | 'tracer'; t: number; pos: V3; text?: string; head?: boolean; to?: V3; }
+interface Fx { kind: 'dmg' | 'tracer' | 'puff'; t: number; pos: V3; text?: string; head?: boolean; to?: V3; col?: V3; }
 const ICON: Record<string, string> = {
   pickaxe: '<svg viewBox="0 0 64 64"><path d="M14 52 L44 22" stroke="#7a5a3a" stroke-width="6" stroke-linecap="round"/><path d="M30 12 Q46 8 56 26" stroke="#dfe6ee" stroke-width="8" fill="none" stroke-linecap="round"/></svg>',
   ar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#e8ecef"/><rect x="26" y="26" width="10" height="4" fill="#e8ecef"/></svg>',
@@ -319,6 +319,7 @@ function shoot(item: Item) {
     const end = h ? h.p : add(camPos, scale(d, w.range));
     fx.push({ kind: 'tracer', t: 0.08, pos: add(add(P.pos, [0, eyeH() - 0.3, 0]), scale(right(), 0.35)), to: end });
     if (!h) continue;
+    fx.push({ kind: 'puff', t: 0.22, pos: h.p, col: h.kind === 'box' ? [1, 0.3, 0.2] : h.kind === 'terrain' ? [0.7, 0.6, 0.45] : h.kind === 'prop' ? [0.5, 0.7, 0.3] : [0.9, 0.85, 0.7] });
     if (h.kind === 'box') {
       const { d: dm, head } = h.ref as { d: Bot; head: boolean }; const fall = h.t > w.range * 0.5 ? lerp(1, 0.6, (h.t - w.range * 0.5) / (w.range * 0.5)) : 1; const dmg = Math.round(w.dmg * RAR_MULT[item.rar] * fall * (head ? w.hs : 1));
       botDamage(dm, dmg, 'Player'); P.dmg += dmg; dm.lastHit = t; dm.enemy = 'player'; hitAny = true; headAny ||= head;
@@ -681,7 +682,7 @@ function updateBot(b: Bot, dt: number) {
       const from = add(b.pos, [0, 1.5, 0]), to = add(add(ep!, [0, 1.2 + rand(-0.45, 0.45), 0]), scale(b.aimDrift, clamp(L / 45, .15, 1)));
       if (b.weapon === 'rpg') { nades.push({ pos: add(from, scale(norm(sub(to, from)), 1.2)), vel: scale(norm(add(to, [rand(-2, 2) * (1 - b.accuracy), 0, rand(-2, 2) * (1 - b.accuracy)]).map((v, i) => v - from[i]) as V3), 34), t: 6, by: b.name, rocket: true }); botHear(b.pos, 80, b); return; }
       const hit = Math.random() < acc && los(from, to);
-      fx.push({ kind: 'tracer', t: 0.06, pos: from, to: hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]) });
+      const tto = hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]); fx.push({ kind: 'tracer', t: 0.06, pos: from, to: tto }); if (len(sub(tto, P.pos)) < 30) { const hh = W.raycast(from, norm(sub(tto, from)), len(sub(tto, from)) + 4); if (hh) fx.push({ kind: 'puff', t: 0.22, pos: hh.p, col: [0.75, 0.65, 0.5] }); }
       if (hit) { const head = Math.random() < b.skill * 0.18, n = Math.round(dmg * rand(0.8, 1.1) * (head ? 1.5 : 1)); if (b.enemy === 'player') { damage(n, b.name); if (head) info('Headshot!'); } else botDamage(b.enemy as Bot, n, b.name); }
       else if (!hit && !los(from, to)) { const h = W.raycast(from, norm(sub(to, from)), L); if (h && h.kind === 'piece') W.damagePiece(h.ref as Piece, dmg); }
       botHear(b.pos, 60, b);
@@ -1074,6 +1075,7 @@ function frame(now: number) {
   }
   for (const c of chests) { R.draw(c.open ? M.chestOpen : M.chest, trs(c.pos, c.yaw), c.open ? [1, 1, 1] : [1.15, 1.1, 0.9]); if (!c.open && len(sub(c.pos, camPos)) < 60) R.draw(M.glow, trs(c.pos, 0, 0, 1 + Math.sin(t * 3) * 0.08), [1, 0.85, 0.3], 0.16, 7, false); }
   for (const g of items) { if (g.item.kind === 'ammo') R.draw(M.ammo, trs(g.pos, 0.6, 0, 1.6)); else R.draw(M[g.item.kind], trs(add(g.pos, [0, 0.6 + Math.sin(t * 3) * 0.1, 0]), t * 1.5, 0, 1.3)); }
+  for (const f of fx) if (f.kind === 'puff') R.draw(M.glow, trs(f.pos, 0, 0, 0.12 + (0.22 - f.t) * 2.2), f.col ?? [1, 1, 1], f.t * 2.5, 7, false);
   for (const f of fx) if (f.kind === 'tracer' && f.to) { const d = sub(f.to, f.pos), L = len(d); R.draw(M.tracer, trs(f.pos, Math.atan2(d[0], d[2]), -Math.asin(clamp(d[1] / L, -1, 1)), [1, 1, L]), [1, 1, 1], 1, 0, false); }
   for (const d of bots) if (!d.dead && d.state !== 'bus' && Math.abs(d.pos[0] - camPos[0]) < cull && Math.abs(d.pos[2] - camPos[2]) < cull) drawChar(CHARS[d.skin], trs(d.pos, d.yaw), { anim: d.anim, speed: Math.hypot(d.vel[0], d.vel[2]), grounded: d.grounded || d.state !== 'ground', pitch: d.pitch, pose: d.emoteT > 0 ? 'emote' : d.state === 'sky' ? 'sky' : d.state === 'glide' ? 'glide' : d.mode === 'crank' || d.mode === 'box' || d.mode === 'rush' ? 'build' : d.weapon && d.enemy ? 'aim' : 'idle', held: d.state !== 'ground' || d.emoteT > 0 || d.mode === 'crank' || d.mode === 'box' || d.mode === 'rush' ? undefined : d.weapon ?? 'pickaxe', emote: d.emote });
   if (P.build) { const bt = buildTarget(); const ok = P.mats[P.mat] >= 10 && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir)); R.draw(M[`${bt.type}_${P.mat}`], trs(bt.pos, bt.dir * Math.PI / 2), ok ? [0.5, 1.2, 0.6] : [1.4, 0.5, 0.5], 0.45, MAT_STYLE[P.mat], false); }
