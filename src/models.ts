@@ -890,31 +890,17 @@ export function buildModels(r: Renderer): Models {
   // ==================== HIGH-POLY VEGETATION & NATURE ====================
   // Pine Tree: Layered conical conifer with textured needle fronds (matching Image 1 & 3)
   M.pine = mk(b => {
-    b.cyl([0, 0, 0], 0.38, 0.16, 8.2, C.trunk, 14, true, true);                         // tapered trunk
-    // Buttress root flares
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      b.push(mul(translate(Math.cos(a) * 0.35, 0, Math.sin(a) * 0.35), rotY(a)));
-      b.cyl([0, 0, 0], 0.14, 0.04, 0.8, C.trunkDark, 8, true, true);
-      b.pop();
-    }
-    // 6 Tiers of dense needle canopies
+    b.cyl([0, 0, 0], 0.38, 0.14, 8.4, C.trunk, 12, true, true);                         // tapered trunk
+    for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; b.push(mul(translate(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3), rotY(a))); b.cyl([0, 0, 0], 0.14, 0.04, 0.7, C.trunkDark, 8, true, true); b.pop(); }
+    // stacked needle tiers: each tier is a slightly scalloped cone (lobed by 8 overlapping sub-cones) with a lighter tip band
     const tiers = 6;
     for (let i = 0; i < tiers; i++) {
-      const y = 1.4 + i * 1.15;
-      const rBottom = (3.2 - i * 0.46), rTop = (0.2 + (tiers - 1 - i) * 0.15), h = 1.65;
-      const col = i % 2 === 0 ? C.pine : C.pine2;
-      b.cyl([0, y, 0], rBottom, rTop, h, col, 16, true, true);
-      // Layered overhanging frond teeth
-      for (let j = 0; j < 12; j++) {
-        const a = (j / 12) * Math.PI * 2 + (i * 0.3);
-        const fx = Math.cos(a) * rBottom, fz = Math.sin(a) * rBottom;
-        b.push(mul(translate(fx, y + 0.1, fz), rotY(a)));
-        b.tri([0, 0, 0], [0.35, -0.3, 0], [-0.35, -0.3, 0], col);
-        b.pop();
-      }
+      const y = 1.3 + i * 1.15, rB = 3.1 - i * 0.45, h = 1.9, col = i % 2 ? C.pine2 : C.pine;
+      b.cyl([0, y, 0], rB, 0.15, h, col, 18, false, true);
+      for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283 + i * 0.4, rr = rB * 0.55; b.cyl([Math.cos(a) * rr, y - 0.15, Math.sin(a) * rr], rB * 0.5, 0.05, h * 0.7, dk(col, 0.92), 8, false, true); }
+      b.cyl([0, y + h * 0.55, 0], rB * 0.45, 0.1, h * 0.45, lt(col, 0.12), 12, false, true);   // sunlit tip
     }
-    b.cyl([0, 7.8, 0], 0.6, 0.05, 1.4, C.pine, 12, true, true);                         // crown cone
+    b.cyl([0, 8.0, 0], 0.55, 0.04, 1.3, lt(C.pine, 0.1), 10, true, true);              // crown
   });
 
   // Oak Tree: Smooth organic trunk splitting into lush cartoon leaf boughs (Image 1 & 2)
@@ -1059,12 +1045,19 @@ export function buildModels(r: Renderer): Models {
     b.box([0, 0.52, 2.12], [1.65, 0.18, 0.08], chrome);                                // bumper
     b.sphere([-0.65, 0.62, 2.14], 0.11, rgb(0xfff8d0), 10, 1, true);
     b.sphere([0.65, 0.62, 2.14], 0.11, rgb(0xfff8d0), 10, 1, true);
-    // 4 Wheels
+    for (const sx of [-0.96, 0.96]) { b.box([sx, 0.7, -0.2], [0.01, 0.4, 0.02], dk(y, 0.6)); b.box([sx, 0.7, 0.6], [0.01, 0.4, 0.02], dk(y, 0.6)); b.box([sx, 0.85, 0.2], [0.03, 0.03, 0.18], chrome); }   // door seams + handles
+    for (const sx of [-0.9, 0.9]) b.box([sx, 1.0, 0.85], [0.18, 0.1, 0.08], y);                                         // mirrors
+    b.box([0, 1.33, -0.2], [1.5, 0.05, 2.1], dk(y, 0.9));                                                              // roof
+    b.box([0, 0.62, -2.12], [0.4, 0.15, 0.03], rgb(0xf4f4f0)); b.box([0, 0.72, -2.12], [1.6, 0.16, 0.04], rgb(0xd83030)); // plate + tail lights
+    b.box([0, 0.5, -2.12], [1.65, 0.18, 0.08], chrome);
+    // 4 Wheels with tyre tread rings and hubcaps
     for (const sx of [-0.95, 0.95]) {
       for (const sz of [-1.3, 1.3]) {
         b.push(mul(translate(sx, 0.35, sz), rotZ(Math.PI / 2)));
         b.cyl([0, 0, 0], 0.35, 0.35, 0.24, rgb(0x222226), 16, true, true);
+        b.torus([0, 0.13 * Math.sign(sx), 0], 0.3, 0.03, rgb(0x2e2e33), 16, 6);
         b.cyl([0, 0.02, 0], 0.20, 0.20, 0.26, chrome, 12, true, true);
+        for (let k = 0; k < 5; k++) { const a = k / 5 * 6.283; b.box([Math.cos(a) * 0.12, 0.14 * Math.sign(sx), Math.sin(a) * 0.12], [0.06, 0.02, 0.06], dk(chrome, 0.7)); }
         b.pop();
       }
     }

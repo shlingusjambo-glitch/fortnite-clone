@@ -622,21 +622,22 @@ void main(){
       let top = [0, 2, 0], a = [-2, 0, -2], bb = [2, 0, -2], cc = [2, 0, 2], d = [-2, 0, 2];
       b.tri(a, top, bb, C.metal), b.tri(bb, top, cc, C.metal), b.tri(cc, top, d, C.metal), b.tri(d, top, a, C.metal), b.quad(a, bb, cc, d, C.metalDark);
     }), M2.pine = mk((b) => {
-      b.cyl([0, 0, 0], 0.38, 0.16, 8.2, C.trunk, 14, !0, !0);
+      b.cyl([0, 0, 0], 0.38, 0.14, 8.4, C.trunk, 12, !0, !0);
       for (let i = 0; i < 4; i++) {
         let a = i / 4 * Math.PI * 2;
-        b.push(mul(translate(Math.cos(a) * 0.35, 0, Math.sin(a) * 0.35), rotY(a))), b.cyl([0, 0, 0], 0.14, 0.04, 0.8, C.trunkDark, 8, !0, !0), b.pop();
+        b.push(mul(translate(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3), rotY(a))), b.cyl([0, 0, 0], 0.14, 0.04, 0.7, C.trunkDark, 8, !0, !0), b.pop();
       }
       let tiers = 6;
       for (let i = 0; i < tiers; i++) {
-        let y = 1.4 + i * 1.15, rBottom = 3.2 - i * 0.46, rTop = 0.2 + (tiers - 1 - i) * 0.15, h = 1.65, col = i % 2 === 0 ? C.pine : C.pine2;
-        b.cyl([0, y, 0], rBottom, rTop, h, col, 16, !0, !0);
-        for (let j = 0; j < 12; j++) {
-          let a = j / 12 * Math.PI * 2 + i * 0.3, fx2 = Math.cos(a) * rBottom, fz = Math.sin(a) * rBottom;
-          b.push(mul(translate(fx2, y + 0.1, fz), rotY(a))), b.tri([0, 0, 0], [0.35, -0.3, 0], [-0.35, -0.3, 0], col), b.pop();
+        let y = 1.3 + i * 1.15, rB = 3.1 - i * 0.45, h = 1.9, col = i % 2 ? C.pine2 : C.pine;
+        b.cyl([0, y, 0], rB, 0.15, h, col, 18, !1, !0);
+        for (let k = 0; k < 8; k++) {
+          let a = k / 8 * 6.283 + i * 0.4, rr = rB * 0.55;
+          b.cyl([Math.cos(a) * rr, y - 0.15, Math.sin(a) * rr], rB * 0.5, 0.05, h * 0.7, dk(col, 0.92), 8, !1, !0);
         }
+        b.cyl([0, y + h * 0.55, 0], rB * 0.45, 0.1, h * 0.45, lt(col, 0.12), 12, !1, !0);
       }
-      b.cyl([0, 7.8, 0], 0.6, 0.05, 1.4, C.pine, 12, !0, !0);
+      b.cyl([0, 8, 0], 0.55, 0.04, 1.3, lt(C.pine, 0.1), 10, !0, !0);
     }), M2.tree = mk((b) => {
       b.cyl([0, 0, 0], 0.5, 0.34, 3.8, C.trunk, 14, !0, !0);
       for (let i = 0; i < 4; i++) {
@@ -699,9 +700,19 @@ void main(){
     }), M2.car = mk((b) => {
       let y = rgb(3700950), chrome = rgb(14540253);
       b.rbox([0, 0.55, 0], [1.9, 0.52, 4.2], y, 0.08), b.rbox([0, 1.05, -0.2], [1.65, 0.52, 2.2], y, 0.08), b.box([0, 1.05, -0.2], [1.68, 0.34, 2], C.glass), b.box([0, 1.05, 0.92], [1.45, 0.35, 0.08], C.glass), b.box([0, 0.52, 2.12], [1.65, 0.18, 0.08], chrome), b.sphere([-0.65, 0.62, 2.14], 0.11, rgb(16775376), 10, 1, !0), b.sphere([0.65, 0.62, 2.14], 0.11, rgb(16775376), 10, 1, !0);
+      for (let sx of [-0.96, 0.96])
+        b.box([sx, 0.7, -0.2], [0.01, 0.4, 0.02], dk(y, 0.6)), b.box([sx, 0.7, 0.6], [0.01, 0.4, 0.02], dk(y, 0.6)), b.box([sx, 0.85, 0.2], [0.03, 0.03, 0.18], chrome);
+      for (let sx of [-0.9, 0.9]) b.box([sx, 1, 0.85], [0.18, 0.1, 0.08], y);
+      b.box([0, 1.33, -0.2], [1.5, 0.05, 2.1], dk(y, 0.9)), b.box([0, 0.62, -2.12], [0.4, 0.15, 0.03], rgb(16053488)), b.box([0, 0.72, -2.12], [1.6, 0.16, 0.04], rgb(14168112)), b.box([0, 0.5, -2.12], [1.65, 0.18, 0.08], chrome);
       for (let sx of [-0.95, 0.95])
-        for (let sz of [-1.3, 1.3])
-          b.push(mul(translate(sx, 0.35, sz), rotZ(Math.PI / 2))), b.cyl([0, 0, 0], 0.35, 0.35, 0.24, rgb(2236966), 16, !0, !0), b.cyl([0, 0.02, 0], 0.2, 0.2, 0.26, chrome, 12, !0, !0), b.pop();
+        for (let sz of [-1.3, 1.3]) {
+          b.push(mul(translate(sx, 0.35, sz), rotZ(Math.PI / 2))), b.cyl([0, 0, 0], 0.35, 0.35, 0.24, rgb(2236966), 16, !0, !0), b.torus([0, 0.13 * Math.sign(sx), 0], 0.3, 0.03, rgb(3026483), 16, 6), b.cyl([0, 0.02, 0], 0.2, 0.2, 0.26, chrome, 12, !0, !0);
+          for (let k = 0; k < 5; k++) {
+            let a = k / 5 * 6.283;
+            b.box([Math.cos(a) * 0.12, 0.14 * Math.sign(sx), Math.sin(a) * 0.12], [0.06, 0.02, 0.06], dk(chrome, 0.7));
+          }
+          b.pop();
+        }
     }), M2.chest = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);
       for (let sx of [-0.52, 0.52]) {
