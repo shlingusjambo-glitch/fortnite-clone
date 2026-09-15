@@ -187,6 +187,10 @@ export const SKINS: Skin[] = [
   { name: 'Rust Lord', skin: rgb(0xe0b48c), top: rgb(0xb5471f), top2: rgb(0x3c3c44), pants: rgb(0x4a3a2c), boots: rgb(0x2a2420), hair: rgb(0x8a5a2a), hat: 'cap', style: 0 },
   { name: 'Brite Bomber', skin: rgb(0xf1c9a5), top: rgb(0xff3ec9), top2: rgb(0x8be0ff), pants: rgb(0x6c3cff), boots: rgb(0xff3ec9), hair: rgb(0xb84cff), hat: 'hair', style: 0, female: true },
   { name: 'Raven', skin: rgb(0x9a9aa8), top: rgb(0x151520), top2: rgb(0x5a3cff), pants: rgb(0x101018), boots: rgb(0x0c0c12), hair: rgb(0x0e0e14), hat: 'beanie', style: 1 },
+  { name: 'Renegade Raider', skin: rgb(0xe8c09a), top: rgb(0x8a1a12), top2: rgb(0x2a2a30), pants: rgb(0x3b3b44), boots: rgb(0x1a1a1e), hair: rgb(0x3a2418), hat: 'cap', style: 0, female: true },
+  { name: 'Aerial Assault Trooper', skin: rgb(0xd9b08c), top: rgb(0x2b3f2a), top2: rgb(0x6a7a3a), pants: rgb(0x4a5a3a), boots: rgb(0x1e1e22), hair: rgb(0x2a1e14), hat: 'beanie', style: 0 },
+  { name: 'Blue Squire', skin: rgb(0xf0c8a4), top: rgb(0x2255cc), top2: rgb(0xd8dde8), pants: rgb(0x1a3c8a), boots: rgb(0x2a2a30), hair: rgb(0x5a3a1a), hat: 'hair', style: 0 },
+  { name: 'Tower Recon Specialist', skin: rgb(0xc98a68), top: rgb(0xb7a37c), top2: rgb(0x4a4a3a), pants: rgb(0x6a6a4a), boots: rgb(0x2a2420), hair: rgb(0x1a1410), hat: 'cap', style: 0 },
   { name: 'Grid Leader', skin: rgb(0x9bd9fa), top: rgb(0xefa2e4), top2: rgb(0x8cd5ff), pants: rgb(0x9bd9fa), boots: rgb(0xefa2e4), hair: rgb(0x9bd9fa), hat: 'spiky', style: 1 },
 ];
 

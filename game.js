@@ -392,6 +392,10 @@ void main(){
     { name: "Rust Lord", skin: rgb(14726284), top: rgb(11880223), top2: rgb(3947588), pants: rgb(4864556), boots: rgb(2761760), hair: rgb(9067050), hat: "cap", style: 0 },
     { name: "Brite Bomber", skin: rgb(15845797), top: rgb(16727753), top2: rgb(9167103), pants: rgb(7093503), boots: rgb(16727753), hair: rgb(12078335), hat: "hair", style: 0, female: !0 },
     { name: "Raven", skin: rgb(10132136), top: rgb(1381664), top2: rgb(5913855), pants: rgb(1052696), boots: rgb(789522), hair: rgb(921108), hat: "beanie", style: 1 },
+    { name: "Renegade Raider", skin: rgb(15253658), top: rgb(9050642), top2: rgb(2763312), pants: rgb(3881796), boots: rgb(1710622), hair: rgb(3810328), hat: "cap", style: 0, female: !0 },
+    { name: "Aerial Assault Trooper", skin: rgb(14266508), top: rgb(2834218), top2: rgb(6978106), pants: rgb(4872762), boots: rgb(1973794), hair: rgb(2760212), hat: "beanie", style: 0 },
+    { name: "Blue Squire", skin: rgb(15780004), top: rgb(2250188), top2: rgb(14212584), pants: rgb(1719434), boots: rgb(2763312), hair: rgb(5913114), hat: "hair", style: 0 },
+    { name: "Tower Recon Specialist", skin: rgb(13208168), top: rgb(12034940), top2: rgb(4868666), pants: rgb(6974026), boots: rgb(2761760), hair: rgb(1709072), hat: "cap", style: 0 },
     { name: "Grid Leader", skin: rgb(10213882), top: rgb(15704804), top2: rgb(9229823), pants: rgb(10213882), boots: rgb(15704804), hair: rgb(10213882), hat: "spiky", style: 1 }
   ];
   function buildCharacter(r, s, bulk = 1) {
@@ -1254,6 +1258,11 @@ void main(){
         for (let tt = -p.r * 0.6; tt < p.r * 0.6; tt += 24) {
           let x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7;
           addStatic("lamp", [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]);
+        }
+        if (p.name === "WAILING WOODS") {
+          for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++)
+            (gx + gz) % 2 === 0 && Math.random() < 0.55 || Math.random() < 0.3 || addStatic("hedge", [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]);
+          this.chestSpots.push([p.x + 60, p.h, p.z + 30]);
         }
         if (p.name === "PLEASANT PARK") {
           addStatic("fountain", [p.x, p.h, p.z], 0, [{ min: [-3, 0, -3], max: [3, 1, 3] }]);
