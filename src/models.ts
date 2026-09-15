@@ -183,6 +183,10 @@ export const SKINS: Skin[] = [
   { name: 'Renegade', skin: rgb(0xa36c47), top: rgb(0x824436), top2: rgb(0x3d2c29), pants: rgb(0x5c4d3d), boots: rgb(0x24201c), hair: rgb(0x1a1614), hat: 'cap', style: 0, female: true },
   { name: 'Arctic Ace', skin: rgb(0xebd2b2), top: rgb(0xeef2f7), top2: rgb(0x90b7d4), pants: rgb(0x8098ab), boots: rgb(0x323e4a), hair: rgb(0xdbeef8), hat: 'beanie', style: 1 },
   { name: 'Neon Striker', skin: rgb(0x734c38), top: rgb(0x22243d), top2: rgb(0x30e8c4), pants: rgb(0x1e2436), boots: rgb(0x12141c), hair: rgb(0xb44aff), hat: 'spiky', style: 1 },
+  { name: 'Black Knight', skin: rgb(0xd8b48f), top: rgb(0x1b1b22), top2: rgb(0xc8102e), pants: rgb(0x23232b), boots: rgb(0x141418), hair: rgb(0x2b2b33), hat: 'beanie', style: 0 },
+  { name: 'Rust Lord', skin: rgb(0xe0b48c), top: rgb(0xb5471f), top2: rgb(0x3c3c44), pants: rgb(0x4a3a2c), boots: rgb(0x2a2420), hair: rgb(0x8a5a2a), hat: 'cap', style: 0 },
+  { name: 'Brite Bomber', skin: rgb(0xf1c9a5), top: rgb(0xff3ec9), top2: rgb(0x8be0ff), pants: rgb(0x6c3cff), boots: rgb(0xff3ec9), hair: rgb(0xb84cff), hat: 'hair', style: 0, female: true },
+  { name: 'Raven', skin: rgb(0x9a9aa8), top: rgb(0x151520), top2: rgb(0x5a3cff), pants: rgb(0x101018), boots: rgb(0x0c0c12), hair: rgb(0x0e0e14), hat: 'beanie', style: 1 },
   { name: 'Grid Leader', skin: rgb(0x9bd9fa), top: rgb(0xefa2e4), top2: rgb(0x8cd5ff), pants: rgb(0x9bd9fa), boots: rgb(0xefa2e4), hair: rgb(0x9bd9fa), hat: 'spiky', style: 1 },
 ];
 
@@ -648,6 +652,49 @@ export function buildModels(r: Renderer): Models {
     b.rbox([0, -0.02, -0.42], [0.075, 0.16, 0.38], rgb(0x5a5646), 0.02);
     b.box([0, 0.07, -0.38], [0.076, 0.05, 0.18], gunMetal);                             // cheek riser
   });
+
+  // Pistol
+  M.pistol = mk(b => {
+    b.rbox([0, 0.02, 0.06], [0.07, 0.10, 0.34], gunMetal, 0.015);                      // slide
+    b.cyl([0, 0.02, 0.26], 0.018, 0.018, 0.1, steelGrey, 10, true, true);
+    b.push(mul(translate(0, -0.11, -0.06), rotX(0.3))); b.rbox([0, 0, 0], [0.06, 0.2, 0.08], rgb(0x3a2e24), 0.015); b.pop();
+    b.box([0, -0.04, 0.02], [0.03, 0.05, 0.06], gunMetal);                             // trigger guard
+    for (let i = 0; i < 4; i++) b.box([0.036, 0.04, -0.06 + i * 0.03], [0.004, 0.06, 0.012], steelGrey);   // slide serrations
+  });
+  // Tactical Shotgun (semi-auto, drum-free, short)
+  M.tac = mk(b => {
+    b.rbox([0, 0, -0.02], [0.1, 0.15, 0.5], rgb(0x2f3438), 0.02);
+    b.cyl([0, 0.035, 0.2], 0.03, 0.03, 0.7, gunMetal, 12, true, true);
+    b.cyl([0, -0.04, 0.2], 0.03, 0.03, 0.6, steelGrey, 12, true, true);
+    b.rbox([0, -0.04, 0.42], [0.1, 0.1, 0.3], rgb(0x2f3438), 0.02);
+    for (let i = 0; i < 6; i++) b.box([0, 0.1, 0.05 + i * 0.05], [0.05, 0.03, 0.02], gunMetal);   // rail
+    b.push(mul(translate(0, -0.16, -0.06), rotX(0.35))); b.rbox([0, 0, 0], [0.065, 0.2, 0.09], gunMetal, 0.02); b.pop();
+    b.rbox([0, -0.02, -0.4], [0.075, 0.14, 0.3], rgb(0x2f3438), 0.02);
+    b.rbox([0, -0.06, -0.56], [0.078, 0.17, 0.05], C.orange, 0.01);                     // orange pad
+  });
+  // Hunting Rifle (no scope, wooden)
+  M.hunting = mk(b => {
+    const wood = rgb(0x6e4a2e);
+    b.rbox([0, -0.02, -0.1], [0.08, 0.14, 0.9], wood, 0.025);
+    b.cyl([0, 0.03, 0.5], 0.026, 0.024, 1.0, gunMetal, 12, true, true);
+    b.box([0, 0.09, 0.95], [0.02, 0.06, 0.03], gunMetal); b.box([0, 0.1, -0.1], [0.06, 0.05, 0.03], gunMetal);   // sights
+    b.box([0.07, 0.04, -0.06], [0.08, 0.03, 0.03], steelGrey); b.sphere([0.12, 0.04, -0.06], 0.03, gunMetal, 8, 1, true);
+    b.rbox([0, -0.05, -0.55], [0.075, 0.17, 0.3], wood, 0.02); b.box([0, -0.05, -0.7], [0.08, 0.18, 0.04], gunMetal);
+    b.box([0, -0.09, 0.1], [0.05, 0.05, 0.14], gunMetal);                               // internal mag
+  });
+  // SCAR (legendary AR: gold accents)
+  M.scar = mk(b => {
+    b.rbox([0, 0, 0.12], [0.1, 0.16, 0.72], rgb(0xb8a15a), 0.025);
+    b.box([0, 0.09, 0.18], [0.055, 0.035, 0.58], gunMetal);
+    b.cyl([0, 0.02, 0.85], 0.028, 0.028, 0.45, gunMetal, 12, true, true); b.cyl([0, 0.02, 1.28], 0.04, 0.04, 0.1, C.gold, 8, true, true);
+    b.box([0, 0.14, 0.1], [0.05, 0.06, 0.2], gunMetal); b.box([0, 0.14, 0.1], [0.03, 0.03, 0.14], C.holographic);   // holo sight
+    b.push(mul(translate(0, -0.16, -0.04), rotX(0.35))); b.rbox([0, 0, 0], [0.065, 0.2, 0.09], gunMetal, 0.02); b.pop();
+    b.push(mul(translate(0, -0.22, 0.22), rotX(0.25))); b.rbox([0, 0, 0], [0.065, 0.3, 0.11], rgb(0xb8a15a), 0.015); b.pop();
+    b.rbox([0, -0.01, -0.34], [0.075, 0.13, 0.34], rgb(0xb8a15a), 0.02); b.rbox([0, -0.06, -0.51], [0.075, 0.17, 0.06], gunMetal, 0.015);
+  });
+  // consumables: mini shield, chug jug
+  M.miniShield = mk(b => { b.cyl([0, 0.02, 0], 0.09, 0.1, 0.22, rgb(0x3aa2ff), 12, true, true); b.cyl([0, 0.26, 0], 0.05, 0.05, 0.06, C.white, 10, true, true); b.box([0, 0.14, 0.1], [0.1, 0.08, 0.01], C.white); });
+  M.chug = mk(b => { b.cyl([0, 0, 0], 0.2, 0.22, 0.55, rgb(0x3aa2ff), 14, true, true); b.torus([0, 0.35, 0.22], 0.08, 0.025, rgb(0x2c6fb0), 12, 6); b.cyl([0, 0.55, 0], 0.09, 0.09, 0.08, rgb(0x2c6fb0), 10, true, true); b.box([0, 0.28, 0.21], [0.22, 0.18, 0.01], C.white); });
 
   // Submachine Gun
   M.smg = mk(b => {

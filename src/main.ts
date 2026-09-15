@@ -29,7 +29,7 @@ const BOT_VOICES = ['smak-mouth.mp3','ninjalaughing.mp3','ninja-your-trash-kid.m
 function botVoice(b: Bot) { if (b.voiceCd > 0 || len(sub(b.pos, P.pos)) > 55) return; b.voiceCd = rand(12, 25); const a = new Audio('Audio/' + BOT_VOICES[Math.floor(rand(0, BOT_VOICES.length))]); a.volume = clamp(1 - len(sub(b.pos, P.pos)) / 65, .08, .55) * S.master * S.voice; if (a.volume > 0.01) a.play().catch(() => {}); }
 
 // ---------------- items & weapons ----------------
-type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'shieldPot' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
+type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'shieldPot' | 'miniShield' | 'chug' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const RAR_MULT = [0.85, 0.93, 1, 1.08, 1.16];
 type Ammo = 'light' | 'medium' | 'heavy' | 'shells';
@@ -39,10 +39,16 @@ const WEAPONS: Record<string, WeaponDef> = {
   burst: { name: 'Burst Assault Rifle', dmg: 33, rpm: 900, mag: 30, reload: 2.6, spread: 0.006, pellets: 1, ammo: 'medium', auto: true, hs: 1.5, range: 300, rarity: 'uncommon', burst: 3, bloom: 0.006, kick: 0.01 },
   smg: { name: 'Submachine Gun', dmg: 18, rpm: 720, mag: 30, reload: 2, spread: 0.02, pellets: 1, ammo: 'light', auto: true, hs: 1.5, range: 150, rarity: 'uncommon', bloom: 0.02, kick: 0.006 },
   shotgun: { name: 'Pump Shotgun', dmg: 11, rpm: 62, mag: 5, reload: 3.5, spread: 0.055, pellets: 10, ammo: 'shells', auto: false, hs: 1.5, range: 40, rarity: 'rare', bloom: 0, kick: 0.035 },
+  pistol: { name: 'Pistol', dmg: 24, rpm: 400, mag: 16, reload: 1.5, spread: 0.012, pellets: 1, ammo: 'light', auto: false, hs: 2, range: 120, rarity: 'common', bloom: 0.01, kick: 0.01 },
+  tac: { name: 'Tactical Shotgun', dmg: 7, rpm: 90, mag: 8, reload: 4.5, spread: 0.07, pellets: 10, ammo: 'shells', auto: false, hs: 1.5, range: 35, rarity: 'uncommon', bloom: 0, kick: 0.03 },
+  hunting: { name: 'Hunting Rifle', dmg: 86, rpm: 40, mag: 1, reload: 1.9, spread: 0.002, pellets: 1, ammo: 'heavy', auto: false, hs: 2.5, range: 500, rarity: 'uncommon', bloom: 0, kick: 0.045 },
+  scar: { name: 'SCAR', dmg: 36, rpm: 330, mag: 30, reload: 2.1, spread: 0.006, pellets: 1, ammo: 'medium', auto: true, hs: 1.5, range: 320, rarity: 'legendary', bloom: 0.01, kick: 0.011 },
   sniper: { name: 'Bolt-Action Sniper Rifle', dmg: 105, rpm: 34, mag: 1, reload: 2.8, spread: 0, pellets: 1, ammo: 'heavy', auto: false, hs: 2.5, range: 600, rarity: 'epic', bloom: 0, kick: 0.05 },
 };
 const CONS: Record<string, { name: string; dur: number; rarity: string; use: () => boolean }> = {
   shieldPot: { name: 'Shield Potion', dur: 5, rarity: 'rare', use: () => P.shield < 100 && ((P.shield = Math.min(100, P.shield + 50)), true) },
+  miniShield: { name: 'Small Shield Potion', dur: 2, rarity: 'uncommon', use: () => P.shield < 50 && ((P.shield = Math.min(50, P.shield + 25)), true) },
+  chug: { name: 'Chug Jug', dur: 15, rarity: 'legendary', use: () => (P.hp < 100 || P.shield < 100) && ((P.hp = 100), (P.shield = 100), true) },
   medkit: { name: 'Med Kit', dur: 10, rarity: 'uncommon', use: () => P.hp < 100 && ((P.hp = 100), true) },
   bandage: { name: 'Bandages', dur: 4, rarity: 'common', use: () => P.hp < 75 && ((P.hp = Math.min(75, P.hp + 15)), true) },
   fish: { name: 'Flopper', dur: 1, rarity: 'epic', use: () => P.hp < 100 && ((P.hp = Math.min(100, P.hp + 40)), true) },
@@ -64,6 +70,12 @@ const ICON: Record<string, string> = {
   smg: '<svg viewBox="0 0 64 64"><path d="M10 32h34l6-4h6v6h-6l-4 4h-10v12h-6v-12h-6l-2 6h-6l2-6h-8z" fill="#e8ecef"/></svg>',
   shotgun: '<svg viewBox="0 0 64 64"><path d="M4 36l14-6h38v4h-30v4h-8l-6 8h-8z" fill="#e8ecef"/><rect x="22" y="30" width="26" height="3" fill="#c9a56b"/></svg>',
   sniper: '<svg viewBox="0 0 64 64"><path d="M4 36l12-6h46v4h-34v4h-8l-6 8h-8z" fill="#e8ecef"/><rect x="26" y="22" width="16" height="5" fill="#e8ecef"/><rect x="24" y="24" width="3" height="4" fill="#e8ecef"/></svg>',
+  pistol: '<svg viewBox="0 0 64 64"><path d="M12 28h40v8h-22l-4 14h-8l3-14h-9z" fill="#e8ecef"/></svg>',
+  tac: '<svg viewBox="0 0 64 64"><path d="M4 36l14-6h38v5h-28v4h-10l-6 8h-8z" fill="#e8ecef"/><rect x="24" y="31" width="22" height="3" fill="#ff8a1e"/></svg>',
+  hunting: '<svg viewBox="0 0 64 64"><path d="M4 36l12-6h46v4h-36v4h-6l-6 8h-8z" fill="#e8ecef"/><rect x="40" y="26" width="3" height="5" fill="#e8ecef"/></svg>',
+  scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
+  miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
+  chug: '<svg viewBox="0 0 64 64"><path d="M18 20h28v30a6 6 0 0 1-6 6h-16a6 6 0 0 1-6-6z" fill="#3aa2ff"/><rect x="26" y="10" width="12" height="10" fill="#2c6fb0"/><rect x="24" y="30" width="16" height="10" fill="#fff"/></svg>',
   bandage: '<svg viewBox="0 0 64 64"><rect x="8" y="26" width="48" height="12" rx="4" fill="#f4f4f4"/><rect x="26" y="26" width="12" height="12" fill="#e33"/><rect x="8" y="34" width="48" height="4" fill="#ddd"/></svg>',
   medkit: '<svg viewBox="0 0 64 64"><rect x="10" y="18" width="44" height="32" rx="4" fill="#f4f4f4"/><rect x="28" y="24" width="8" height="20" fill="#e33"/><rect x="22" y="30" width="20" height="8" fill="#e33"/></svg>',
   rod: '<svg viewBox="0 0 64 64"><path d="M10 56 L50 10" stroke="#c9a56b" stroke-width="4" stroke-linecap="round"/><path d="M50 10 q4 20 -8 30" stroke="#fff" stroke-width="1.5" fill="none"/><circle cx="22" cy="42" r="5" fill="#555"/></svg>',
@@ -124,10 +136,10 @@ function startMatch() {
   storm.c = [rand(-80, 80), rand(-80, 80)]; storm.r = 520; storm.phaseT = 120;
   // loot + bots per POI
   // loot lives inside buildings (kit spawn points) plus a little floor loot outdoors
-  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'bandage', 'shieldPot', 'medkit', 'ammo', 'ammo'];
+  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'ammo', 'ammo'];
   for (const l of W.lootSpots) if (Math.random() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
   for (const c of W.chestSpots) if (Math.random() < 0.7) chests.push({ pos: [...c] as V3, yaw: rand(0, 6.28), open: false });
-  for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z); if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 8))], 1), [x, y, z]); }
+  for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z); if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]); }
   for (let i = 0; i < 32; i++) spawnBot();
   P.nextDrop = 90; drops.length = 0;
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.6, z = p.z + rand(-p.r, p.r) * 0.6, y = terrainH(x, z); if (y > 1) items.push({ item: mkItem('ammo'), pos: [x, y, z] }); }
@@ -473,7 +485,7 @@ function dbgAction(a: string) {
   switch (a) {
     case 'sethp': P.hp = clamp(+($('dHp') as HTMLInputElement).value, 1, 100); P.shield = clamp(+($('dSh') as HTMLInputElement).value, 0, 100); break;
     case 'refill': P.mats = { wood: 999, stone: 999, metal: 999 }; P.ammo = { light: 999, medium: 999, heavy: 999, shells: 999 }; break;
-    case 'loadout': P.inv = [mkItem('shotgun', 1, 4), mkItem('ar', 1, 4), mkItem('sniper', 1, 4), mkItem('fish', 10), mkItem('shieldPot', 3)]; P.slot = 0; P.ammo = { light: 999, medium: 999, heavy: 999, shells: 999 }; P.mats = { wood: 999, stone: 999, metal: 999 }; break;
+    case 'loadout': P.inv = [mkItem('tac', 1, 4), mkItem('scar', 1, 4), mkItem('hunting', 1, 4), mkItem('chug', 2), mkItem('miniShield', 6)]; P.slot = 0; P.ammo = { light: 999, medium: 999, heavy: 999, shells: 999 }; P.mats = { wood: 999, stone: 999, metal: 999 }; break;
     case 'give': { const k = ($('dItem') as HTMLSelectElement).value as Kind, r = ($('dRar') as HTMLSelectElement).selectedIndex; let sl = P.inv.indexOf(null); if (sl < 0) sl = Math.max(0, P.slot); P.inv[sl] = mkItem(k, isWeapon(k) ? 1 : 3, r); P.slot = sl; if (isWeapon(k)) P.ammo[WEAPONS[k].ammo] += 90; break; }
     case 'tp': { const p = POIS[+($('dPoi') as HTMLSelectElement).value]; P.pos = [p.x, terrainH(p.x, p.z) + 2, p.z]; P.vel = [0, 0, 0]; if (P.state !== 'play') P.state = 'play'; break; }
     case 'bus': startMatch(); toggleDbg(false); return;
@@ -514,7 +526,7 @@ function updateEvents(dt: number) {
 // ---------------- bot AI ----------------
 // Bots perceive (FOV + LOS + reaction), remember, and pick a mode each tick; skilled/aggressive ones crank 90s,
 // box up, and edit windows/doors to peek. They loot building interiors, heal, and rotate with the storm.
-const BOT_W: Record<string, [number, number, number, number]> = { ar: [0.26, 21, 70, 22], burst: [0.3, 21, 70, 22], smg: [0.11, 11, 40, 14], shotgun: [0.9, 58, 14, 6], sniper: [1.8, 85, 220, 45] };  // [cooldown, dmg, effective range, preferred distance]
+const BOT_W: Record<string, [number, number, number, number]> = { ar: [0.26, 21, 70, 22], scar: [0.26, 24, 75, 22], burst: [0.3, 21, 70, 22], smg: [0.11, 11, 40, 14], pistol: [0.22, 16, 45, 16], shotgun: [0.9, 58, 14, 6], tac: [0.5, 42, 14, 7], sniper: [1.8, 85, 220, 45], hunting: [1.4, 72, 180, 40] };  // [cooldown, dmg, effective range, preferred distance]
 function los(a: V3, b: V3) { const d = sub(b, a), L = len(d); const h = W.raycast(a, norm(d), L); return !h || h.t >= L - 0.5; }
 const cellOf = (x: number, z: number): V3 => [Math.floor(x / 4) * 4 + 2, 0, Math.floor(z / 4) * 4 + 2];
 const dirVec = (d: number): V3 => [Math.sin(d * Math.PI / 2), 0, Math.cos(d * Math.PI / 2)];
@@ -674,7 +686,7 @@ function updateBot(b: Bot, dt: number) {
       else if (b.mode === 'hunt' && b.memory && b.weapon) { if (toward(b.memory, 6.5) < 3) { b.memory = null; b.mode = 'loot'; } }
       else if (chest && (b.lootT <= 0 || !b.weapon)) {
         const L = toward(chest.pos, 5.8);
-        if (L < 2.6) { b.vel[0] *= .6; b.vel[2] *= .6; if (b.interactRef !== chest) { b.interactRef = chest; b.interactT = 1.2; } else b.interactT -= dt; if (b.interactT <= 0) { chest.open = true; const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper']; const k = pool[Math.floor(rand(0, pool.length))]; if (!b.weapons.includes(k) && b.weapons.length < 3) b.weapons.push(k); b.weapon = b.weapon ?? k; b.heals = Math.min(4, b.heals + 1); b.shield = Math.min(100, b.shield + 25); b.mats = Math.min(700, b.mats + 90); b.interactRef = null; } } else { b.interactRef = null; }
+        if (L < 2.6) { b.vel[0] *= .6; b.vel[2] *= .6; if (b.interactRef !== chest) { b.interactRef = chest; b.interactT = 1.2; } else b.interactT -= dt; if (b.interactT <= 0) { chest.open = true; const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol']; const k = pool[Math.floor(rand(0, pool.length))]; if (!b.weapons.includes(k) && b.weapons.length < 3) b.weapons.push(k); b.weapon = b.weapon ?? k; b.heals = Math.min(4, b.heals + 1); b.shield = Math.min(100, b.shield + 25); b.mats = Math.min(700, b.mats + 90); b.interactRef = null; } } else { b.interactRef = null; }
       }
       else if (item) { const L = toward(item.pos, 5.8); if (L < 1.6) { const k = item.item.kind; if (isWeapon(k)) { if (!b.weapons.includes(k)) { if (b.weapons.length >= 3) b.weapons.shift(); b.weapons.push(k); } b.weapon = k; } else b.heals++; items.splice(items.indexOf(item), 1); b.mats += 40; } }
       else {
@@ -937,7 +949,7 @@ function frame(now: number) {
     if (near) { H.info.textContent = `[E] ${isWeapon(near.item.kind) ? WEAPONS[near.item.kind].name : CONS[near.item.kind].name}`; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
     else if (nearChest) { H.info.textContent = '[E] Open chest'; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
     if (key('KeyE')) {
-      if (nearChest) { nearChest.open = true; beep(400, 0.4, 'triangle', 0.08, 500); const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper']; dropItem(mkItem(pool[Math.floor(rand(0, 5))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1); if (nearChest.drop) { dropItem(mkItem('rod'), add(nearChest.pos, [0, 0.3, 0]), 1.4); dropItem(mkItem('sniper', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6); } dropItem(mkItem(Math.random() < 0.5 ? 'shieldPot' : 'bandage', 3), add(nearChest.pos, [0, 0.3, 0]), 1.2); P.ammo.medium += 30; P.ammo.light += 30; P.ammo.shells += 5; P.ammo.heavy += 3; P.mats.wood += 30; info('+ ammo, +30 wood'); }
+      if (nearChest) { nearChest.open = true; beep(400, 0.4, 'triangle', 0.08, 500); const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol']; dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1); if (nearChest.drop) { dropItem(mkItem('rod'), add(nearChest.pos, [0, 0.3, 0]), 1.4); dropItem(mkItem('sniper', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6); } dropItem(mkItem((['shieldPot', 'bandage', 'miniShield', 'chug'] as Kind[])[Math.floor(rand(0, 4))], 3), add(nearChest.pos, [0, 0.3, 0]), 1.2); P.ammo.medium += 30; P.ammo.light += 30; P.ammo.shells += 5; P.ammo.heavy += 3; P.mats.wood += 30; info('+ ammo, +30 wood'); }
       else if (near) {
         const k = near.item.kind; if (isWeapon(k)) { const a = WEAPONS[k].ammo; P.ammo[a] += a === 'heavy' ? 5 : a === 'shells' ? 10 : 30; }
         const same = P.inv.findIndex(s => s && !isWeapon(s.kind) && s.kind === k);
