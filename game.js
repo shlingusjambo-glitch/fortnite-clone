@@ -2618,7 +2618,13 @@ void main(){
       }
       let ep = b.enemy === "player" ? P.pos : b.enemy ? b.enemy.pos : null, hpTotal = b.hp + b.shield, underFire = t - b.lastHit < 2.5;
       if ((b.mode !== "heal" && hpTotal < 45 && b.heals > 0 && (!ep || len(sub(ep, b.pos)) > 14 || b.skill > 0.6) || b.mode !== "heal" && !ep && t - b.lastHit > 6 && b.heals > 1 && (b.shield < 50 || b.hp < 70) && Math.random() < dt * 0.3) && (b.mode = "heal", b.healT = 0, b.boxAt = null), ep && b.weapon && b.mode !== "heal") {
-        let L = len(sub(ep, b.pos)), higher = ep[1] > b.pos[1] + 2.5, wantsCrank = b.skill > 0.55 && L < 46 && (b.aggression > 0.6 || higher) && (b.mats >= 60 || D.infMats);
+        let L = len(sub(ep, b.pos)), higher = ep[1] > b.pos[1] + 2.5;
+        if (b.mode === "fight" && hpTotal < 50 && b.aggression < 0.5 && L > 25 && !underFire) {
+          b.mode = "loot", b.enemy = null;
+          let away = norm(sub(b.pos, ep));
+          b.target = add(b.pos, scale(away, 40));
+        }
+        let wantsCrank = b.skill > 0.55 && L < 46 && (b.aggression > 0.6 || higher) && (b.mats >= 60 || D.infMats);
         b.mode === "fight" && wantsCrank && Math.random() < dt * (0.6 + b.aggression) ? (b.mode = "crank", b.crank = { c: cellOf(b.pos[0], b.pos[2]), L: Math.floor((b.pos[1] + 1) / 4) * 4, d: yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), t: 0, steps: 0 }) : b.mode === "fight" && underFire && b.skill > 0.3 && b.mats >= 30 && Math.random() < dt * 2.5 ? b.mode = "box" : b.mode === "fight" && b.aggression > 0.7 && b.skill > 0.45 && L < 30 && !higher && Math.random() < dt * 0.4 && b.mats >= 40 && (b.mode = "rush");
       }
       if (!ep && (b.mode === "fight" || b.mode === "crank" || b.mode === "rush") && (b.mode = b.memory ? "hunt" : "loot", b.crank = null), ep && !b.weapon) {

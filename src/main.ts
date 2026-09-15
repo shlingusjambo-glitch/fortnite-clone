@@ -694,6 +694,7 @@ function updateBot(b: Bot, dt: number) {
     else if (b.mode !== 'heal' && !ep && t - b.lastHit > 6 && b.heals > 1 && (b.shield < 50 || b.hp < 70) && Math.random() < dt * 0.3) { b.mode = 'heal'; b.healT = 0; b.boxAt = null; }   // top up out of combat
     if (ep && b.weapon && b.mode !== 'heal') {
       const L = len(sub(ep, b.pos)), higher = ep[1] > b.pos[1] + 2.5;
+      if (b.mode === 'fight' && hpTotal < 50 && b.aggression < 0.5 && L > 25 && !underFire) { b.mode = 'loot'; b.enemy = null; const away = norm(sub(b.pos, ep)); b.target = add(b.pos, scale(away, 40)); }   // cautious and hurt: disengage before it's a fight
       const wantsCrank = b.skill > 0.55 && L < 46 && (b.aggression > 0.6 || higher) && (b.mats >= 60 || D.infMats);
       if (b.mode === 'fight' && wantsCrank && Math.random() < dt * (0.6 + b.aggression)) { b.mode = 'crank'; b.crank = { c: cellOf(b.pos[0], b.pos[2]), L: Math.floor((b.pos[1] + 1) / 4) * 4, d: yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), t: 0, steps: 0 }; }
       else if (b.mode === 'fight' && underFire && b.skill > 0.3 && b.mats >= 30 && Math.random() < dt * 2.5) b.mode = 'box';
