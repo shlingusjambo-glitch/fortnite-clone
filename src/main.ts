@@ -1031,7 +1031,8 @@ function frame(now: number) {
     }
   }
   const pf0 = performance.now();
-  if (!D.pauseBots) for (const b of bots) updateBot(b, dt);
+  // far-away bots simulate at half rate (every other frame with doubled dt); nobody can see the difference past 150m
+  if (!D.pauseBots) for (let i = 0; i < bots.length; i++) { const b = bots[i]; const far = b.state === 'ground' && len(sub(b.pos, P.pos)) > 150; if (far && (i + hudN) % 2) continue; updateBot(b, far ? dt * 2 : dt); }
   PROF.bots += performance.now() - pf0;
   for (const q of W.props) if (q.dead > 0) { q.dead -= dt; if (q.dead <= 0) { q.dead = 0; q.hp = 250; } }
   for (let i = fx.length - 1; i >= 0; i--) { fx[i].t -= dt; if (fx[i].t <= 0) fx.splice(i, 1); }

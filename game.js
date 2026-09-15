@@ -2816,7 +2816,10 @@ void main(){
       }
     }
     let pf0 = performance.now();
-    if (!D.pauseBots) for (let b of bots) updateBot(b, dt);
+    if (!D.pauseBots) for (let i = 0; i < bots.length; i++) {
+      let b = bots[i], far = b.state === "ground" && len(sub(b.pos, P.pos)) > 150;
+      far && (i + hudN) % 2 || updateBot(b, far ? dt * 2 : dt);
+    }
     PROF.bots += performance.now() - pf0;
     for (let q of W.props) q.dead > 0 && (q.dead -= dt, q.dead <= 0 && (q.dead = 0, q.hp = 250));
     for (let i = fx.length - 1; i >= 0; i--)
