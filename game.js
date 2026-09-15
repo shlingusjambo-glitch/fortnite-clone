@@ -714,7 +714,22 @@ void main(){
       }
       b.sphere([0.3, 6.9, 0.2], 1.4, lt(C.leaf, 0.18), 12, 0.8, !0), b.sphere([-1.2, 3.9, 1.4], 0.9, dk(C.leaf2, 0.85), 10, 0.9, !0);
     }), M2.tree2 = mk((b) => {
-      b.cyl([0, 0, 0], 0.36, 0.26, 2.8, C.trunk, 12, !0, !0), b.sphere([0, 3.8, 0], 2, C.leaf2, 12, 0.75, !0), b.sphere([1.1, 3.6, 0.6], 1.3, C.leaf, 10, 0.85, !0), b.sphere([-1, 4, -0.5], 1.2, C.leaf3, 10, 0.85, !0);
+      let bark = rgb(15262936), mark = rgb(3814960), leafA = rgb(11065418), leafB = rgb(9226298), leafC = rgb(12904544);
+      b.cyl([0, 0, 0], 0.3, 0.18, 5.2, bark, 12, !0, !0);
+      for (let k = 0; k < 9; k++) {
+        let a = k * 2.1, y = 0.4 + k * 0.5;
+        b.box([Math.cos(a) * 0.24, y, Math.sin(a) * 0.24], [0.14, 0.08 + k % 3 * 0.04, 0.06], mark);
+      }
+      for (let i = 0; i < 4; i++) {
+        let a = i * 1.57 + 0.8;
+        b.push(mul(translate(Math.cos(a) * 0.15, 3 + i * 0.4, Math.sin(a) * 0.15), mul(rotY(a), rotX(0.8)))), b.cyl([0, 0, 0], 0.1, 0.04, 2.2, bark, 8, !0, !0), b.pop();
+      }
+      b.sphere([0, 5.6, 0], 1.7, leafB, 12, 0.9, !0);
+      for (let i = 0; i < 10; i++) {
+        let a = i / 10 * 6.283, rr = 1.5 + i % 2 * 0.4;
+        b.sphere([Math.cos(a) * rr, 4.8 + i % 3 * 0.7, Math.sin(a) * rr], 0.9 + i % 2 * 0.2, [leafA, leafB, leafC][i % 3], 10, 0.9, !0);
+      }
+      b.sphere([0.2, 6.9, 0.1], 1, leafC, 10, 0.85, !0);
     }), M2.rock = mk((b) => {
       b.sphere([0, 0.45, 0], 1.6, C.rock, 7, 0.7, !1), b.sphere([1, 0.3, 0.7], 1, C.rockDark, 6, 0.8, !1), b.sphere([-0.8, 0.3, -0.6], 0.85, lt(C.rock, 0.1), 6, 0.75, !1), b.sphere([0.2, 0.2, -1.1], 0.5, C.rockDark, 6, 0.8, !1), b.sphere([0.1, 1.45, 0.1], 0.8, lt(C.leaf2, 0.1), 7, 0.35, !1), b.sphere([-0.9, 0.8, -0.3], 0.3, lt(C.leaf2, 0.05), 6, 0.4, !1);
     }), M2.bush = mk((b) => {

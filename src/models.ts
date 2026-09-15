@@ -959,14 +959,16 @@ export function buildModels(r: Renderer): Models {
     b.sphere([-1.2, 3.9, 1.4], 0.9, dk(C.leaf2, 0.85), 10, 0.9, true);                   // shaded underside lobe
   });
 
-  M.tree2 = mk(b => {
-    b.cyl([0, 0, 0], 0.36, 0.26, 2.8, C.trunk, 12, true, true);
-    b.sphere([0, 3.8, 0], 2.0, C.leaf2, 12, 0.75, true);
-    b.sphere([1.1, 3.6, 0.6], 1.3, C.leaf, 10, 0.85, true);
-    b.sphere([-1.0, 4.0, -0.5], 1.2, C.leaf3, 10, 0.85, true);
+  M.tree2 = mk(b => {   // birch: pale trunk with dark bark marks, airy yellow-green canopy of small lobes
+    const bark = rgb(0xe8e4d8), mark = rgb(0x3a3630), leafA = rgb(0xa8d84a), leafB = rgb(0x8cc83a), leafC = rgb(0xc4e860);
+    b.cyl([0, 0, 0], 0.3, 0.18, 5.2, bark, 12, true, true);
+    for (let k = 0; k < 9; k++) { const a = k * 2.1, y = 0.4 + k * 0.5; b.box([Math.cos(a) * 0.24, y, Math.sin(a) * 0.24], [0.14, 0.08 + (k % 3) * 0.04, 0.06], mark); }
+    for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.8; b.push(mul(translate(Math.cos(a) * 0.15, 3.0 + i * 0.4, Math.sin(a) * 0.15), mul(rotY(a), rotX(0.8)))); b.cyl([0, 0, 0], 0.1, 0.04, 2.2, bark, 8, true, true); b.pop(); }
+    b.sphere([0, 5.6, 0], 1.7, leafB, 12, 0.9, true);
+    for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283, rr = 1.5 + (i % 2) * 0.4; b.sphere([Math.cos(a) * rr, 4.8 + (i % 3) * 0.7, Math.sin(a) * rr], 0.9 + (i % 2) * 0.2, [leafA, leafB, leafC][i % 3], 10, 0.9, true); }
+    b.sphere([0.2, 6.9, 0.1], 1.0, leafC, 10, 0.85, true);
   });
 
-  // Boulders with faceted bevels
   M.rock = mk(b => {   // faceted boulder cluster (flat-shaded) with a sandy strata band and moss
     b.sphere([0, 0.45, 0], 1.6, C.rock, 7, 0.7, false);
     b.sphere([1.0, 0.3, 0.7], 1.0, C.rockDark, 6, 0.8, false);
