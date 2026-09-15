@@ -759,6 +759,12 @@ void main(){
       for (let e of [[0, 1], [0, -1], [1, 0], [-1, 0]])
         b.box([e[0], 1, e[1]], [e[0] ? 0.08 : 2.04, 2.04, e[1] ? 0.08 : 2.04], dk(c, 0.7)), b.box([e[0], 0.06, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)), b.box([e[0], 1.94, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7));
       b.box([0, 2.02, 0], [2.04, 0.06, 2.04], dk(c, 0.8)), b.box([0.3, 1.2, 1.03], [0.7, 0.4, 0.02], rgb(3355443));
+    }), M2.mountains = mk((b) => {
+      let seed = 7, rr = () => (seed = seed * 16807 % 2147483647, seed / 2147483647);
+      for (let i = 0; i < 44; i++) {
+        let a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50;
+        b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(7309930) : rgb(9080710), 5, !1, !1), h > 85 && b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(15791352), 5, !1, !1);
+      }
     }), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);
       for (let sx of [-0.52, 0.52]) {
@@ -2824,7 +2830,7 @@ void main(){
       let cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1;
       for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, !1, !0);
     }
-    R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
+    R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, !1), R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
     let cull = P.state === "play" ? [130, 190, 320][S.viewDist] : 900, vis = (p) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && (p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18;
     for (let q of W.props) !q.dead && vis(q.pos) && R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
     for (let s of W.statics) if (!s.dead && vis(s.pos)) {
