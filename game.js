@@ -2645,9 +2645,15 @@ void main(){
               b.target = [sc[0] + Math.cos(a) * rr, 0, sc[1] + Math.sin(a) * rr];
             }
             toward(b.target, 6.5);
-          } else if (b.mode === "hunt" && b.memory && b.weapon)
-            toward(b.memory, 6.5) < 3 && (b.memory = null, b.mode = "loot");
-          else if (chest && (b.lootT <= 0 || !b.weapon))
+          } else if (b.mode === "hunt" && b.memory && b.weapon) {
+            let L = toward(b.memory, 6.5);
+            if (L < 3)
+              b.memory = null, b.mode = "loot";
+            else if (L < 40 && b.skill > 0.6 && b.buildCd <= 0 && b.mats >= 30 && Math.random() < dt * 0.5) {
+              let d = yawToDir(b.yaw), f = dirVec(d), c = cellOf(b.pos[0] + f[0] * 2.5, b.pos[2] + f[2] * 2.5), L0 = Math.floor((b.pos[1] + 1) / 4) * 4;
+              botPlace(b, "ramp", [c[0], L0, c[2]], d), botPlace(b, "wall", [c[0] + f[0] * 2, L0 + 4, c[2] + f[2] * 2], d), b.vel[1] = Math.max(b.vel[1], 7);
+            }
+          } else if (chest && (b.lootT <= 0 || !b.weapon))
             if (toward(chest.pos, 5.8) < 2.6) {
               if (b.vel[0] *= 0.6, b.vel[2] *= 0.6, b.interactRef !== chest ? (b.interactRef = chest, b.interactT = 1.2) : b.interactT -= dt, b.interactT <= 0) {
                 chest.open = !0;

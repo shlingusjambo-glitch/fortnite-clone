@@ -793,7 +793,13 @@ function updateBot(b: Bot, dt: number) {
       let item: GroundItem | null = null, idist = b.weapon ? 40 : 140;
       for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' || k === 'boogie' || k === 'impulse' ? false : k === 'grenade' ? b.nades < 3 : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
       if (out) { b.mode = 'rotate'; if (!b.target || Math.hypot(b.target[0] - sc[0], b.target[2] - sc[1]) > srad * 0.5) { const a = rand(0, 6.28), rr = rand(0, srad * 0.5); b.target = [sc[0] + Math.cos(a) * rr, 0, sc[1] + Math.sin(a) * rr]; } toward(b.target, 6.5); }
-      else if (b.mode === 'hunt' && b.memory && b.weapon) { if (toward(b.memory, 6.5) < 3) { b.memory = null; b.mode = 'loot'; } }
+      else if (b.mode === 'hunt' && b.memory && b.weapon) {
+        const L = toward(b.memory, 6.5); if (L < 3) { b.memory = null; b.mode = 'loot'; }
+        else if (L < 40 && b.skill > 0.6 && b.buildCd <= 0 && b.mats >= 30 && Math.random() < dt * 0.5) {   // build a lookout ramp for vantage over the last-known spot
+          const d = yawToDir(b.yaw), f = dirVec(d), c = cellOf(b.pos[0] + f[0] * 2.5, b.pos[2] + f[2] * 2.5), L0 = Math.floor((b.pos[1] + 1) / 4) * 4;
+          botPlace(b, 'ramp', [c[0], L0, c[2]], d); botPlace(b, 'wall', [c[0] + f[0] * 2, L0 + 4, c[2] + f[2] * 2], d); b.vel[1] = Math.max(b.vel[1], 7);
+        }
+      }
       else if (chest && (b.lootT <= 0 || !b.weapon)) {
         const L = toward(chest.pos, 5.8);
         if (L < 2.6) { b.vel[0] *= .6; b.vel[2] *= .6; if (b.interactRef !== chest) { b.interactRef = chest; b.interactT = 1.2; } else b.interactT -= dt; if (b.interactT <= 0) { chest.open = true; const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol']; const k = pool[Math.floor(rand(0, pool.length))]; if (!b.weapons.includes(k) && b.weapons.length < 3) b.weapons.push(k); b.weapon = b.weapon ?? k; b.heals = Math.min(4, b.heals + 1); b.shield = Math.min(100, b.shield + 25); b.mats = Math.min(700, b.mats + 90); b.interactRef = null; } } else { b.interactRef = null; }
