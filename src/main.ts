@@ -29,7 +29,7 @@ const BOT_VOICES = ['smak-mouth.mp3','ninjalaughing.mp3','ninja-your-trash-kid.m
 function botVoice(b: Bot) { if (b.voiceCd > 0 || len(sub(b.pos, P.pos)) > 55) return; b.voiceCd = rand(12, 25); const a = new Audio('Audio/' + BOT_VOICES[Math.floor(rand(0, BOT_VOICES.length))]); a.volume = clamp(1 - len(sub(b.pos, P.pos)) / 65, .08, .55) * S.master * S.voice; if (a.volume > 0.01) a.play().catch(() => {}); }
 
 // ---------------- items & weapons ----------------
-type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
+type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const RAR_MULT = [0.85, 0.93, 1, 1.08, 1.16];
 type Ammo = 'light' | 'medium' | 'heavy' | 'shells';
@@ -43,6 +43,7 @@ const WEAPONS: Record<string, WeaponDef> = {
   tac: { name: 'Tactical Shotgun', dmg: 7, rpm: 90, mag: 8, reload: 4.5, spread: 0.07, pellets: 10, ammo: 'shells', auto: false, hs: 1.5, range: 35, rarity: 'uncommon', bloom: 0, kick: 0.03 },
   hunting: { name: 'Hunting Rifle', dmg: 86, rpm: 40, mag: 1, reload: 1.9, spread: 0.002, pellets: 1, ammo: 'heavy', auto: false, hs: 2.5, range: 500, rarity: 'uncommon', bloom: 0, kick: 0.045 },
   scar: { name: 'SCAR', dmg: 36, rpm: 330, mag: 30, reload: 2.1, spread: 0.006, pellets: 1, ammo: 'medium', auto: true, hs: 1.5, range: 320, rarity: 'legendary', bloom: 0.01, kick: 0.011 },
+  rpg: { name: 'Rocket Launcher', dmg: 110, rpm: 45, mag: 1, reload: 3.2, spread: 0, pellets: 1, ammo: 'heavy', auto: false, hs: 1, range: 200, rarity: 'epic', bloom: 0, kick: 0.06 },
   sniper: { name: 'Bolt-Action Sniper Rifle', dmg: 105, rpm: 34, mag: 1, reload: 2.8, spread: 0, pellets: 1, ammo: 'heavy', auto: false, hs: 2.5, range: 600, rarity: 'epic', bloom: 0, kick: 0.05 },
 };
 const CONS: Record<string, { name: string; dur: number; rarity: string; use: () => boolean }> = {
@@ -74,6 +75,7 @@ const ICON: Record<string, string> = {
   pistol: '<svg viewBox="0 0 64 64"><path d="M12 28h40v8h-22l-4 14h-8l3-14h-9z" fill="#e8ecef"/></svg>',
   tac: '<svg viewBox="0 0 64 64"><path d="M4 36l14-6h38v5h-28v4h-10l-6 8h-8z" fill="#e8ecef"/><rect x="24" y="31" width="22" height="3" fill="#ff8a1e"/></svg>',
   hunting: '<svg viewBox="0 0 64 64"><path d="M4 36l12-6h46v4h-36v4h-6l-6 8h-8z" fill="#e8ecef"/><rect x="40" y="26" width="3" height="5" fill="#e8ecef"/></svg>',
+  rpg: '<svg viewBox="0 0 64 64"><rect x="4" y="28" width="52" height="10" rx="3" fill="#8a9a6a"/><path d="M56 26l6 7-6 7z" fill="#d83030"/><rect x="22" y="38" width="8" height="10" fill="#444"/></svg>',
   scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
   miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
   grenade: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="14" ry="16" fill="#4a6a3a"/><rect x="26" y="14" width="12" height="10" fill="#888"/><rect x="36" y="12" width="12" height="5" fill="#ccc"/></svg>',
@@ -116,7 +118,7 @@ const curItem = () => (P.slot < 0 ? null : P.inv[P.slot]);
 // ---------------- match content ----------------
 const items: GroundItem[] = [], bots: Bot[] = [], fx: Fx[] = [], feed: { html: string; t: number }[] = [];
 const chests: { pos: V3; yaw: number; open: boolean; drop?: boolean }[] = [];
-const nades: { pos: V3; vel: V3; t: number; by: string }[] = [];
+const nades: { pos: V3; vel: V3; t: number; by: string; rocket?: boolean }[] = [];
 const drops: { pos: V3; landed: boolean }[] = [], meteors: { pos: V3; vel: V3 }[] = []; let event: 'meteor' | null = null, eventT = 0;
 const bus = { a: [0, 0, 0] as V3, b: [0, 0, 0] as V3, t: 0, dur: 55, pos: [0, 0, 0] as V3, yaw: 0 };
 const storm = { c: [0, 0] as [number, number], r: 520, phaseT: 120, phase: 0, shrinking: false, from: { c: [0, 0] as [number, number], r: 380 }, to: { c: [0, 0] as [number, number], r: 380 }, shrinkT: 0 };
@@ -142,7 +144,7 @@ function startMatch() {
   storm.c = [rand(-80, 80), rand(-80, 80)]; storm.r = 520; storm.phaseT = 120;
   // loot + bots per POI
   // loot lives inside buildings (kit spawn points) plus a little floor loot outdoors
-  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'ammo', 'ammo'];
+  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'rpg', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'ammo', 'ammo'];
   for (const l of W.lootSpots) if (Math.random() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
   for (const c of W.chestSpots) if (Math.random() < 0.7) chests.push({ pos: [...c] as V3, yaw: rand(0, 6.28), open: false });
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z); if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]); }
@@ -289,6 +291,7 @@ function botDamage(dm: Bot, n: number, by: string, how = 'with a weapon') {
 }
 function shoot(item: Item) {
   const w = WEAPONS[item.kind];
+  if (item.kind === 'rpg') { item.mag--; P.fireCd = 60 / w.rpm; P.pitch += w.kick; beep(80, 0.3, 'sawtooth', 0.15, -40); rumble(250, 0.9, 1); nades.push({ pos: add(camPos, scale(camFwd, 1.2)), vel: scale(camFwd, 34), t: 6, by: 'Player', rocket: true }); botHear(P.pos, 90, 'player'); return; }
   // Gunfire is evidence, not wall vision: nearby bots investigate the sound but do not gain a target lock.
   botHear(P.pos, 70, 'player');
   if (!D.infAmmo) item.mag--; P.fireCd = 60 / w.rpm; beep(item.kind === 'sniper' ? 90 : item.kind === 'shotgun' ? 110 : 220, 0.12, 'sawtooth', 0.12, -80);
@@ -526,7 +529,14 @@ function explode(pos: V3, by: string) {
 }
 function updateNades(dt: number) {
   for (let i = nades.length - 1; i >= 0; i--) {
-    const n = nades[i]; n.t -= dt; n.vel[1] -= 20 * dt;
+    const n = nades[i]; n.t -= dt;
+    if (n.rocket) {   // straight flight, detonates on anything it touches
+      const L = len(n.vel) * dt, h = W.raycast(n.pos, norm(n.vel), L, botBoxes().filter(b => n.by !== (b.ref as { d: Bot }).d.name));
+      const hitP = h ? h.p : null, self = n.by === 'Player' && len(sub(n.pos, P.pos)) < 1.5;
+      if (hitP || (n.by !== 'Player' && len(sub(n.pos, P.pos)) < 1.2) || n.t <= 0) { explode(hitP ?? n.pos, n.by); nades.splice(i, 1); continue; }
+      n.pos = add(n.pos, scale(n.vel, dt)); if (self) {} continue;
+    }
+    n.vel[1] -= 20 * dt;
     const next = add(n.pos, scale(n.vel, dt)), g = W.groundH(next[0], next[2], next[1]);
     if (next[1] <= g) { next[1] = g; n.vel = [n.vel[0] * 0.5, -n.vel[1] * 0.35, n.vel[2] * 0.5]; }
     else if (W.solids(next[0], next[2], 3).some(b => next[0] > b.min[0] && next[0] < b.max[0] && next[1] > b.min[1] && next[1] < b.max[1] && next[2] > b.min[2] && next[2] < b.max[2])) { n.vel = scale(n.vel, -0.3); }
@@ -553,7 +563,7 @@ function updateEvents(dt: number) {
 // ---------------- bot AI ----------------
 // Bots perceive (FOV + LOS + reaction), remember, and pick a mode each tick; skilled/aggressive ones crank 90s,
 // box up, and edit windows/doors to peek. They loot building interiors, heal, and rotate with the storm.
-const BOT_W: Record<string, [number, number, number, number]> = { ar: [0.26, 21, 70, 22], scar: [0.26, 24, 75, 22], burst: [0.3, 21, 70, 22], smg: [0.11, 11, 40, 14], pistol: [0.22, 16, 45, 16], shotgun: [0.9, 58, 14, 6], tac: [0.5, 42, 14, 7], sniper: [1.8, 85, 220, 45], hunting: [1.4, 72, 180, 40] };  // [cooldown, dmg, effective range, preferred distance]
+const BOT_W: Record<string, [number, number, number, number]> = { ar: [0.26, 21, 70, 22], scar: [0.26, 24, 75, 22], burst: [0.3, 21, 70, 22], smg: [0.11, 11, 40, 14], pistol: [0.22, 16, 45, 16], shotgun: [0.9, 58, 14, 6], tac: [0.5, 42, 14, 7], sniper: [1.8, 85, 220, 45], hunting: [1.4, 72, 180, 40], rpg: [3.0, 95, 120, 30] };  // [cooldown, dmg, effective range, preferred distance]
 function los(a: V3, b: V3) { const d = sub(b, a), L = len(d); const h = W.raycast(a, norm(d), L); return !h || h.t >= L - 0.5; }
 const cellOf = (x: number, z: number): V3 => [Math.floor(x / 4) * 4 + 2, 0, Math.floor(z / 4) * 4 + 2];
 const dirVec = (d: number): V3 => [Math.sin(d * Math.PI / 2), 0, Math.cos(d * Math.PI / 2)];
@@ -643,6 +653,7 @@ function updateBot(b: Bot, dt: number) {
       const acc = clamp(b.accuracy - L / (rng * 3.4) - (Math.hypot(b.vel[0], b.vel[2]) > 4 ? 0.08 : 0), 0.06, 0.7) * (b.weapon === 'sniper' ? 0.8 : 1) * (b.enemy === 'player' ? 1 : 0.55);
       if (Math.random() < 0.2) b.aimDrift = [rand(-1.5, 1.5), rand(-.75, .75), rand(-1.5, 1.5)];
       const from = add(b.pos, [0, 1.5, 0]), to = add(add(ep!, [0, 1.2 + rand(-0.45, 0.45), 0]), scale(b.aimDrift, clamp(L / 45, .15, 1)));
+      if (b.weapon === 'rpg') { nades.push({ pos: add(from, scale(norm(sub(to, from)), 1.2)), vel: scale(norm(add(to, [rand(-2, 2) * (1 - b.accuracy), 0, rand(-2, 2) * (1 - b.accuracy)]).map((v, i) => v - from[i]) as V3), 34), t: 6, by: b.name, rocket: true }); botHear(b.pos, 80, b); return; }
       const hit = Math.random() < acc && los(from, to);
       fx.push({ kind: 'tracer', t: 0.06, pos: from, to: hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]) });
       if (hit) { const head = Math.random() < b.skill * 0.18, n = Math.round(dmg * rand(0.8, 1.1) * (head ? 1.5 : 1)); if (b.enemy === 'player') { damage(n, b.name); if (head) info('Headshot!'); } else botDamage(b.enemy as Bot, n, b.name); }
@@ -984,7 +995,7 @@ function frame(now: number) {
     if (near) { H.info.textContent = `[E] ${isWeapon(near.item.kind) ? WEAPONS[near.item.kind].name : CONS[near.item.kind].name}`; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
     else if (nearChest) { H.info.textContent = '[E] Open chest'; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
     if (key('KeyE')) {
-      if (nearChest) { nearChest.open = true; beep(400, 0.4, 'triangle', 0.08, 500); const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol']; dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1); if (nearChest.drop) { dropItem(mkItem('rod'), add(nearChest.pos, [0, 0.3, 0]), 1.4); dropItem(mkItem('sniper', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6); } dropItem(mkItem((['shieldPot', 'bandage', 'miniShield', 'chug', 'grenade'] as Kind[])[Math.floor(rand(0, 5))], 3), add(nearChest.pos, [0, 0.3, 0]), 1.2); P.ammo.medium += 30; P.ammo.light += 30; P.ammo.shells += 5; P.ammo.heavy += 3; P.mats.wood += 30; info('+ ammo, +30 wood'); }
+      if (nearChest) { nearChest.open = true; beep(400, 0.4, 'triangle', 0.08, 500); const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol']; dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1); if (nearChest.drop) { dropItem(mkItem('rpg', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.8); dropItem(mkItem('rod'), add(nearChest.pos, [0, 0.3, 0]), 1.4); dropItem(mkItem('sniper', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6); } dropItem(mkItem((['shieldPot', 'bandage', 'miniShield', 'chug', 'grenade'] as Kind[])[Math.floor(rand(0, 5))], 3), add(nearChest.pos, [0, 0.3, 0]), 1.2); P.ammo.medium += 30; P.ammo.light += 30; P.ammo.shells += 5; P.ammo.heavy += 3; P.mats.wood += 30; info('+ ammo, +30 wood'); }
       else if (near) {
         const k = near.item.kind; if (isWeapon(k)) { const a = WEAPONS[k].ammo; P.ammo[a] += a === 'heavy' ? 5 : a === 'shells' ? 10 : 30; }
         const same = P.inv.findIndex(s => s && !isWeapon(s.kind) && s.kind === k);
@@ -1037,7 +1048,7 @@ function frame(now: number) {
   if (P.build) { const bt = buildTarget(); const ok = P.mats[P.mat] >= 10 && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir)); R.draw(M[`${bt.type}_${P.mat}`], trs(bt.pos, bt.dir * Math.PI / 2), ok ? [0.5, 1.2, 0.6] : [1.4, 0.5, 0.5], 0.45, MAT_STYLE[P.mat], false); }
   if (P.state === 'bus' || bus.t < bus.dur + 30) { const bp = P.state === 'bus' ? bus.pos : add(bus.a, scale(sub(bus.b, bus.a), Math.min(1, (bus.t + (P.matchT - bus.t)) / bus.dur))); R.draw(M.bus, trs(bp, bus.yaw)); R.draw(M.balloon, trs(add(bp, [0, 16, 0]), bus.yaw)); }
   for (const d of drops) if (!d.landed) { R.draw(M.chest, trs(d.pos, 0, 0, 1.3)); R.draw(M.balloon, trs(add(d.pos, [0, 5.5, 0]), 0, 0, 0.32), [0.4, 0.5, 1]); }
-  for (const n of nades) R.draw(M.grenade, trs(n.pos, n.t * 4, n.t * 3));
+  for (const n of nades) { if (n.rocket) R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))); else R.draw(M.grenade, trs(n.pos, n.t * 4, n.t * 3)); }
   for (const m of meteors) R.draw(M.rock, trs(m.pos, t * 3, t * 2, 1.2), [1, 0.5, 0.3]);
   R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [0.7, 0.72, 1.0], 0.22, 7, false);
   // player
@@ -1063,4 +1074,4 @@ function frame(now: number) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
-(window as any).G = { PROF, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+(window as any).G = { PROF, nades, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };

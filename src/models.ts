@@ -696,6 +696,16 @@ export function buildModels(r: Renderer): Models {
     b.push(mul(translate(0, -0.22, 0.22), rotX(0.25))); b.rbox([0, 0, 0], [0.065, 0.3, 0.11], rgb(0xb8a15a), 0.015); b.pop();
     b.rbox([0, -0.01, -0.34], [0.075, 0.13, 0.34], rgb(0xb8a15a), 0.02); b.rbox([0, -0.06, -0.51], [0.075, 0.17, 0.06], gunMetal, 0.015);
   });
+  M.rpg = mk(b => {
+    const od = rgb(0x6f7d52);
+    b.cyl([0, 0.05, 0.1], 0.075, 0.075, 1.3, od, 14, true, true); b.torus([0, 0.05, -0.5], 0.08, 0.02, gunMetal, 12, 6); b.torus([0, 0.05, 0.7], 0.08, 0.02, gunMetal, 12, 6);
+    b.cyl([0, 0.05, 0.85], 0.1, 0.075, 0.2, gunMetal, 12, true, true);                  // muzzle bell
+    b.box([0, 0.17, -0.1], [0.04, 0.12, 0.2], gunMetal); b.box([0, 0.24, -0.1], [0.06, 0.05, 0.12], C.holographic);   // sight
+    b.push(mul(translate(0, -0.12, -0.15), rotX(0.3))); b.rbox([0, 0, 0], [0.06, 0.2, 0.08], gunMetal, 0.02); b.pop();
+    b.rbox([0, -0.06, 0.25], [0.06, 0.12, 0.1], gunMetal, 0.02);                          // fore grip
+    b.cyl([0, 0.05, 1.0], 0.07, 0.03, 0.22, rgb(0xd83030), 10, true, true);              // loaded warhead
+  });
+  M.rocket = mk(b => { b.cyl([0, 0, 0.2], 0.06, 0.06, 0.5, rgb(0x6f7d52), 10, true, true); b.cyl([0, 0, 0.55], 0.06, 0.0, 0.18, rgb(0xd83030), 10, true, true); for (let k = 0; k < 4; k++) { b.push(mul(translate(0, 0, -0.05), rotZ(k * 1.57))); b.box([0.08, 0, 0], [0.1, 0.02, 0.12], gunMetal); b.pop(); } b.sphere([0, 0, -0.15], 0.1, rgb(0xffb020), 8, 1, true); });
   // consumables: mini shield, chug jug
   M.miniShield = mk(b => { b.cyl([0, 0.02, 0], 0.09, 0.1, 0.22, rgb(0x3aa2ff), 12, true, true); b.cyl([0, 0.26, 0], 0.05, 0.05, 0.06, C.white, 10, true, true); b.box([0, 0.14, 0.1], [0.1, 0.08, 0.01], C.white); });
   M.grenade = mk(b => { b.sphere([0, 0.15, 0], 0.14, rgb(0x4a6a3a), 10, 1.2, true); b.cyl([0, 0.3, 0], 0.05, 0.05, 0.08, rgb(0x888888), 8, true, true); b.box([0.06, 0.34, 0], [0.12, 0.02, 0.03], rgb(0xcccccc)); for (let k = 0; k < 3; k++) b.torus([0, 0.08 + k * 0.07, 0], 0.14, 0.008, rgb(0x2e4a26), 10, 4); });
