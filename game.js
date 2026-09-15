@@ -1745,7 +1745,10 @@ void main(){
       let x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z);
       y > 1 && dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]);
     }
-    for (let i = 0; i < 32; i++) spawnBot();
+    for (let i = 0; i < 32; i++) {
+      let b = spawnBot(), ab = sub(bus.b, bus.a), k = clamp(((b.land[0] - bus.a[0]) * ab[0] + (b.land[2] - bus.a[2]) * ab[2]) / (ab[0] * ab[0] + ab[2] * ab[2]), 0.08, 0.95);
+      b.dropT = k * bus.dur + rand(-3, 3) - (1 - b.skill) * 4;
+    }
     P.nextDrop = 90, drops.length = 0;
     for (let p of POIS) for (let i = 0; i < 3; i++) {
       let x = p.x + rand(-p.r, p.r) * 0.6, z = p.z + rand(-p.r, p.r) * 0.6, y = terrainH(x, z);

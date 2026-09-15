@@ -152,7 +152,7 @@ function startMatch() {
   for (const l of W.lootSpots) if (Math.random() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
   for (const c of W.chestSpots) if (Math.random() < 0.7) chests.push({ pos: [...c] as V3, yaw: rand(0, 6.28), open: false });
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z); if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]); }
-  for (let i = 0; i < 32; i++) spawnBot();
+  for (let i = 0; i < 32; i++) { const b = spawnBot(); const ab = sub(bus.b, bus.a), k = clamp(((b.land[0] - bus.a[0]) * ab[0] + (b.land[2] - bus.a[2]) * ab[2]) / (ab[0] * ab[0] + ab[2] * ab[2]), 0.08, 0.95); b.dropT = k * bus.dur + rand(-3, 3) - (1 - b.skill) * 4; }   // jump when the bus passes closest to the chosen POI
   P.nextDrop = 90; drops.length = 0;
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.6, z = p.z + rand(-p.r, p.r) * 0.6, y = terrainH(x, z); if (y > 1) items.push({ item: mkItem('ammo'), pos: [x, y, z] }); }
   P.dead = false; P.over = false; P.dmg = 0; storm.phase = 0; storm.shrinking = false; H.end.style.display = 'none';
