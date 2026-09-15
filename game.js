@@ -2507,6 +2507,11 @@ void main(){
           }
           b.mats = Math.min(700, b.mats + dt * (b.weapon ? 6 : 10)), b.heals <= 0 && Math.random() < dt * 0.02 && (b.heals = 1);
         }
+      for (let n of nades) if (!n.rocket && n.t < 2 && len(sub(n.pos, b.pos)) < 6 && b.skill > 0.3) {
+        let away = norm(sub(b.pos, n.pos));
+        b.vel[0] = away[0] * 8, b.vel[2] = away[2] * 8, b.grounded && (b.vel[1] = 8);
+        break;
+      }
       if (Math.hypot(b.vel[0], b.vel[2]) > 1.5 && len(sub(b.pos, b.lastPos)) < 0.05 * 1 ? b.stuckT += dt : b.stuckT = 0, b.stuckT > 0.6 && b.grounded && (b.vel[1] = 9, b.stuckT > 2 && (b.target = null, b.stuckT = 0, b.skill > 0.4 && b.buildCd <= 0))) {
         let d = yawToDir(b.yaw), f = dirVec(d), c = cellOf(b.pos[0] + f[0] * 2.5, b.pos[2] + f[2] * 2.5);
         botPlace(b, "ramp", [c[0], Math.floor((b.pos[1] + 1) / 4) * 4, c[2]], d);
