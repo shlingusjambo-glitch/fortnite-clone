@@ -8,7 +8,7 @@ void main(){ vec4 w = uM * vec4(aPos,1.0); vWorld = w.xyz; vObj = aPos; vNrm = m
 const FS = `#version 300 es
 precision highp float; precision highp sampler2DShadow;
 in vec3 vNrm, vCol, vWorld, vObj; in vec4 vSh;
-uniform vec3 uCam, uSun, uFog; uniform float uAlpha, uStyle, uTexel, uT, uFogD; uniform sampler2DShadow uShadow;
+uniform vec3 uCam, uSun, uFog; uniform float uAlpha, uStyle, uTexel, uT, uFogD, uShadowQ; uniform sampler2DShadow uShadow;
 out vec4 o;
 float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }
@@ -70,9 +70,9 @@ void main(){
   vec3 s = vSh.xyz / vSh.w * 0.5 + 0.5;
   float lit = 1.0;
   if (s.x > 0.0 && s.x < 1.0 && s.y > 0.0 && s.y < 1.0 && s.z < 1.0) {
-    float bias = 0.0012 + 0.0025 * (1.0 - d); lit = 0.0;
-    for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + vec2(i, j) * uTexel, s.z - bias));
-    lit /= 9.0;
+    float bias = 0.0012 + 0.0025 * (1.0 - d);
+    if (uShadowQ > 1.5) { lit = 0.0; for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + vec2(i, j) * uTexel, s.z - bias)); lit /= 9.0; }
+    else if (uShadowQ > 0.5) lit = texture(uShadow, vec3(s.xy, s.z - bias));
   }
   float hemi = 0.5 + 0.5 * n.y;
   vec3 v = normalize(uCam - vWorld); vec3 hv = normalize(v + uSun);
@@ -99,7 +99,7 @@ precision highp float; in vec2 vN; out vec4 o;
 uniform vec3 uF, uR, uU, uSun, uCam; uniform float uT, uAsp, uTan;
 float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
-float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p *= 2.03; a *= 0.5; } return v; }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++) { v += a * vn(p); p *= 2.03; a *= 0.5; } return v; }
 void main(){
   vec3 d = normalize(uF + uR * vN.x * uTan * uAsp + uU * vN.y * uTan);
   float y = max(d.y, 0.0);
@@ -136,7 +136,7 @@ export class Renderer {
       for (const k of names) into[k] = gl.getUniformLocation(p, k);
       return p;
     };
-    this.prog = mk(VS, FS, ['uVP', 'uM', 'uLVP', 'uTint', 'uAlpha', 'uCam', 'uSun', 'uFog', 'uStyle', 'uTexel', 'uShadow', 'uT', 'uFogD'], this.u);
+    this.prog = mk(VS, FS, ['uVP', 'uM', 'uLVP', 'uTint', 'uAlpha', 'uCam', 'uSun', 'uFog', 'uStyle', 'uTexel', 'uShadow', 'uT', 'uFogD', 'uShadowQ'], this.u);
     this.dprog = mk(DVS, DFS, ['uLVP', 'uM'], this.du);
     this.sprog = mk(SKYVS, SKYFS, ['uF', 'uR', 'uU', 'uSun', 'uCam', 'uT', 'uAsp', 'uTan'], this.su);
     // shadow map
@@ -170,7 +170,8 @@ export class Renderer {
     const lvp = mul(ortho(-shadowRange, shadowRange, -shadowRange, shadowRange, 1, 400), lookAt(add(f, scale(sun, 200)), f));
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo); gl.viewport(0, 0, SM, SM); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.useProgram(this.dprog); gl.uniformMatrix4fv(this.du.uLVP, false, lvp); gl.cullFace(gl.FRONT);
-    if (this.shadows > 0) for (const it of this.items) if (it.shadow && it.alpha >= 1) { gl.uniformMatrix4fv(this.du.uM, false, it.mat); gl.bindVertexArray(it.m.vao); gl.drawArrays(gl.TRIANGLES, 0, it.m.n); }
+    const sr2 = (shadowRange * 1.3) ** 2;
+    if (this.shadows > 0) for (const it of this.items) if (it.shadow && it.alpha >= 1 && (it.mat[12] - f[0]) ** 2 + (it.mat[14] - f[2]) ** 2 < sr2) { gl.uniformMatrix4fv(this.du.uM, false, it.mat); gl.bindVertexArray(it.m.vao); gl.drawArrays(gl.TRIANGLES, 0, it.m.n); }
     gl.cullFace(gl.BACK); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, c.width, c.height);
     gl.clearColor(0, 0, 0, sky ? 1 : 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     if (sky) {
@@ -182,7 +183,7 @@ export class Renderer {
     }
     gl.useProgram(this.prog);
     gl.uniformMatrix4fv(this.u.uVP, false, vp); gl.uniformMatrix4fv(this.u.uLVP, false, lvp); gl.uniform3fv(this.u.uCam, cam.pos); gl.uniform3fv(this.u.uSun, sun); gl.uniform3fv(this.u.uFog, this.fog); gl.uniform1f(this.u.uTexel, 1 / SM); gl.uniform1f(this.u.uT, t); gl.uniform1f(this.u.uFogD, 0.0032 / (1 + Math.max(0, cam.pos[1] - 25) / 30));
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); gl.uniform1i(this.u.uShadow, 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); gl.uniform1i(this.u.uShadow, 0); gl.uniform1f(this.u.uShadowQ, this.shadows);
     const one = (it: Item) => { gl.uniformMatrix4fv(this.u.uM, false, it.mat); gl.uniform3fv(this.u.uTint, it.tint); gl.uniform1f(this.u.uAlpha, it.alpha); gl.uniform1f(this.u.uStyle, it.style); gl.bindVertexArray(it.m.vao); gl.drawArrays(gl.TRIANGLES, 0, it.m.n); };
     for (const it of this.items) if (it.alpha >= 1 && !it.two) one(it);
     gl.disable(gl.CULL_FACE); for (const it of this.items) if (it.alpha >= 1 && it.two) one(it); gl.enable(gl.CULL_FACE);

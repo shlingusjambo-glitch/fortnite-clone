@@ -345,7 +345,7 @@ const mmCtx = (H.mm.querySelectorAll('canvas')[1] as HTMLCanvasElement).getConte
 const mmBg = (H.mm.querySelectorAll('canvas')[0] as HTMLCanvasElement).getContext('2d')!;
 const HEAD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-let fpsN = 0, fpsT = 0, fpsV = 0;
+let fpsN = 0, fpsT = 0, fpsV = 0, lowT = 0;
 function drawHud() {
   H.hp.querySelector('i')!.style.width = P.hp + '%'; H.hp.nextElementSibling!.textContent = String(Math.ceil(P.hp));
   H.sh.querySelector('i')!.style.width = P.shield + '%'; H.sh.nextElementSibling!.textContent = String(Math.ceil(P.shield));
@@ -709,7 +709,10 @@ let last = performance.now(), t = 0;
 const PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0 };
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
-  fpsN++; fpsT += dt; if (fpsT > 0.5) { fpsV = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0; }
+  fpsN++; fpsT += dt; if (fpsT > 0.5) { fpsV = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0;
+    // adaptive quality: step down when the match runs slow (Chromebooks); session-only, saved settings untouched
+    if (P.state === 'play') { lowT = fpsV < 30 ? lowT + 0.5 : 0; if (lowT >= 3) { lowT = 0; const step = S.shadows > 1 ? (S.shadows = 1) : S.grass > 0 ? (S.grass = 0) : S.scale > 0.75 ? (S.scale = 0.75) : S.shadows > 0 ? (S.shadows = 0) : S.scale > 0.6 ? (S.scale = 0.6) : S.viewDist > 0 ? (S.viewDist = 0) : -1; if (step !== -1) info('Low FPS: quality lowered (Settings > Video)'); } }
+  }
   const key = (c: string) => pressed.has(c);
   const sun = norm([0.45, 0.8, 0.3] as V3), aspect = innerWidth / innerHeight;
 
@@ -961,9 +964,11 @@ function frame(now: number) {
   if (P.state === 'play' && S.grass > 0) { const cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1; for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, false, true); }
   R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, false);
   const cull = P.state === 'play' ? [130, 190, 320][S.viewDist] : 900;
-  for (const q of W.props) if (!q.dead && Math.abs(q.pos[0] - camPos[0]) < cull && Math.abs(q.pos[2] - camPos[2]) < cull) R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
-  for (const s of W.statics) if (!s.dead&&Math.abs(s.pos[0] - camPos[0]) < cull && Math.abs(s.pos[2] - camPos[2]) < cull) {const sh=s.shake||0,sp:V3=sh?[s.pos[0]+Math.sin(t*95)*sh*.12,s.pos[1],s.pos[2]+Math.cos(t*81)*sh*.12]:s.pos;R.draw(s.mesh.startsWith('house') ? W.houseMeshes[+s.mesh.slice(5)] : M[s.mesh], trs(sp, s.yaw), [1, 1, 1], 1, 0, s.mesh !== 'dash');}
+  const vis = (p: V3) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && ((p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18);   // ponytail: half-space cull, real frustum if draw calls ever matter
+  for (const q of W.props) if (!q.dead && vis(q.pos)) R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
+  for (const s of W.statics) if (!s.dead && vis(s.pos)) {const sh=s.shake||0,sp:V3=sh?[s.pos[0]+Math.sin(t*95)*sh*.12,s.pos[1],s.pos[2]+Math.cos(t*81)*sh*.12]:s.pos;R.draw(s.mesh.startsWith('house') ? W.houseMeshes[+s.mesh.slice(5)] : M[s.mesh], trs(sp, s.yaw), [1, 1, 1], 1, 0, s.mesh !== 'dash');}
   for (const p of W.pieces.values()) {
+    if (!vis(p.pos)) continue;
     const age = performance.now() / 1000 - p.born, k = clamp(age / 0.18, 0, 1), sc = 0.6 + 0.4 * k, mesh = p.edit ? editedMesh(p.type as 'wall' | 'floor', p.mat, p.edit) : M[`${p.type}_${p.mat}`];
     const tint: V3 = k < 1 ? [0.6 + 0.4 * k, 0.8 + 0.2 * k, 1.3 - 0.3 * k] : p.hp < p.maxHp ? [1, 0.7 + 0.3 * p.hp / p.maxHp, 0.7 + 0.3 * p.hp / p.maxHp] : [1, 1, 1];
     R.draw(mesh, mul(trs(p.pos, p.dir * Math.PI / 2), trs([0, 0, 0], 0, 0, [sc, p.type === 'wall' ? sc : 1, sc])), tint, 1, MAT_STYLE[p.mat]);

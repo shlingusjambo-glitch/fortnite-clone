@@ -181,7 +181,7 @@ export class World {
     const key = cx + ',' + cz; let m = this.grassChunks.get(key); if (m) return m;
     const g = new MB(), S = 24, seed = cx * 73856093 ^ cz * 19349663; let rs = (seed >>> 0) || 1;
     const rnd = () => { rs ^= rs << 13; rs ^= rs >>> 17; rs ^= rs << 5; return ((rs >>> 0) % 10000) / 10000; };
-    for (let k = 0; k < 1800; k++) {
+    for (let k = 0; k < 1000; k++) {
       const x = cx * S + rnd() * S, z = cz * S + rnd() * S, y = terrainH(x, z);
       if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
       // Tall, lush grass blades (0.45m - 0.75m tall) matching reference images

@@ -68,7 +68,7 @@ out vec3 vNrm, vCol, vWorld, vObj; out vec4 vSh;
 void main(){ vec4 w = uM * vec4(aPos,1.0); vWorld = w.xyz; vObj = aPos; vNrm = mat3(uM) * aNrm; vCol = aCol * uTint; vSh = uLVP * w; gl_Position = uVP * w; }`, FS = `#version 300 es
 precision highp float; precision highp sampler2DShadow;
 in vec3 vNrm, vCol, vWorld, vObj; in vec4 vSh;
-uniform vec3 uCam, uSun, uFog; uniform float uAlpha, uStyle, uTexel, uT, uFogD; uniform sampler2DShadow uShadow;
+uniform vec3 uCam, uSun, uFog; uniform float uAlpha, uStyle, uTexel, uT, uFogD, uShadowQ; uniform sampler2DShadow uShadow;
 out vec4 o;
 float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }
@@ -130,9 +130,9 @@ void main(){
   vec3 s = vSh.xyz / vSh.w * 0.5 + 0.5;
   float lit = 1.0;
   if (s.x > 0.0 && s.x < 1.0 && s.y > 0.0 && s.y < 1.0 && s.z < 1.0) {
-    float bias = 0.0012 + 0.0025 * (1.0 - d); lit = 0.0;
-    for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + vec2(i, j) * uTexel, s.z - bias));
-    lit /= 9.0;
+    float bias = 0.0012 + 0.0025 * (1.0 - d);
+    if (uShadowQ > 1.5) { lit = 0.0; for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + vec2(i, j) * uTexel, s.z - bias)); lit /= 9.0; }
+    else if (uShadowQ > 0.5) lit = texture(uShadow, vec3(s.xy, s.z - bias));
   }
   float hemi = 0.5 + 0.5 * n.y;
   vec3 v = normalize(uCam - vWorld); vec3 hv = normalize(v + uSun);
@@ -155,7 +155,7 @@ precision highp float; in vec2 vN; out vec4 o;
 uniform vec3 uF, uR, uU, uSun, uCam; uniform float uT, uAsp, uTan;
 float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h(i), h(i+vec2(1,0)), f.x), mix(h(i+vec2(0,1)), h(i+vec2(1,1)), f.x), f.y); }
-float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p *= 2.03; a *= 0.5; } return v; }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++) { v += a * vn(p); p *= 2.03; a *= 0.5; } return v; }
 void main(){
   vec3 d = normalize(uF + uR * vN.x * uTan * uAsp + uU * vN.y * uTan);
   float y = max(d.y, 0.0);
@@ -199,7 +199,7 @@ void main(){
         for (let k of names) into[k] = gl.getUniformLocation(p, k);
         return p;
       };
-      this.prog = mk(VS, FS, ["uVP", "uM", "uLVP", "uTint", "uAlpha", "uCam", "uSun", "uFog", "uStyle", "uTexel", "uShadow", "uT", "uFogD"], this.u), this.dprog = mk(DVS, DFS, ["uLVP", "uM"], this.du), this.sprog = mk(SKYVS, SKYFS, ["uF", "uR", "uU", "uSun", "uCam", "uT", "uAsp", "uTan"], this.su), this.shadowTex = gl.createTexture(), gl.bindTexture(gl.TEXTURE_2D, this.shadowTex), gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, SM, SM, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL), this.fbo = gl.createFramebuffer(), gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo), gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadowTex, 0), gl.drawBuffers([gl.NONE]), gl.readBuffer(gl.NONE), gl.bindFramebuffer(gl.FRAMEBUFFER, null), this.emptyVao = gl.createVertexArray(), gl.enable(gl.DEPTH_TEST), gl.enable(gl.CULL_FACE), gl.enable(gl.BLEND), gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
+      this.prog = mk(VS, FS, ["uVP", "uM", "uLVP", "uTint", "uAlpha", "uCam", "uSun", "uFog", "uStyle", "uTexel", "uShadow", "uT", "uFogD", "uShadowQ"], this.u), this.dprog = mk(DVS, DFS, ["uLVP", "uM"], this.du), this.sprog = mk(SKYVS, SKYFS, ["uF", "uR", "uU", "uSun", "uCam", "uT", "uAsp", "uTan"], this.su), this.shadowTex = gl.createTexture(), gl.bindTexture(gl.TEXTURE_2D, this.shadowTex), gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, SM, SM, 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE), gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL), this.fbo = gl.createFramebuffer(), gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo), gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, this.shadowTex, 0), gl.drawBuffers([gl.NONE]), gl.readBuffer(gl.NONE), gl.bindFramebuffer(gl.FRAMEBUFFER, null), this.emptyVao = gl.createVertexArray(), gl.enable(gl.DEPTH_TEST), gl.enable(gl.CULL_FACE), gl.enable(gl.BLEND), gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
     }
     upload(data) {
       let gl = this.gl, vao = gl.createVertexArray();
@@ -222,12 +222,14 @@ void main(){
       let gl = this.gl, c = this.canvas, cw = Math.round(c.clientWidth * this.scale), chh = Math.round(c.clientHeight * this.scale);
       (c.width !== cw || c.height !== chh) && (c.width = cw, c.height = chh);
       let ts = shadowRange * 2 / SM, fx2 = Math.round(focus[0] / ts) * ts, fz = Math.round(focus[2] / ts) * ts, f = [fx2, focus[1], fz], lvp = mul(ortho(-shadowRange, shadowRange, -shadowRange, shadowRange, 1, 400), lookAt(add(f, scale(sun, 200)), f));
-      if (gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo), gl.viewport(0, 0, SM, SM), gl.clear(gl.DEPTH_BUFFER_BIT), gl.useProgram(this.dprog), gl.uniformMatrix4fv(this.du.uLVP, !1, lvp), gl.cullFace(gl.FRONT), this.shadows > 0) for (let it of this.items) it.shadow && it.alpha >= 1 && (gl.uniformMatrix4fv(this.du.uM, !1, it.mat), gl.bindVertexArray(it.m.vao), gl.drawArrays(gl.TRIANGLES, 0, it.m.n));
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo), gl.viewport(0, 0, SM, SM), gl.clear(gl.DEPTH_BUFFER_BIT), gl.useProgram(this.dprog), gl.uniformMatrix4fv(this.du.uLVP, !1, lvp), gl.cullFace(gl.FRONT);
+      let sr2 = (shadowRange * 1.3) ** 2;
+      if (this.shadows > 0) for (let it of this.items) it.shadow && it.alpha >= 1 && (it.mat[12] - f[0]) ** 2 + (it.mat[14] - f[2]) ** 2 < sr2 && (gl.uniformMatrix4fv(this.du.uM, !1, it.mat), gl.bindVertexArray(it.m.vao), gl.drawArrays(gl.TRIANGLES, 0, it.m.n));
       if (gl.cullFace(gl.BACK), gl.bindFramebuffer(gl.FRAMEBUFFER, null), gl.viewport(0, 0, c.width, c.height), gl.clearColor(0, 0, 0, sky ? 1 : 0), gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT), sky) {
         let r = norm(cross(cam.fwd, [0, 1, 0])), u = cross(r, cam.fwd);
         gl.useProgram(this.sprog), gl.depthMask(!1), gl.disable(gl.CULL_FACE), gl.uniform3fv(this.su.uF, cam.fwd), gl.uniform3fv(this.su.uR, r), gl.uniform3fv(this.su.uU, u), gl.uniform3fv(this.su.uSun, sun), gl.uniform3fv(this.su.uCam, cam.pos), gl.uniform1f(this.su.uT, t2), gl.uniform1f(this.su.uAsp, cam.aspect), gl.uniform1f(this.su.uTan, Math.tan(cam.fov / 2)), gl.bindVertexArray(this.emptyVao), gl.drawArrays(gl.TRIANGLES, 0, 3), gl.depthMask(!0), gl.enable(gl.CULL_FACE);
       }
-      gl.useProgram(this.prog), gl.uniformMatrix4fv(this.u.uVP, !1, vp), gl.uniformMatrix4fv(this.u.uLVP, !1, lvp), gl.uniform3fv(this.u.uCam, cam.pos), gl.uniform3fv(this.u.uSun, sun), gl.uniform3fv(this.u.uFog, this.fog), gl.uniform1f(this.u.uTexel, 1 / SM), gl.uniform1f(this.u.uT, t2), gl.uniform1f(this.u.uFogD, 32e-4 / (1 + Math.max(0, cam.pos[1] - 25) / 30)), gl.activeTexture(gl.TEXTURE0), gl.bindTexture(gl.TEXTURE_2D, this.shadowTex), gl.uniform1i(this.u.uShadow, 0);
+      gl.useProgram(this.prog), gl.uniformMatrix4fv(this.u.uVP, !1, vp), gl.uniformMatrix4fv(this.u.uLVP, !1, lvp), gl.uniform3fv(this.u.uCam, cam.pos), gl.uniform3fv(this.u.uSun, sun), gl.uniform3fv(this.u.uFog, this.fog), gl.uniform1f(this.u.uTexel, 1 / SM), gl.uniform1f(this.u.uT, t2), gl.uniform1f(this.u.uFogD, 32e-4 / (1 + Math.max(0, cam.pos[1] - 25) / 30)), gl.activeTexture(gl.TEXTURE0), gl.bindTexture(gl.TEXTURE_2D, this.shadowTex), gl.uniform1i(this.u.uShadow, 0), gl.uniform1f(this.u.uShadowQ, this.shadows);
       let one = (it) => {
         gl.uniformMatrix4fv(this.u.uM, !1, it.mat), gl.uniform3fv(this.u.uTint, it.tint), gl.uniform1f(this.u.uAlpha, it.alpha), gl.uniform1f(this.u.uStyle, it.style), gl.bindVertexArray(it.m.vao), gl.drawArrays(gl.TRIANGLES, 0, it.m.n);
       };
@@ -1279,7 +1281,7 @@ void main(){
       let key = cx + "," + cz, m = this.grassChunks.get(key);
       if (m) return m;
       let g = new MB(), S2 = 24, rs = (cx * 73856093 ^ cz * 19349663) >>> 0 || 1, rnd = () => (rs ^= rs << 13, rs ^= rs >>> 17, rs ^= rs << 5, (rs >>> 0) % 1e4 / 1e4);
-      for (let k = 0; k < 1800; k++) {
+      for (let k = 0; k < 1e3; k++) {
         let x = cx * S2 + rnd() * S2, z = cz * S2 + rnd() * S2, y = terrainH(x, z);
         if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
         let hgt = 0.45 + rnd() * 0.35, w = 0.05 + rnd() * 0.04, a = rnd() * 3.14, c = [0.36 + rnd() * 0.12, 0.82 + rnd() * 0.14, 0.25];
@@ -1868,7 +1870,7 @@ void main(){
     let c = plIcon.getContext("2d"), col = (v) => `rgb(${v.map((x) => x * 255 | 0).join(",")})`;
     c.clearRect(0, 0, 16, 16), c.fillStyle = col(skin.top), c.fillRect(3, 11, 10, 5), c.fillStyle = col(skin.skin), c.fillRect(4, 3, 8, 8), c.fillStyle = col(skin.hair), c.fillRect(3, 1, 10, 3), c.fillStyle = "#000", c.fillRect(6, 6, 1, 1), c.fillRect(10, 6, 1, 1);
   }
-  var mmCtx = H.mm.querySelectorAll("canvas")[1].getContext("2d"), mmBg = H.mm.querySelectorAll("canvas")[0].getContext("2d"), HEAD = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"], fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`, fpsN = 0, fpsT = 0, fpsV = 0;
+  var mmCtx = H.mm.querySelectorAll("canvas")[1].getContext("2d"), mmBg = H.mm.querySelectorAll("canvas")[0].getContext("2d"), HEAD = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"], fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`, fpsN = 0, fpsT = 0, fpsV = 0, lowT = 0;
   function drawHud() {
     H.hp.querySelector("i").style.width = P.hp + "%", H.hp.nextElementSibling.textContent = String(Math.ceil(P.hp)), H.sh.querySelector("i").style.width = P.shield + "%", H.sh.nextElementSibling.textContent = String(Math.ceil(P.shield)), H.pl.querySelector(".b i").style.width = P.hp + "%", H.mats.innerHTML = ["wood", "stone", "metal"].map((m) => `<div class="${P.mat === m && P.build ? "sel" : ""}">${m === "wood" ? '<svg viewBox="0 0 40 40"><path d="M6 30 L26 8 L34 14 L14 36 Z" fill="#e6c48a" stroke="#8a6a3a" stroke-width="1.5"/></svg>' : m === "stone" ? '<svg viewBox="0 0 40 40"><path d="M4 22 L20 12 L36 20 L20 30 Z" fill="#c9c9c9" stroke="#666" stroke-width="1.5"/><path d="M4 22 L20 30 L20 36 L4 28 Z" fill="#a0a0a0" stroke="#666" stroke-width="1.5"/><path d="M36 20 L20 30 L20 36 L36 26 Z" fill="#8a8a8a" stroke="#666" stroke-width="1.5"/></svg>' : '<svg viewBox="0 0 40 40"><path d="M8 8 L30 8 L30 14 L18 14 L32 32 L10 32 L10 26 L22 26 Z" fill="#dfe6ee" stroke="#556" stroke-width="1.5"/></svg>'}${P.mats[m]}</div>`).join(""), H.bld.innerHTML = [["wall", "Q", '<rect x="10" y="10" width="24" height="24" transform="skewY(-10)"/>'], ["floor", "G", '<path d="M22 12 L38 22 L22 32 L6 22 Z"/>'], ["ramp", "F", '<path d="M8 36 L8 30 L14 30 L14 24 L20 24 L20 18 L26 18 L26 12 L32 12 L32 8 L38 8 L38 36 Z"/>'], ["pyramid", "Alt", '<path d="M22 8 L40 26 L22 36 L4 26 Z"/><path d="M22 8 L22 36"/>']].map(([t2, k, s]) => `<div class="${P.build && P.piece === t2 ? "on" : ""}"><kbd>${k}</kbd><svg viewBox="0 0 44 44">${s}</svg></div>`).join("");
     let it = curItem(), slots = [`<div class="slot ${P.slot < 0 ? "sel" : ""}">${ICON.pickaxe}<span class="k">BACKQUOTE</span></div>`].concat(P.inv.map((s, i) => `<div class="slot ${s ? RARITIES[s.rar] : ""} ${P.slot === i ? "sel " + (s && isWeapon(s.kind) ? "w" : "") : ""}">${s ? ICON[s.kind] + `<span class="cnt">${isWeapon(s.kind) ? s.mag : s.count}</span>` : ""}<span class="k">${["1", "2", "3", "MOUSE4", "MOUSE3"][i]}</span></div>`));
@@ -2364,7 +2366,7 @@ void main(){
   var last = performance.now(), t = 0, PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0 };
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1e3);
-    last = now, t += dt, fpsN++, fpsT += dt, fpsT > 0.5 && (fpsV = Math.round(fpsN / fpsT), fpsN = 0, fpsT = 0);
+    last = now, t += dt, fpsN++, fpsT += dt, fpsT > 0.5 && (fpsV = Math.round(fpsN / fpsT), fpsN = 0, fpsT = 0, P.state === "play" && (lowT = fpsV < 30 ? lowT + 0.5 : 0, lowT >= 3 && (lowT = 0, (S.shadows > 1 ? S.shadows = 1 : S.grass > 0 ? S.grass = 0 : S.scale > 0.75 ? S.scale = 0.75 : S.shadows > 0 ? S.shadows = 0 : S.scale > 0.6 ? S.scale = 0.6 : S.viewDist > 0 ? S.viewDist = 0 : -1) !== -1 && info("Low FPS: quality lowered (Settings > Video)"))));
     let key = (c) => pressed.has(c), sun = norm([0.45, 0.8, 0.3]), aspect = innerWidth / innerHeight, gamepads = navigator.getGamepads ? navigator.getGamepads() : [], gp = null;
     for (let g of gamepads)
       if (g && g.connected) {
@@ -2574,13 +2576,14 @@ void main(){
       for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, !1, !0);
     }
     R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
-    let cull = P.state === "play" ? [130, 190, 320][S.viewDist] : 900;
-    for (let q of W.props) !q.dead && Math.abs(q.pos[0] - camPos[0]) < cull && Math.abs(q.pos[2] - camPos[2]) < cull && R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
-    for (let s of W.statics) if (!s.dead && Math.abs(s.pos[0] - camPos[0]) < cull && Math.abs(s.pos[2] - camPos[2]) < cull) {
+    let cull = P.state === "play" ? [130, 190, 320][S.viewDist] : 900, vis = (p) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && (p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18;
+    for (let q of W.props) !q.dead && vis(q.pos) && R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
+    for (let s of W.statics) if (!s.dead && vis(s.pos)) {
       let sh = s.shake || 0, sp = sh ? [s.pos[0] + Math.sin(t * 95) * sh * 0.12, s.pos[1], s.pos[2] + Math.cos(t * 81) * sh * 0.12] : s.pos;
       R.draw(s.mesh.startsWith("house") ? W.houseMeshes[+s.mesh.slice(5)] : M[s.mesh], trs(sp, s.yaw), [1, 1, 1], 1, 0, s.mesh !== "dash");
     }
     for (let p of W.pieces.values()) {
+      if (!vis(p.pos)) continue;
       let age = performance.now() / 1e3 - p.born, k = clamp(age / 0.18, 0, 1), sc = 0.6 + 0.4 * k, mesh = p.edit ? editedMesh(p.type, p.mat, p.edit) : M[`${p.type}_${p.mat}`], tint = k < 1 ? [0.6 + 0.4 * k, 0.8 + 0.2 * k, 1.3 - 0.3 * k] : p.hp < p.maxHp ? [1, 0.7 + 0.3 * p.hp / p.maxHp, 0.7 + 0.3 * p.hp / p.maxHp] : [1, 1, 1];
       R.draw(mesh, mul(trs(p.pos, p.dir * Math.PI / 2), trs([0, 0, 0], 0, 0, [sc, p.type === "wall" ? sc : 1, sc])), tint, 1, MAT_STYLE[p.mat]);
     }
