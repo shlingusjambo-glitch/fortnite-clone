@@ -56,7 +56,9 @@ class Kit {
       for (let k = 0; k < 8; k++) { const t0 = k / 8, t1 = (k + 1) / 8; this.boxes.push({ min: [-hw, H + rh * t0, -hd * (1 - t0)], max: [hw, H + rh * t1, hd * (1 - t0)] }); }
       b.box([0, H + rh + 0.05, 0], [w + 2 * ov, 0.14, 0.3], dk(rc, 0.8));                                             // ridge cap
       for (let k = 1; k < 6; k++) { const t = k / 6; b.box([0, H + rh * t + 0.02, -hd * (1 - t)], [w + 2 * ov, 0.05, 0.08], dk(rc, 0.88)); b.box([0, H + rh * t + 0.02, hd * (1 - t)], [w + 2 * ov, 0.05, 0.08], dk(rc, 0.88)); }  // shingle rows
-      b.box([0, H - 0.12, hd + 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim); b.box([0, H - 0.12, -hd - 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim);   // gutters
+      b.box([0, H - 0.12, hd + 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim); b.box([0, H - 0.12, -hd - 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim);   // fascia
+      for (const sz of [-1, 1]) { b.box([0, H - 0.3, sz * (hd + 0.1)], [w + 2 * ov, 0.14, 0.22], dk(this.p.trim, 0.85)); for (const sx of [-1, 1]) { b.cyl([sx * (w / 2 - 0.3), H / 2 - 0.1, sz * (hd - 0.05)], 0.07, 0.07, H - 0.4, dk(this.p.trim, 0.8), 8, true, true); b.box([sx * (w / 2 - 0.3), H - 0.35, sz * (hd - 0.1)], [0.16, 0.16, 0.5], dk(this.p.trim, 0.8)); } }   // gutters + downspouts
+      for (const sx of [-1, 1]) b.box([sx * (w / 2 + 0.02), H / 2 + 0.15, 0], [0.12, H - 0.3, 0.12], this.p.trim);   // corner boards
       b.tri([w / 2, H, -d / 2], [w / 2, H + rh, 0], [w / 2, H, d / 2], this.p.wall2); b.tri([-w / 2, H, d / 2], [-w / 2, H + rh, 0], [-w / 2, H, -d / 2], this.p.wall2);   // gable ends
     } else {
       b.quad([-hw, H, -hd], [hw, H, -hd], [0, H + rh, -hd], [0, H + rh, -hd], rc);

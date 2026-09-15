@@ -215,67 +215,35 @@ export interface CharMesh {
  * Anatomical curves, detailed facial features, tactical harnesses, ammo pouches, knee-pads, laced boots.
  */
 export function buildCharacter(r: Renderer, s: Skin, bulk = 1): CharMesh {
-  const mk = (f: (b: MB) => void) => { const b = new MB(); f(b); return b.build(r); };
-  const sw = (s.female ? 0.88 : 1.02) * bulk, black = rgb(0x1e1e24), darkGrey = rgb(0x30333b), gold = rgb(0xe6b422);
-
+  const mk = (f: (b: MB) => void, ao?: [number, number, number]) => { const b = new MB(); f(b); if (ao) aoY(b.d, ao[0], ao[1], ao[2]); return b.build(r); };
+  // Proportions ~7 heads: hips at 0.95, shoulders at 1.5, head top ~1.92. Meshes are built around their joint origins.
+  const sw = (s.female ? 0.86 : 1.0) * bulk, black = rgb(0x1e1e24), darkGrey = rgb(0x30333b), gold = rgb(0xe6b422), leather = rgb(0x4a3a2c);
   return {
     style: s.style,
-    torso: mk(b => {
-      // Sculpted Torso & Muscular Contour (waist to chest)
-      b.cyl([0, 0.72, 0], 0.26 * sw, 0.25 * sw, 0.14, s.pants, 20, true, true);         // hips
-      b.cyl([0, 0.85, 0], 0.24 * sw, 0.28 * sw, 0.24, s.top, 20, false, true);          // lower waist
-      b.cyl([0, 1.08, 0], 0.28 * sw, 0.36 * sw, 0.32, s.top, 20, false, true);          // ribcage & chest
-      b.sphere([0, 1.36, 0.04 * sw], 0.35 * sw, s.top, 14, 0.52, true, [0, 0.65]);       // pectoral curvature
-
-      // Tactical Collar & Neck
-      b.cyl([0, 1.44, 0], 0.11, 0.12, 0.14, s.skin, 14, false, true);                   // neck
-      b.torus([0, 1.45, 0], 0.14 * sw, 0.025, s.top2, 16, 8);                            // shirt collar ring
-
-      // Dog tag necklace (Jonesy style)
-      if (!s.female && !s.ribs) {
-        b.torus([0, 1.41, 0.05], 0.13 * sw, 0.008, rgb(0xaaaaaa), 16, 6);
-        b.box([0.02, 1.28, 0.22 * sw], [0.035, 0.05, 0.008], rgb(0xcccccc));
+    torso: mk(b => {   // origin = hip joint
+      b.sphere([0, 0.0, 0], 0.2 * sw, s.pants, 14, 0.7, true);                                        // pelvis
+      b.cyl([0, -0.02, 0], 0.19 * sw, 0.17 * sw, 0.16, s.pants, 16, false, true);                     // waistband
+      b.cyl([0, 0.14, 0], 0.17 * sw, 0.19 * sw, 0.18, s.top, 16, false, true);                        // abdomen
+      b.cyl([0, 0.32, 0], 0.19 * sw, 0.245 * sw, 0.22, s.top, 16, false, true);                       // ribcage
+      b.sphere([0, 0.47, 0.02], 0.25 * sw, s.top, 16, 0.55, true, [0, 0.6]);                          // chest
+      b.box([0, 0.5, 0], [0.5 * sw, 0.12, 0.26 * sw], s.top);                                          // shoulder yoke
+      for (const sx of [-1, 1]) b.sphere([sx * 0.25 * sw, 0.52, 0], 0.09 * sw, s.top, 10, 0.9, true); // deltoid roots
+      b.cyl([0, 0.6, 0], 0.075, 0.085, 0.12, s.skin, 12, false, true);                                // neck
+      b.torus([0, 0.58, 0], 0.11 * sw, 0.025, s.top2, 16, 8);                                         // collar
+      if (s.ribs) { for (let i = 0; i < 5; i++) { const y = 0.44 - i * 0.075, rw = (0.23 - i * 0.02) * sw; b.cyl([0, y, 0.13 * sw], rw * 0.5, rw * 0.5, 0.025, C.white, 12, true, true); } b.box([0, 0.3, 0.16 * sw], [0.05, 0.36, 0.02], C.white); }
+      else {
+        b.rbox([0, 0.34, 0.16 * sw], [0.38 * sw, 0.36, 0.07], s.top2, 0.03);                            // vest front
+        b.rbox([0, 0.34, -0.15 * sw], [0.36 * sw, 0.38, 0.07], s.top2, 0.03);                           // vest back
+        for (const sx of [-0.14, 0.14]) { b.box([sx * sw, 0.5, 0], [0.07, 0.03, 0.32 * sw], black); b.box([sx * sw, 0.44, 0.19 * sw], [0.06, 0.04, 0.02], rgb(0x888888)); }   // straps + clips
+        for (const x of [-0.11, 0.11]) { b.rbox([x * sw, 0.24, 0.2 * sw], [0.1, 0.12, 0.06], darkGrey, 0.02); b.box([x * sw, 0.28, 0.235 * sw], [0.02, 0.02, 0.01], gold); }   // pouches
+        b.box([-0.19 * sw, 0.38, 0.17 * sw], [0.05, 0.1, 0.04], black); b.cyl([-0.19 * sw, 0.44, 0.17 * sw], 0.006, 0.005, 0.12, black, 6);   // radio
+        b.box([0, 0.05, 0], [0.42 * sw, 0.07, 0.36 * sw], leather); b.box([0, 0.05, 0.19 * sw], [0.1, 0.08, 0.02], gold); b.box([0, 0.05, 0.2 * sw], [0.06, 0.04, 0.01], black);   // belt + buckle
+        b.cyl([0.21 * sw, 0.03, 0.02], 0.05, 0.05, 0.1, darkGrey, 10, true, true); b.rbox([-0.2 * sw, 0.03, 0.02], [0.07, 0.1, 0.12], darkGrey, 0.02);   // canteen, pouch
+        b.rbox([0, 0.3, -0.24 * sw], [0.26 * sw, 0.3, 0.13], dk(s.top2, 0.85), 0.03); b.box([0, 0.3, -0.31 * sw], [0.2 * sw, 0.16, 0.02], dk(s.top2, 0.7));   // backpack
       }
-
-      if (s.ribs) {
-        // Skull Trooper skeletal ribcage
-        for (let i = 0; i < 5; i++) {
-          const y = 1.34 - i * 0.09, rw = (0.34 - i * 0.028) * sw;
-          b.cyl([0, y, 0.18 * sw], rw * 0.5, rw * 0.5, 0.028, C.white, 12, true, true);
-        }
-        b.box([0, 1.16, 0.20 * sw], [0.06, 0.44, 0.025], C.white);                     // sternum
-      } else {
-        // High-Poly Tactical Combat Harness (dual cross-straps with metal buckles)
-        b.rbox([0, 1.22, 0.19 * sw], [0.52 * sw, 0.46, 0.08], s.top2, 0.03);            // vest front
-        b.rbox([0, 1.22, -0.19 * sw], [0.50 * sw, 0.48, 0.08], s.top2, 0.03);           // vest back
-        // Shoulder harness straps
-        for (const sx of [-0.18, 0.18]) {
-          b.box([sx * sw, 1.38, 0], [0.09, 0.04, 0.42 * sw], black);
-          b.box([sx * sw, 1.32, 0.23 * sw], [0.07, 0.05, 0.02], rgb(0x888888));         // strap clip
-        }
-        // Chest ammo pouches (flap covers with snap rivets)
-        for (const x of [-0.14, 0.14]) {
-          b.rbox([x * sw, 1.18, 0.24 * sw], [0.11, 0.14, 0.07], darkGrey, 0.02);
-          b.box([x * sw, 1.22, 0.28 * sw], [0.025, 0.025, 0.01], gold);                  // pouch snap
-        }
-        // Radio with antenna on left chest
-        b.box([-0.22 * sw, 1.26, 0.22 * sw], [0.06, 0.12, 0.05], black);
-        b.cyl([-0.22 * sw, 1.32, 0.22 * sw], 0.008, 0.006, 0.14, black, 8);             // antenna
-
-        // Utility Belt with heavy modeled buckle
-        b.box([0, 0.85, 0], [0.58 * sw, 0.08, 0.44 * sw], black);
-        b.box([0, 0.85, 0.23 * sw], [0.12, 0.09, 0.03], gold);                          // buckle
-        b.box([0, 0.85, 0.24 * sw], [0.07, 0.05, 0.02], black);                         // buckle inner
-
-        // Side canteen & utility pouches on belt
-        b.cyl([0.28 * sw, 0.85, 0], 0.06, 0.06, 0.11, darkGrey, 10, true, true);        // canteen
-        b.rbox([-0.27 * sw, 0.85, 0], [0.08, 0.11, 0.14], darkGrey, 0.02);             // pouch
-        // Compact back tactical pack
-        b.rbox([0, 1.12, -0.28 * sw], [0.30 * sw, 0.34, 0.15], dk(s.top2, 0.85), 0.03);
-      }
-    }),
-
-    head: mk(b => {
+    }, [-0.05, 0.5, 0.82]),
+    head: mk(b => {   // origin = neck top; face/hair geometry scaled to the new proportions
+      b.push(mul(translate(0, -0.06, 0), scaleM(0.76, 0.76, 0.76)));
       // High-Poly Sculpted Head
       b.sphere([0, 0.27, 0.01], 0.235, s.skin, 16, 1.12, true);                         // cranium & jaw
       b.sphere([0, 0.18, 0.12], 0.11, s.skin, 12, 0.85, true);                          // sculpted chin
@@ -351,68 +319,38 @@ export function buildCharacter(r: Renderer, s: Skin, bulk = 1): CharMesh {
       } else {
         b.sphere([0, 0.31, -0.02], 0.265, s.hair, 16, 1.08, true);
       }
+          b.pop();
     }),
 
-    upperArm: mk(b => {
-      // Deltoid shoulder cap & arm contour
-      b.sphere([0, 0, 0], 0.14 * sw, s.top, 14, 1.1, true);
-      b.cyl([0, -0.30, 0], 0.10 * sw, 0.13 * sw, 0.30, s.top, 14, false, true);         // bicep / tricep
-      // Rolled sleeve cuff
-      b.torus([0, -0.28, 0], 0.11 * sw, 0.022, s.top2, 14, 6);
-      if (s.ribs) b.sphere([0, -0.05, 0], 0.16 * sw, s.top, 10, 1, true);
+    upperArm: mk(b => {   // origin = shoulder joint, hangs down -y
+      b.sphere([0, 0, 0], 0.095 * sw, s.top, 12, 1.0, true);                                          // deltoid
+      b.cyl([0, -0.3, 0], 0.07 * sw, 0.085 * sw, 0.3, s.top, 12, false, true);                        // upper arm
+      b.torus([0, -0.26, 0], 0.078 * sw, 0.02, s.top2, 12, 6);                                        // sleeve cuff
+      b.sphere([0.04 * sw, -0.16, 0], 0.075 * sw, s.top, 10, 1.1, true);                               // bicep
     }),
-
-    foreArm: mk(b => {
-      // Sculpted forearm muscle anatomy
-      b.sphere([0, 0, 0], 0.105 * sw, s.skin, 12, 1, true);                             // elbow
-      b.cyl([0, -0.28, 0], 0.082, 0.10 * sw, 0.28, s.skin, 14, false, true);            // forearm
-      // Forearm cloth sweatband / tactical wrap with folds
-      b.torus([0, -0.16, 0], 0.092 * sw, 0.022, s.top2, 14, 6);
-      b.torus([0, -0.12, 0], 0.094 * sw, 0.022, s.top2, 14, 6);
-
-      // Tactical Combat Glove (wrist guard, knuckles, modeled thumb & fingers)
-      b.rbox([0, -0.29, 0.01], [0.12, 0.08, 0.09], black, 0.02);                       // glove cuff
-      b.rbox([0, -0.36, 0.01], [0.13, 0.12, 0.08], darkGrey, 0.02);                    // palm / back
-      b.rbox([0, -0.34, 0.05], [0.11, 0.03, 0.03], black, 0.01);                       // knuckle armor pad
-      // Modeled thumb & curled fingers
-      b.cyl([0.06, -0.34, 0.04], 0.022, 0.018, 0.06, s.skin, 8, true, true);            // thumb
-      for (let f = -1.5; f <= 1.5; f += 1.0) {
-        b.cyl([f * 0.03, -0.42, 0.01], 0.016, 0.014, 0.05, s.skin, 6, true, true);      // fingers
-      }
+    foreArm: mk(b => {   // origin = elbow
+      b.sphere([0, 0, 0], 0.068 * sw, s.skin, 10, 1, true);
+      b.cyl([0, -0.29, 0], 0.052, 0.068 * sw, 0.29, s.skin, 12, false, true);
+      b.torus([0, -0.17, 0], 0.062 * sw, 0.018, s.top2, 12, 6); b.torus([0, -0.13, 0], 0.063 * sw, 0.018, s.top2, 12, 6);   // wraps
+      b.rbox([0, -0.31, 0.005], [0.1, 0.06, 0.08], black, 0.02);                                      // glove cuff
+      b.rbox([0, -0.38, 0.01], [0.1, 0.11, 0.07], darkGrey, 0.02);                                     // hand
+      b.cyl([0.05, -0.36, 0.03], 0.018, 0.015, 0.05, s.skin, 6, true, true);                            // thumb
+      for (let k = -1.5; k <= 1.5; k += 1) b.cyl([k * 0.024, -0.45, 0.01], 0.013, 0.011, 0.045, s.skin, 6, true, true);
     }),
-
-    thigh: mk(b => {
-      // Sculpted Thigh Muscle Contour
-      b.sphere([0, 0, 0], 0.145, s.pants, 14, 1.1, true);                               // hip ball
-      b.cyl([0, -0.40, 0], 0.125, 0.145, 0.40, s.pants, 16, false, true);               // thigh
-      // 3D Outer Cargo Pocket with flap & button
-      b.rbox([0.06, -0.22, 0.08], [0.14, 0.16, 0.07], dk(s.pants, 0.85), 0.02);
-      b.box([0.06, -0.15, 0.12], [0.14, 0.04, 0.02], dk(s.pants, 0.72));              // pocket flap
+    thigh: mk(b => {   // origin = hip joint
+      b.sphere([0, 0, 0], 0.11, s.pants, 12, 1.0, true);
+      b.cyl([0, -0.23, 0], 0.095, 0.115, 0.46, s.pants, 14, false, true);
+      b.rbox([0.05, -0.2, 0.07], [0.11, 0.14, 0.06], dk(s.pants, 0.85), 0.02); b.box([0.05, -0.14, 0.1], [0.11, 0.035, 0.02], dk(s.pants, 0.72));   // cargo pocket
     }),
-
-    shin: mk(b => {
-      // Knee joint with tactical hard-shell knee pad
-      b.sphere([0, 0, 0], 0.125, s.pants, 12, 1, true);
-      b.rbox([0.01, -0.03, 0.11], [0.14, 0.15, 0.07], black, 0.025);                   // knee pad plate
-      b.box([0.01, -0.03, -0.11], [0.12, 0.10, 0.03], black);                          // knee pad back straps
-
-      // Calf taper into combat boot
-      b.cyl([0, -0.30, 0], 0.11, 0.12, 0.30, s.pants, 14, false, true);
-
-      // High-Poly Laced Combat Boot
-      b.push(scaleM(1, 1, 1.25));
-      b.cyl([0, -0.40, 0.02], 0.128, 0.115, 0.15, s.boots, 16, true, true);            // boot cuff
-      b.pop();
-      b.rbox([0, -0.36, 0.06], [0.22, 0.12, 0.34], s.boots, 0.03);                     // boot body
-      b.box([0, -0.44, 0.06], [0.24, 0.06, 0.38], black);                              // thick tread sole
-      // Silver lace eyelets & crossed laces
-      for (let k = 0; k < 3; k++) {
-        const y = -0.32 - k * 0.04;
-        b.box([-0.04, y, 0.17], [0.018, 0.018, 0.01], rgb(0xbbbbbb));
-        b.box([0.04, y, 0.17], [0.018, 0.018, 0.01], rgb(0xbbbbbb));
-        b.box([0, y, 0.175], [0.08, 0.01, 0.008], rgb(0x888888));                       // lace cross
-      }
-    }),
+    shin: mk(b => {   // origin = knee
+      b.sphere([0, 0, 0], 0.095, s.pants, 12, 1, true);
+      b.rbox([0.01, -0.02, 0.085], [0.12, 0.13, 0.06], black, 0.025);                                  // knee pad
+      b.cyl([0, -0.25, 0], 0.075, 0.09, 0.4, s.pants, 12, false, true);                                // calf
+      b.cyl([0, -0.42, 0.01], 0.09, 0.085, 0.12, s.boots, 14, true, true);                              // boot cuff
+      b.rbox([0, -0.47, 0.05], [0.17, 0.1, 0.28], s.boots, 0.03);                                       // boot
+      b.box([0, -0.52, 0.05], [0.18, 0.05, 0.3], black);                                                // sole
+      for (let k = 0; k < 3; k++) { const y = -0.43 - k * 0.03; b.box([-0.03, y, 0.13], [0.014, 0.014, 0.01], rgb(0xbbbbbb)); b.box([0.03, y, 0.13], [0.014, 0.014, 0.01], rgb(0xbbbbbb)); b.box([0, y, 0.135], [0.06, 0.008, 0.006], rgb(0x888888)); }
+    }, [-0.55, -0.3, 0.8]),
   };
 }
 
@@ -931,36 +869,35 @@ export function buildModels(r: Renderer): Models {
 
   // ==================== HIGH-POLY VEGETATION & NATURE ====================
   // Pine Tree: Layered conical conifer with textured needle fronds (matching Image 1 & 3)
-  M.pine = mkAO(0, 7.5, 0.5, b => {
-    b.cyl([0, 0, 0], 0.38, 0.14, 8.4, C.trunk, 12, true, true);                         // tapered trunk
-    for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; b.push(mul(translate(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3), rotY(a))); b.cyl([0, 0, 0], 0.14, 0.04, 0.7, C.trunkDark, 8, true, true); b.pop(); }
-    // stacked needle tiers: each tier is a slightly scalloped cone (lobed by 8 overlapping sub-cones) with a lighter tip band
-    const tiers = 6;
+  M.pine = mkAO(0, 7.5, 0.5, b => {   // fir: visible tapered trunk, 7 drooping jagged tiers that shrink and rotate up the trunk, pale tips
+    b.cyl([0, 0, 0], 0.42, 0.12, 9.0, C.trunk, 10, true, false);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283; b.push(mul(translate(Math.cos(a) * 0.32, 0, Math.sin(a) * 0.32), rotY(a))); b.cyl([0, 0, 0], 0.16, 0.04, 0.8, C.trunkDark, 6, true, false); b.pop(); }
+    const tiers = 7;
     for (let i = 0; i < tiers; i++) {
-      const y = 1.3 + i * 1.15, rB = 3.1 - i * 0.45, h = 1.9, col = i % 2 ? C.pine2 : C.pine;
-      b.cyl([0, y, 0], rB, 0.15, h, col, 18, false, true);
-      for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283 + i * 0.4, rr = rB * 0.55; b.cyl([Math.cos(a) * rr, y - 0.15, Math.sin(a) * rr], rB * 0.5, 0.05, h * 0.7, dk(col, 0.92), 8, false, true); }
-      b.cyl([0, y + h * 0.55, 0], rB * 0.45, 0.1, h * 0.45, lt(col, 0.12), 12, false, true);   // sunlit tip
+      const y = 1.6 + i * 1.05, rB = 3.0 - i * 0.38, col = i % 2 ? C.pine2 : C.pine, seg = 7;
+      b.push(mul(translate(0, y, 0), rotY(i * 0.45)));
+      b.cyl([0, 0.0, 0], rB, 0.12, 1.5 + rB * 0.15, col, seg, false, false);                  // main tier (flat-shaded, jagged rim)
+      b.cyl([0, -0.35, 0], rB * 0.82, rB * 0.55, 0.5, dk(col, 0.8), seg, false, false);       // drooping underside skirt
+      b.cyl([0, 0.9, 0], rB * 0.5, 0.08, 0.9, lt(col, 0.14), seg, false, false);               // sunlit inner tip
+      b.pop();
     }
-    b.cyl([0, 8.0, 0], 0.55, 0.04, 1.3, lt(C.pine, 0.1), 10, true, true);              // crown
+    b.cyl([0, 8.6, 0], 0.5, 0.03, 1.5, lt(C.pine, 0.18), 6, true, false);                       // crown
   });
 
   // Oak Tree: Smooth organic trunk splitting into lush cartoon leaf boughs (Image 1 & 2)
-  M.tree = mkAO(0, 6.5, 0.55, b => {
-    b.cyl([0, 0, 0], 0.5, 0.34, 3.8, C.trunk, 14, true, true);
-    for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.4; b.cyl([Math.cos(a) * 0.45, 0.12, Math.sin(a) * 0.45], 0.2, 0.05, 0.5, C.trunkDark, 8, true, true); }   // root flare
-    for (let i = 0; i < 5; i++) {   // boughs
-      const a = (i / 5) * Math.PI * 2;
-      b.push(mul(translate(Math.cos(a) * 0.22, 2.7 + (i % 2) * 0.4, Math.sin(a) * 0.22), mul(rotY(a), rotX(0.95))));
-      b.cyl([0, 0, 0], 0.18, 0.07, 2.3, C.trunk, 10, true, true);
-      b.pop();
-    }
-    // lumpy multi-lobe canopy: big core + ring of lobes + second smaller ring + crown, each lobe slightly squashed
-    b.sphere([0, 5.1, 0], 2.5, C.leaf, 16, 0.8, true);
-    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, rr = 1.9; b.sphere([Math.cos(a) * rr, 4.5 + (i % 2) * 0.7, Math.sin(a) * rr], 1.35 + (i % 3) * 0.15, i % 2 ? C.leaf2 : C.leaf3, 12, 0.88, true); }
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.5, rr = 1.3; b.sphere([Math.cos(a) * rr, 6.2, Math.sin(a) * rr], 1.1, i % 2 ? C.leaf : C.leaf3, 12, 0.85, true); }
-    b.sphere([0.3, 6.9, 0.2], 1.4, lt(C.leaf, 0.18), 12, 0.8, true);                     // sunlit crown
-    b.sphere([-1.2, 3.9, 1.4], 0.9, dk(C.leaf2, 0.85), 10, 0.9, true);                   // shaded underside lobe
+  M.tree = mkAO(0, 6.5, 0.55, b => {   // oak: flared tapered trunk, four thick boughs, canopy of ~22 irregular lobes in three tiers with gaps between them
+    b.cyl([0, 0, 0], 0.62, 0.36, 4.2, C.trunk, 12, true, true);
+    for (let i = 0; i < 5; i++) { const a = i * 1.26 + 0.4; b.push(mul(translate(Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5), rotY(a))); b.cyl([0, 0, 0], 0.28, 0.06, 0.9, C.trunkDark, 6, true, true); b.pop(); }   // root flare
+    for (let i = 0; i < 12; i++) { const a = i / 12 * 6.283, y = 0.3 + (i % 4) * 0.9; b.box([Math.cos(a) * 0.5, y, Math.sin(a) * 0.5], [0.08, 0.5 + (i % 3) * 0.2, 0.08], dk(C.trunk, 0.8)); }   // bark ridges
+    const boughs: [number, number, number][] = [[0.3, 2.9, 1.0], [2.0, 3.3, 0.9], [3.9, 3.0, 1.1], [5.4, 3.6, 0.85]];
+    for (const [a, y, l] of boughs) { b.push(mul(translate(Math.cos(a) * 0.25, y, Math.sin(a) * 0.25), mul(rotY(-a + 1.57), rotX(1.05)))); b.cyl([0, 0, 0], 0.22, 0.08, 2.6 * l, C.trunk, 8, true, true); b.pop(); }
+    let seed = 3; const rr = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const lobe = (x: number, y: number, z: number, r: number, c: Col) => b.sphere([x, y, z], r, c, 9, 0.72 + rr() * 0.2, true);
+    for (let i = 0; i < 9; i++) { const a = i / 9 * 6.283 + rr() * 0.4, d = 1.9 + rr() * 0.6; lobe(Math.cos(a) * d, 4.4 + rr() * 0.6, Math.sin(a) * d, 1.15 + rr() * 0.35, i % 2 ? C.leaf2 : dk(C.leaf, 0.92)); }   // lower ring (shaded)
+    for (let i = 0; i < 8; i++) { const a = i / 8 * 6.283 + 0.35 + rr() * 0.4, d = 1.5 + rr() * 0.5; lobe(Math.cos(a) * d, 5.6 + rr() * 0.6, Math.sin(a) * d, 1.2 + rr() * 0.35, i % 2 ? C.leaf : C.leaf3); }   // middle ring
+    for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283 + rr(), d = 0.7 + rr() * 0.5; lobe(Math.cos(a) * d, 6.7 + rr() * 0.5, Math.sin(a) * d, 1.05 + rr() * 0.3, lt(C.leaf3, 0.1)); }   // crown (sunlit)
+    lobe(0, 5.3, 0, 1.9, C.leaf2);                                                              // core fill
+    lobe(0.4, 7.4, 0.2, 0.95, lt(C.leaf3, 0.25));
   });
 
   M.tree2 = mkAO(0, 6.5, 0.55, b => {   // birch: pale trunk with dark bark marks, airy yellow-green canopy of small lobes
@@ -1123,6 +1060,8 @@ export function buildModels(r: Renderer): Models {
     let seed = 7; const rr = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     for (let i = 0; i < 44; i++) { const a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50; b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(0x6f8a6a) : rgb(0x8a8f86), 5, false, false); if (h > 85) b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(0xf0f4f8), 5, false, false); }
   });
+  M.pole = mkAO(0, 2.5, 0.65, b => { const w = rgb(0x7a6248); b.cyl([0, 0, 0], 0.16, 0.13, 9.0, w, 8, true, true); b.box([0, 8.4, 0], [2.2, 0.14, 0.14], w); b.box([0, 7.6, 0], [1.6, 0.12, 0.12], w); for (const x of [-0.9, -0.3, 0.3, 0.9]) b.cyl([x, 8.55, 0], 0.05, 0.05, 0.16, rgb(0x6fb3c8), 6, true, true); b.box([0.5, 4.5, 0], [0.5, 0.7, 0.5], rgb(0x9aa0a6)); });   // telephone pole + transformer
+  M.flowers = mkAO(0, 0.3, 0.8, b => { let sd = 5; const rr = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; }; for (let k = 0; k < 14; k++) { const x = (rr() - 0.5) * 2.4, z = (rr() - 0.5) * 2.4, c = [C.red, C.yellow, rgb(0xff5ab3), C.white, rgb(0xff8a1e)][k % 5]; b.cyl([x, 0, z], 0.02, 0.015, 0.3, dk(C.leaf2, 0.8), 5, true, true); b.sphere([x, 0.32, z], 0.07, c, 6, 0.7, true); } b.sphere([0, 0.1, 0], 0.9, dk(C.leaf2, 0.9), 8, 0.25, true); });
   M.curb = mkAO(0, 0.3, 0.75, b => { b.box([0, 0.12, 0], [0.5, 0.24, 8], rgb(0xb8b6ae)); b.box([0.9, 0.1, 0], [1.4, 0.2, 8], rgb(0xa9a7a0)); for (let k = -3; k <= 3; k++) b.box([0.9, 0.21, k * 1.15], [1.42, 0.01, 0.04], rgb(0x8f8d86)); });   // curb + sidewalk slabs
   M.sign = mkAO(0, 1.0, 0.7, b => { b.cyl([0, 0, 0], 0.05, 0.05, 2.6, rgb(0x7a7f86), 8, true, true); b.box([0, 2.5, 0], [0.9, 0.22, 0.04], rgb(0x2f8a3a)); b.box([0, 2.5, 0.025], [0.7, 0.1, 0.01], C.white); b.box([0, 1.9, 0], [0.6, 0.6, 0.04], rgb(0xd83030)); b.box([0, 1.9, 0.025], [0.4, 0.08, 0.01], C.white); });
   M.bridge = mkAO(-2, 0.5, 0.7, b => { const w = rgb(0x9a7a50); for (let i = 0; i < 16; i++) b.plank([0, 0.3, -3.75 + i * 0.5], [4.4, 0.16, 0.46], w, 0.02); for (const sx of [-2.1, 2.1]) { b.box([sx, 0.15, 0], [0.25, 0.4, 8], dk(w, 0.7)); b.box([sx, 1.1, 0], [0.08, 0.08, 8], dk(w, 0.8)); for (let k = -3; k <= 3; k++) b.box([sx, 0.7, k * 1.2], [0.1, 0.9, 0.1], dk(w, 0.8)); } for (const sz of [-3, 0, 3]) for (const sx of [-1.8, 1.8]) b.cyl([sx, -2, sz], 0.2, 0.2, 2.5, dk(w, 0.6), 8, true, true); });
@@ -1159,9 +1098,9 @@ export function buildModels(r: Renderer): Models {
     b.push(mul(translate(0, 4.8, 0), rotZ(-1.35)));
     b.cyl([0, 0, 0], 0.07, 0.05, 1.15, rgb(0x2a2c30), 10, true, true);                     // arm
     b.pop();
-    b.box([1.05, 4.9, 0], [0.7, 0.16, 0.36], rgb(0x2a2c30));                              // head housing
-    b.box([1.05, 4.78, 0], [0.6, 0.08, 0.3], rgb(0xfff6d0));                              // lens
-    b.sphere([1.05, 4.7, 0], 0.16, rgb(0xfff6d0), 10, 0.8, true);
+    b.box([1.05, 4.9, 0], [0.5, 0.12, 0.26], rgb(0x2a2c30));                              // head housing
+    b.box([1.05, 4.82, 0], [0.42, 0.05, 0.2], rgb(0xfff6d0));                             // lens
+    b.sphere([1.05, 4.76, 0], 0.1, rgb(0xfff6d0), 10, 0.8, true);
   });
 
   M.bench = mkAO(0, 0.5, 0.7, b => {

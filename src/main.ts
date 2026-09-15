@@ -21,7 +21,7 @@ const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600
 // ---------------- baked static clutter ----------------
 // Small indestructible street/yard props (hedges, fences, dashes, crates, benches...) are merged per 48m cell into one
 // mesh each: ~600 draw calls become ~40. Cars, houses and lamps stay individual (they can be harvested / shake).
-const BAKE = new Set(['dash', 'hedge', 'fence', 'mailbox', 'bench', 'crate', 'dumpster', 'fountain', 'bridge', 'curb', 'sign', 'bush', 'rock']);
+const BAKE = new Set(['dash', 'hedge', 'fence', 'mailbox', 'bench', 'crate', 'dumpster', 'fountain', 'bridge', 'curb', 'sign', 'bush', 'rock', 'pole', 'flowers']);
 const baked: { mesh: Mesh; c: V3 }[] = [];
 {
   const cells = new Map<string, { data: number[]; c: V3 }>();
@@ -535,18 +535,19 @@ function drawHud() {
 type Pose = 'idle' | 'aim' | 'pick' | 'sky' | 'glide' | 'lobby' | 'build' | 'crouch' | 'emote';
 interface AnimIn { anim: number; speed: number; grounded: boolean; pitch: number; pose: Pose; swing?: number; held?: string; sprint?: boolean; emote?: number; }
 function drawChar(ch: CharMesh, root: M4, a: AnimIn) {
-  const st = ch.style, ph = a.anim, sp = clamp(a.speed / 6, 0, 1.3), s1 = Math.sin(ph), c1 = Math.cos(ph);
-  let lean = a.sprint ? 0.28 : 0.05, bob = a.grounded ? Math.abs(Math.sin(ph)) * 0.05 * sp : 0, drop = 0;
-  // legs
-  let thL = -s1 * 0.75 * sp, thR = s1 * 0.75 * sp, shL = Math.max(0, c1) * 1.1 * sp, shR = Math.max(0, -c1) * 1.1 * sp;
-  if (!a.grounded && a.pose !== 'sky' && a.pose !== 'glide') { thL = -0.5; thR = 0.2; shL = 1.2; shR = 0.9; }
-  // arms: [upper rotX, upper rotZ(out), fore rotX]
-  let uL = s1 * 0.6 * sp, uR = -s1 * 0.6 * sp, fL = -0.5 - Math.max(0, s1) * 0.4 * sp, fR = -0.5 - Math.max(0, -s1) * 0.4 * sp, zL = 0.12, zR = -0.12, hR = -0.1;
-  if (a.pose === 'aim' || a.pose === 'build') { const p = -a.pitch * 0.6; uR = -0.9 + p; fR = -1.2; zR = -0.1; uL = -1.2 + p; fL = -0.9; zL = 0.7; }
-  if (a.pose === 'pick') { const sw = a.swing && a.swing > 0 ? Math.sin(a.swing * 6.3) : 0; uR = -1.2 - sw * 1.6; fR = -0.9 + sw * 0.5; zR = 0.1; }
+  const st = ch.style, ph = a.anim, sp = clamp(a.speed / 6, 0, 1.3), s1 = Math.sin(ph), c1 = Math.cos(ph), idle = sp < 0.05 && a.grounded;
+  let lean = a.sprint ? 0.32 : 0.06 + sp * 0.08, bob = a.grounded ? Math.abs(Math.sin(ph)) * 0.06 * sp : 0, drop = 0, twist = s1 * 0.12 * sp;
+  // legs: thigh swing + knee bend on the back swing, high knees when sprinting
+  let thL = -s1 * 0.85 * sp, thR = s1 * 0.85 * sp, shL = (Math.max(0, -c1) * 1.3 + 0.1) * sp, shR = (Math.max(0, c1) * 1.3 + 0.1) * sp;
+  if (!a.grounded && a.pose !== 'sky' && a.pose !== 'glide') { thL = -0.6; thR = 0.25; shL = 1.3; shR = 1.0; }
+  // arms: [upper rotX, upper rotZ(out), fore rotX(bend)]
+  let uL = s1 * 0.7 * sp, uR = -s1 * 0.7 * sp, fL = -0.6 - Math.max(0, s1) * 0.5 * sp, fR = -0.6 - Math.max(0, -s1) * 0.5 * sp, zL = 0.1, zR = -0.1;
+  if (idle) { const br = Math.sin(t * 1.8); uL = 0.05 + br * 0.03; uR = -0.05 - br * 0.03; fL = fR = -0.35; zL = 0.12; zR = -0.12; bob = br * 0.008; thL = thR = 0; shL = shR = 0.04; }
+  if (a.pose === 'aim' || a.pose === 'build') { const p = -a.pitch * 0.6; uR = -1.35 + p; fR = -0.9; zR = -0.25; uL = -1.25 + p; fL = -1.15; zL = 0.75; }   // two-handed hold, left on the foregrip
+  if (a.pose === 'pick') { const sw = a.swing && a.swing > 0 ? Math.sin(a.swing * 6.3) : 0; uR = -1.3 - sw * 1.6; fR = -0.8 + sw * 0.5; zR = 0.05; uL = -0.4; fL = -0.9; zL = 0.4; }
   if (a.pose === 'sky') { uL = uR = -2.4; zL = 1.1; zR = -1.1; fL = fR = -0.3; thL = 0.3; thR = 0.3; shL = shR = 0.2; lean = 1.25; }
   if (a.pose === 'glide') { uL = uR = -2.9; zL = 0.35; zR = -0.35; fL = fR = -0.4; thL = thR = 0.2; shL = shR = 0.3; lean = 0.15; }
-  if (a.pose === 'lobby') { uL = 0.1; uR = -0.1; fL = fR = -0.35; zL = 0.18; zR = -0.18; thL = thR = shL = shR = 0; lean = 0; }
+  if (a.pose === 'lobby') { uL = 0.1; uR = -0.1; fL = fR = -0.35; zL = 0.18; zR = -0.18; thL = thR = shL = shR = 0; lean = 0; twist = 0; }
   let yawWig = 0;
   if (a.pose === 'emote') {   // 0 dance, 1 wave, 2 floss, 3 take the L
     const e = a.emote ?? 0, w = t * 6;
@@ -555,19 +556,19 @@ function drawChar(ch: CharMesh, root: M4, a: AnimIn) {
     else if (e === 2) { const f = Math.sin(w * 1.4); uL = -0.9; uR = -0.9; fL = -0.9; fR = -0.9; zL = 0.3 + f * 0.5; zR = -0.3 + f * 0.5; yawWig = f * 0.35; thL = thR = 0; shL = shR = 0; bob = Math.abs(f) * 0.05; }
     else { uL = -2.9; fL = -1.3; zL = 0.2; uR = -0.4; fR = -1.5; zR = -0.5; thL = -0.9; thR = 0.3; shL = 1.6; shR = 0.5; drop = 0.35; yawWig = Math.sin(w) * 0.1; }
   }
-  if (a.pose === 'crouch') { drop = 0.55; thL = thR = -1.1; shL = shR = 1.5; lean = 0.35; uR = -1.35 - a.pitch; fR = -0.35; uL = -1.1 - a.pitch; fL = -1.0; zL = 0.55; }
-  const m = mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig));
-  const hip = mul(m, translate(0, 0.9, 0));
-  const upper = mul(hip, rotX(lean));                                     // torso + arms + head pivot at hips
-  R.draw(ch.torso, mul(mul(upper, translate(0, -0.78, 0)), scaleM(0.94, 1, 0.94)), [1, 1, 1], 1, st);
-  R.draw(ch.head, mul(mul(mul(upper, translate(0, 0.78, 0)), rotX(-a.pitch * 0.5 - lean * 0.6)), scaleM(0.84, 0.84, 0.84)), [1, 1, 1], 1, st);
-  const armM = (side: number, u: number, z: number, f: number) => { const sh = mul(mul(mul(upper, translate(side * 0.4, 0.67, 0)), rotZ(-side * z)), rotX(u)); R.draw(ch.upperArm, sh, [1, 1, 1], 1, st); const el = mul(mul(sh, translate(0, -0.32, 0)), rotX(f)); R.draw(ch.foreArm, el, [1, 1, 1], 1, st); return mul(el, translate(0, -0.33, 0)); };
+  if (a.pose === 'crouch') { drop = 0.5; thL = thR = -1.15; shL = shR = 1.6; lean = 0.4; uR = -1.35 - a.pitch; fR = -0.35; uL = -1.1 - a.pitch; fL = -1.0; zL = 0.55; }
+  const m = mul(mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig)), scaleM(0.93, 0.93, 0.93));
+  const hip = mul(m, translate(0, 1.0, 0));
+  const upper = mul(mul(hip, rotX(lean)), rotY(twist));                                  // torso + arms + head pivot at hips
+  R.draw(ch.torso, upper, [1, 1, 1], 1, st);
+  R.draw(ch.head, mul(mul(upper, translate(0, 0.66, 0)), rotX(-a.pitch * 0.5 - lean * 0.7)), [1, 1, 1], 1, st);
+  const armM = (side: number, u: number, z: number, f: number) => { const sh = mul(mul(mul(upper, translate(side * 0.27, 0.5, 0)), rotZ(-side * z)), rotX(u)); R.draw(ch.upperArm, sh, [1, 1, 1], 1, st); const el = mul(mul(sh, translate(0, -0.31, 0)), rotX(f)); R.draw(ch.foreArm, el, [1, 1, 1], 1, st); return mul(el, translate(0, -0.38, 0)); };
   const handR = armM(-1, uR, zR, fR); armM(1, uL, zL, fL);
-  const legM = (side: number, th: number, sh: number) => { const h = mul(mul(hip, translate(side * 0.16, 0, 0)), rotX(th)); R.draw(ch.thigh, mul(h, scaleM(1, 1.15, 1)), [1, 1, 1], 1, st); R.draw(ch.shin, mul(mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), scaleM(1, 1.12, 1)), [1, 1, 1], 1, st); };
+  const legM = (side: number, th: number, sh: number) => { const h = mul(mul(hip, translate(side * 0.12, 0, 0)), rotX(th)); R.draw(ch.thigh, h, [1, 1, 1], 1, st); R.draw(ch.shin, mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), [1, 1, 1], 1, st); };
   legM(1, thL, shL); legM(-1, thR, shR);
-  if (a.held === 'pickaxe') R.draw(M.pickaxe, mul(handR, mul(translate(0, 0, 0.05), rotX(1.4))));
-  else if (a.held) { const aiming = a.pose === 'aim' || a.pose === 'crouch'; const gm = aiming ? mul(mul(upper, translate(-0.38, 0.55, 0.3)), mul(rotY(-0.2), rotX(-a.pitch * 0.6))) : mul(mul(upper, translate(-0.3, 0.1, 0.25)), mul(rotY(0.5), rotX(-0.9))); R.draw(M[a.held], mul(gm, trs([0, 0, 0], 0, 0, 1.6))); }
-  if (a.pose === 'glide') R.draw(M.glider, mul(m, translate(0, 2.55, 0.15)));
+  if (a.held === 'pickaxe') R.draw(M.pickaxe, mul(handR, mul(translate(0, 0.05, 0.04), rotX(1.4))));
+  else if (a.held) { const aiming = a.pose === 'aim' || a.pose === 'crouch'; const gm = aiming ? mul(mul(upper, translate(-0.2, 0.36, 0.34)), mul(rotY(-0.08), rotX(-a.pitch * 0.6))) : mul(mul(upper, translate(-0.28, -0.02, 0.2)), mul(rotY(0.45), rotX(-0.95))); R.draw(M[a.held], mul(gm, trs([0, 0, 0], 0, 0, 1.45))); }
+  if (a.pose === 'glide') R.draw(M.glider, mul(m, translate(0, 2.6, 0.15)));
 }
 
 // ---------------- settings, lobby scaling, emotes ----------------

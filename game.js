@@ -109,6 +109,12 @@ void main(){
     vec3 dirt = vec3(0.62, 0.50, 0.34) * (0.9 + 0.2 * v3);
     float dk = smoothstep(0.18, 0.3, slope) * (1.0 - rk);
     col = mix(mix(grass, dirt, dk), rock, rk);
+    float grey = 1.0 - smoothstep(0.02, 0.08, abs(vCol.r - vCol.g) + abs(vCol.g - vCol.b));
+    if (grey > 0.5 && vCol.r < 0.55) {   // asphalt: speckle, tyre-worn lanes, hairline cracks
+      float sp = vn(vWorld.xz * 9.0), cr = smoothstep(0.48, 0.5, abs(vn(vWorld.xz * 0.9 + 7.0) - 0.5)) ;
+      col = vCol * (0.82 + 0.25 * sp) * (1.0 - 0.35 * (1.0 - cr) * step(0.0, 1.0)) ;
+      col = mix(col, col * 0.75, (1.0 - cr) * 0.6); rough = 0.95;
+    }
     if (rk > 0.5) rough = 0.9;
   }
   else if (st == 6) {            // animated cartoon water with specular
@@ -142,7 +148,7 @@ void main(){
   float lit = 1.0;
   if (s.x > 0.0 && s.x < 1.0 && s.y > 0.0 && s.y < 1.0 && s.z < 1.0) {
     float bias = 0.0012 + 0.0025 * (1.0 - d);
-    if (uShadowQ > 1.5) { lit = 0.0; for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + vec2(i, j) * uTexel, s.z - bias)); lit /= 9.0; }
+    if (uShadowQ > 1.5) { lit = 0.0; for (int i = -2; i <= 1; i++) for (int j = -2; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + (vec2(i, j) + 0.5) * uTexel, s.z - bias)); lit /= 16.0; }
     else if (uShadowQ > 0.5) lit = texture(uShadow, vec3(s.xy, s.z - bias));
   }
   float hemi = 0.5 + 0.5 * n.y;
@@ -164,8 +170,8 @@ void main(){
   float f = 1.0 - exp(-dist * uFogD);
   vec3 fogC = mix(uFog, vec3(0.86, 0.90, 0.97), clamp(1.0 - (vWorld.y - uCam.y) * 0.004, 0.0, 1.0));   // haze bluer/brighter toward the horizon
   c = mix(c, fogC, clamp(f, 0.0, 0.94));
-  c = pow(c * 1.06, vec3(0.95));
-  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.02);
+  c *= 1.15; c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);   // ACES-style tonemap: controlled highlights, richer mids
+  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.06);
   o = vec4(c, uAlpha);
 }`, DVS = `#version 300 es
 layout(location=0) in vec3 aPos; uniform mat4 uLVP, uM; void main(){ gl_Position = uLVP * uM * vec4(aPos,1.0); }`, DFS = `#version 300 es
@@ -249,7 +255,7 @@ void main(){
         let r = norm(cross(cam.fwd, [0, 1, 0])), u = cross(r, cam.fwd);
         gl.useProgram(this.sprog), gl.depthMask(!1), gl.disable(gl.CULL_FACE), gl.uniform3fv(this.su.uF, cam.fwd), gl.uniform3fv(this.su.uR, r), gl.uniform3fv(this.su.uU, u), gl.uniform3fv(this.su.uSun, sun), gl.uniform3fv(this.su.uCam, cam.pos), gl.uniform1f(this.su.uT, t2), gl.uniform1f(this.su.uAsp, cam.aspect), gl.uniform1f(this.su.uTan, Math.tan(cam.fov / 2)), gl.bindVertexArray(this.emptyVao), gl.drawArrays(gl.TRIANGLES, 0, 3), gl.depthMask(!0), gl.enable(gl.CULL_FACE);
       }
-      gl.useProgram(this.prog), gl.uniformMatrix4fv(this.u.uVP, !1, vp), gl.uniformMatrix4fv(this.u.uLVP, !1, lvp), gl.uniform3fv(this.u.uCam, cam.pos), gl.uniform3fv(this.u.uSun, sun), gl.uniform3fv(this.u.uFog, this.fog), gl.uniform1f(this.u.uTexel, 1 / SM), gl.uniform1f(this.u.uT, t2), gl.uniform1f(this.u.uFogD, 32e-4 / (1 + Math.max(0, cam.pos[1] - 25) / 30)), gl.activeTexture(gl.TEXTURE0), gl.bindTexture(gl.TEXTURE_2D, this.shadowTex), gl.uniform1i(this.u.uShadow, 0), gl.uniform1f(this.u.uShadowQ, this.shadows);
+      gl.useProgram(this.prog), gl.uniformMatrix4fv(this.u.uVP, !1, vp), gl.uniformMatrix4fv(this.u.uLVP, !1, lvp), gl.uniform3fv(this.u.uCam, cam.pos), gl.uniform3fv(this.u.uSun, sun), gl.uniform3fv(this.u.uFog, this.fog), gl.uniform1f(this.u.uTexel, 1 / SM), gl.uniform1f(this.u.uT, t2), gl.uniform1f(this.u.uFogD, 21e-4 / (1 + Math.max(0, cam.pos[1] - 25) / 30)), gl.activeTexture(gl.TEXTURE0), gl.bindTexture(gl.TEXTURE_2D, this.shadowTex), gl.uniform1i(this.u.uShadow, 0), gl.uniform1f(this.u.uShadowQ, this.shadows);
       let one = (it) => {
         gl.uniformMatrix4fv(this.u.uM, !1, it.mat), gl.uniform3fv(this.u.uTint, it.tint), gl.uniform1f(this.u.uAlpha, it.alpha), gl.uniform1f(this.u.uStyle, it.style), gl.bindVertexArray(it.m.vao), gl.drawArrays(gl.TRIANGLES, 0, it.m.n);
       };
@@ -426,30 +432,32 @@ void main(){
     { name: "Grid Leader", skin: rgb(10213882), top: rgb(15704804), top2: rgb(9229823), pants: rgb(10213882), boots: rgb(15704804), hair: rgb(10213882), hat: "spiky", style: 1 }
   ];
   function buildCharacter(r, s, bulk = 1) {
-    let mk = (f) => {
+    let mk = (f, ao) => {
       let b = new MB();
-      return f(b), b.build(r);
-    }, sw = (s.female ? 0.88 : 1.02) * bulk, black = rgb(1973796), darkGrey = rgb(3158843), gold = rgb(15119394);
+      return f(b), ao && aoY(b.d, ao[0], ao[1], ao[2]), b.build(r);
+    }, sw = (s.female ? 0.86 : 1) * bulk, black = rgb(1973796), darkGrey = rgb(3158843), gold = rgb(15119394), leather = rgb(4864556);
     return {
       style: s.style,
       torso: mk((b) => {
-        if (b.cyl([0, 0.72, 0], 0.26 * sw, 0.25 * sw, 0.14, s.pants, 20, !0, !0), b.cyl([0, 0.85, 0], 0.24 * sw, 0.28 * sw, 0.24, s.top, 20, !1, !0), b.cyl([0, 1.08, 0], 0.28 * sw, 0.36 * sw, 0.32, s.top, 20, !1, !0), b.sphere([0, 1.36, 0.04 * sw], 0.35 * sw, s.top, 14, 0.52, !0, [0, 0.65]), b.cyl([0, 1.44, 0], 0.11, 0.12, 0.14, s.skin, 14, !1, !0), b.torus([0, 1.45, 0], 0.14 * sw, 0.025, s.top2, 16, 8), !s.female && !s.ribs && (b.torus([0, 1.41, 0.05], 0.13 * sw, 8e-3, rgb(11184810), 16, 6), b.box([0.02, 1.28, 0.22 * sw], [0.035, 0.05, 8e-3], rgb(13421772))), s.ribs) {
+        b.sphere([0, 0, 0], 0.2 * sw, s.pants, 14, 0.7, !0), b.cyl([0, -0.02, 0], 0.19 * sw, 0.17 * sw, 0.16, s.pants, 16, !1, !0), b.cyl([0, 0.14, 0], 0.17 * sw, 0.19 * sw, 0.18, s.top, 16, !1, !0), b.cyl([0, 0.32, 0], 0.19 * sw, 0.245 * sw, 0.22, s.top, 16, !1, !0), b.sphere([0, 0.47, 0.02], 0.25 * sw, s.top, 16, 0.55, !0, [0, 0.6]), b.box([0, 0.5, 0], [0.5 * sw, 0.12, 0.26 * sw], s.top);
+        for (let sx of [-1, 1]) b.sphere([sx * 0.25 * sw, 0.52, 0], 0.09 * sw, s.top, 10, 0.9, !0);
+        if (b.cyl([0, 0.6, 0], 0.075, 0.085, 0.12, s.skin, 12, !1, !0), b.torus([0, 0.58, 0], 0.11 * sw, 0.025, s.top2, 16, 8), s.ribs) {
           for (let i = 0; i < 5; i++) {
-            let y = 1.34 - i * 0.09, rw = (0.34 - i * 0.028) * sw;
-            b.cyl([0, y, 0.18 * sw], rw * 0.5, rw * 0.5, 0.028, C.white, 12, !0, !0);
+            let y = 0.44 - i * 0.075, rw = (0.23 - i * 0.02) * sw;
+            b.cyl([0, y, 0.13 * sw], rw * 0.5, rw * 0.5, 0.025, C.white, 12, !0, !0);
           }
-          b.box([0, 1.16, 0.2 * sw], [0.06, 0.44, 0.025], C.white);
+          b.box([0, 0.3, 0.16 * sw], [0.05, 0.36, 0.02], C.white);
         } else {
-          b.rbox([0, 1.22, 0.19 * sw], [0.52 * sw, 0.46, 0.08], s.top2, 0.03), b.rbox([0, 1.22, -0.19 * sw], [0.5 * sw, 0.48, 0.08], s.top2, 0.03);
-          for (let sx of [-0.18, 0.18])
-            b.box([sx * sw, 1.38, 0], [0.09, 0.04, 0.42 * sw], black), b.box([sx * sw, 1.32, 0.23 * sw], [0.07, 0.05, 0.02], rgb(8947848));
-          for (let x of [-0.14, 0.14])
-            b.rbox([x * sw, 1.18, 0.24 * sw], [0.11, 0.14, 0.07], darkGrey, 0.02), b.box([x * sw, 1.22, 0.28 * sw], [0.025, 0.025, 0.01], gold);
-          b.box([-0.22 * sw, 1.26, 0.22 * sw], [0.06, 0.12, 0.05], black), b.cyl([-0.22 * sw, 1.32, 0.22 * sw], 8e-3, 6e-3, 0.14, black, 8), b.box([0, 0.85, 0], [0.58 * sw, 0.08, 0.44 * sw], black), b.box([0, 0.85, 0.23 * sw], [0.12, 0.09, 0.03], gold), b.box([0, 0.85, 0.24 * sw], [0.07, 0.05, 0.02], black), b.cyl([0.28 * sw, 0.85, 0], 0.06, 0.06, 0.11, darkGrey, 10, !0, !0), b.rbox([-0.27 * sw, 0.85, 0], [0.08, 0.11, 0.14], darkGrey, 0.02), b.rbox([0, 1.12, -0.28 * sw], [0.3 * sw, 0.34, 0.15], dk(s.top2, 0.85), 0.03);
+          b.rbox([0, 0.34, 0.16 * sw], [0.38 * sw, 0.36, 0.07], s.top2, 0.03), b.rbox([0, 0.34, -0.15 * sw], [0.36 * sw, 0.38, 0.07], s.top2, 0.03);
+          for (let sx of [-0.14, 0.14])
+            b.box([sx * sw, 0.5, 0], [0.07, 0.03, 0.32 * sw], black), b.box([sx * sw, 0.44, 0.19 * sw], [0.06, 0.04, 0.02], rgb(8947848));
+          for (let x of [-0.11, 0.11])
+            b.rbox([x * sw, 0.24, 0.2 * sw], [0.1, 0.12, 0.06], darkGrey, 0.02), b.box([x * sw, 0.28, 0.235 * sw], [0.02, 0.02, 0.01], gold);
+          b.box([-0.19 * sw, 0.38, 0.17 * sw], [0.05, 0.1, 0.04], black), b.cyl([-0.19 * sw, 0.44, 0.17 * sw], 6e-3, 5e-3, 0.12, black, 6), b.box([0, 0.05, 0], [0.42 * sw, 0.07, 0.36 * sw], leather), b.box([0, 0.05, 0.19 * sw], [0.1, 0.08, 0.02], gold), b.box([0, 0.05, 0.2 * sw], [0.06, 0.04, 0.01], black), b.cyl([0.21 * sw, 0.03, 0.02], 0.05, 0.05, 0.1, darkGrey, 10, !0, !0), b.rbox([-0.2 * sw, 0.03, 0.02], [0.07, 0.1, 0.12], darkGrey, 0.02), b.rbox([0, 0.3, -0.24 * sw], [0.26 * sw, 0.3, 0.13], dk(s.top2, 0.85), 0.03), b.box([0, 0.3, -0.31 * sw], [0.2 * sw, 0.16, 0.02], dk(s.top2, 0.7));
         }
-      }),
+      }, [-0.05, 0.5, 0.82]),
       head: mk((b) => {
-        b.sphere([0, 0.27, 0.01], 0.235, s.skin, 16, 1.12, !0), b.sphere([0, 0.18, 0.12], 0.11, s.skin, 12, 0.85, !0);
+        b.push(mul(translate(0, -0.06, 0), scaleM(0.76, 0.76, 0.76))), b.sphere([0, 0.27, 0.01], 0.235, s.skin, 16, 1.12, !0), b.sphere([0, 0.18, 0.12], 0.11, s.skin, 12, 0.85, !0);
         for (let sx of [-0.082, 0.082])
           b.sphere([sx, 0.285, 0.19], 0.045, C.white, 10, 0.7, !0), b.sphere([sx, 0.288, 0.218], 0.024, C.dark, 8, 0.7, !0), b.sphere([sx + 8e-3, 0.298, 0.228], 9e-3, C.white, 6, 1, !0), b.box([sx, 0.345, 0.21], [0.075, 0.022, 0.02], dk(s.hair, 0.45)), b.sphere([sx * 1.3, 0.23, 0.16], 0.06, lt(s.skin, 0.08), 8, 0.6, !0);
         b.cyl([0, 0.22, 0.22], 0.032, 0.018, 0.075, dk(s.skin, 0.94), 10, !0, !0), b.sphere([0, 0.225, 0.245], 0.032, dk(s.skin, 0.96), 10, 1, !0), b.box([0, 0.155, 0.215], [0.08, 0.018, 0.02], dk(s.skin, 0.65));
@@ -480,25 +488,25 @@ void main(){
           b.cyl([0, 0.48, 0], 0.06, 0.02, 0.18, s.hair, 8, !0, !0);
         } else
           b.sphere([0, 0.31, -0.02], 0.265, s.hair, 16, 1.08, !0);
+        b.pop();
       }),
       upperArm: mk((b) => {
-        b.sphere([0, 0, 0], 0.14 * sw, s.top, 14, 1.1, !0), b.cyl([0, -0.3, 0], 0.1 * sw, 0.13 * sw, 0.3, s.top, 14, !1, !0), b.torus([0, -0.28, 0], 0.11 * sw, 0.022, s.top2, 14, 6), s.ribs && b.sphere([0, -0.05, 0], 0.16 * sw, s.top, 10, 1, !0);
+        b.sphere([0, 0, 0], 0.095 * sw, s.top, 12, 1, !0), b.cyl([0, -0.3, 0], 0.07 * sw, 0.085 * sw, 0.3, s.top, 12, !1, !0), b.torus([0, -0.26, 0], 0.078 * sw, 0.02, s.top2, 12, 6), b.sphere([0.04 * sw, -0.16, 0], 0.075 * sw, s.top, 10, 1.1, !0);
       }),
       foreArm: mk((b) => {
-        b.sphere([0, 0, 0], 0.105 * sw, s.skin, 12, 1, !0), b.cyl([0, -0.28, 0], 0.082, 0.1 * sw, 0.28, s.skin, 14, !1, !0), b.torus([0, -0.16, 0], 0.092 * sw, 0.022, s.top2, 14, 6), b.torus([0, -0.12, 0], 0.094 * sw, 0.022, s.top2, 14, 6), b.rbox([0, -0.29, 0.01], [0.12, 0.08, 0.09], black, 0.02), b.rbox([0, -0.36, 0.01], [0.13, 0.12, 0.08], darkGrey, 0.02), b.rbox([0, -0.34, 0.05], [0.11, 0.03, 0.03], black, 0.01), b.cyl([0.06, -0.34, 0.04], 0.022, 0.018, 0.06, s.skin, 8, !0, !0);
-        for (let f = -1.5; f <= 1.5; f += 1)
-          b.cyl([f * 0.03, -0.42, 0.01], 0.016, 0.014, 0.05, s.skin, 6, !0, !0);
+        b.sphere([0, 0, 0], 0.068 * sw, s.skin, 10, 1, !0), b.cyl([0, -0.29, 0], 0.052, 0.068 * sw, 0.29, s.skin, 12, !1, !0), b.torus([0, -0.17, 0], 0.062 * sw, 0.018, s.top2, 12, 6), b.torus([0, -0.13, 0], 0.063 * sw, 0.018, s.top2, 12, 6), b.rbox([0, -0.31, 5e-3], [0.1, 0.06, 0.08], black, 0.02), b.rbox([0, -0.38, 0.01], [0.1, 0.11, 0.07], darkGrey, 0.02), b.cyl([0.05, -0.36, 0.03], 0.018, 0.015, 0.05, s.skin, 6, !0, !0);
+        for (let k = -1.5; k <= 1.5; k += 1) b.cyl([k * 0.024, -0.45, 0.01], 0.013, 0.011, 0.045, s.skin, 6, !0, !0);
       }),
       thigh: mk((b) => {
-        b.sphere([0, 0, 0], 0.145, s.pants, 14, 1.1, !0), b.cyl([0, -0.4, 0], 0.125, 0.145, 0.4, s.pants, 16, !1, !0), b.rbox([0.06, -0.22, 0.08], [0.14, 0.16, 0.07], dk(s.pants, 0.85), 0.02), b.box([0.06, -0.15, 0.12], [0.14, 0.04, 0.02], dk(s.pants, 0.72));
+        b.sphere([0, 0, 0], 0.11, s.pants, 12, 1, !0), b.cyl([0, -0.23, 0], 0.095, 0.115, 0.46, s.pants, 14, !1, !0), b.rbox([0.05, -0.2, 0.07], [0.11, 0.14, 0.06], dk(s.pants, 0.85), 0.02), b.box([0.05, -0.14, 0.1], [0.11, 0.035, 0.02], dk(s.pants, 0.72));
       }),
       shin: mk((b) => {
-        b.sphere([0, 0, 0], 0.125, s.pants, 12, 1, !0), b.rbox([0.01, -0.03, 0.11], [0.14, 0.15, 0.07], black, 0.025), b.box([0.01, -0.03, -0.11], [0.12, 0.1, 0.03], black), b.cyl([0, -0.3, 0], 0.11, 0.12, 0.3, s.pants, 14, !1, !0), b.push(scaleM(1, 1, 1.25)), b.cyl([0, -0.4, 0.02], 0.128, 0.115, 0.15, s.boots, 16, !0, !0), b.pop(), b.rbox([0, -0.36, 0.06], [0.22, 0.12, 0.34], s.boots, 0.03), b.box([0, -0.44, 0.06], [0.24, 0.06, 0.38], black);
+        b.sphere([0, 0, 0], 0.095, s.pants, 12, 1, !0), b.rbox([0.01, -0.02, 0.085], [0.12, 0.13, 0.06], black, 0.025), b.cyl([0, -0.25, 0], 0.075, 0.09, 0.4, s.pants, 12, !1, !0), b.cyl([0, -0.42, 0.01], 0.09, 0.085, 0.12, s.boots, 14, !0, !0), b.rbox([0, -0.47, 0.05], [0.17, 0.1, 0.28], s.boots, 0.03), b.box([0, -0.52, 0.05], [0.18, 0.05, 0.3], black);
         for (let k = 0; k < 3; k++) {
-          let y = -0.32 - k * 0.04;
-          b.box([-0.04, y, 0.17], [0.018, 0.018, 0.01], rgb(12303291)), b.box([0.04, y, 0.17], [0.018, 0.018, 0.01], rgb(12303291)), b.box([0, y, 0.175], [0.08, 0.01, 8e-3], rgb(8947848));
+          let y = -0.43 - k * 0.03;
+          b.box([-0.03, y, 0.13], [0.014, 0.014, 0.01], rgb(12303291)), b.box([0.03, y, 0.13], [0.014, 0.014, 0.01], rgb(12303291)), b.box([0, y, 0.135], [0.06, 8e-3, 6e-3], rgb(8947848));
         }
-      })
+      }, [-0.55, -0.3, 0.8])
     };
   }
   var HOUSE_STYLES = [
@@ -696,42 +704,44 @@ void main(){
       let top = [0, 2, 0], a = [-2, 0, -2], bb = [2, 0, -2], cc = [2, 0, 2], d = [-2, 0, 2];
       b.tri(a, top, bb, C.metal), b.tri(bb, top, cc, C.metal), b.tri(cc, top, d, C.metal), b.tri(d, top, a, C.metal), b.quad(a, bb, cc, d, C.metalDark);
     }), M2.pine = mkAO(0, 7.5, 0.5, (b) => {
-      b.cyl([0, 0, 0], 0.38, 0.14, 8.4, C.trunk, 12, !0, !0);
-      for (let i = 0; i < 4; i++) {
-        let a = i / 4 * Math.PI * 2;
-        b.push(mul(translate(Math.cos(a) * 0.3, 0, Math.sin(a) * 0.3), rotY(a))), b.cyl([0, 0, 0], 0.14, 0.04, 0.7, C.trunkDark, 8, !0, !0), b.pop();
+      b.cyl([0, 0, 0], 0.42, 0.12, 9, C.trunk, 10, !0, !1);
+      for (let i = 0; i < 5; i++) {
+        let a = i / 5 * 6.283;
+        b.push(mul(translate(Math.cos(a) * 0.32, 0, Math.sin(a) * 0.32), rotY(a))), b.cyl([0, 0, 0], 0.16, 0.04, 0.8, C.trunkDark, 6, !0, !1), b.pop();
       }
-      let tiers = 6;
+      let tiers = 7;
       for (let i = 0; i < tiers; i++) {
-        let y = 1.3 + i * 1.15, rB = 3.1 - i * 0.45, h = 1.9, col = i % 2 ? C.pine2 : C.pine;
-        b.cyl([0, y, 0], rB, 0.15, h, col, 18, !1, !0);
-        for (let k = 0; k < 8; k++) {
-          let a = k / 8 * 6.283 + i * 0.4, rr = rB * 0.55;
-          b.cyl([Math.cos(a) * rr, y - 0.15, Math.sin(a) * rr], rB * 0.5, 0.05, h * 0.7, dk(col, 0.92), 8, !1, !0);
-        }
-        b.cyl([0, y + h * 0.55, 0], rB * 0.45, 0.1, h * 0.45, lt(col, 0.12), 12, !1, !0);
+        let y = 1.6 + i * 1.05, rB = 3 - i * 0.38, col = i % 2 ? C.pine2 : C.pine, seg = 7;
+        b.push(mul(translate(0, y, 0), rotY(i * 0.45))), b.cyl([0, 0, 0], rB, 0.12, 1.5 + rB * 0.15, col, seg, !1, !1), b.cyl([0, -0.35, 0], rB * 0.82, rB * 0.55, 0.5, dk(col, 0.8), seg, !1, !1), b.cyl([0, 0.9, 0], rB * 0.5, 0.08, 0.9, lt(col, 0.14), seg, !1, !1), b.pop();
       }
-      b.cyl([0, 8, 0], 0.55, 0.04, 1.3, lt(C.pine, 0.1), 10, !0, !0);
+      b.cyl([0, 8.6, 0], 0.5, 0.03, 1.5, lt(C.pine, 0.18), 6, !0, !1);
     }), M2.tree = mkAO(0, 6.5, 0.55, (b) => {
-      b.cyl([0, 0, 0], 0.5, 0.34, 3.8, C.trunk, 14, !0, !0);
-      for (let i = 0; i < 4; i++) {
-        let a = i * 1.57 + 0.4;
-        b.cyl([Math.cos(a) * 0.45, 0.12, Math.sin(a) * 0.45], 0.2, 0.05, 0.5, C.trunkDark, 8, !0, !0);
+      b.cyl([0, 0, 0], 0.62, 0.36, 4.2, C.trunk, 12, !0, !0);
+      for (let i = 0; i < 5; i++) {
+        let a = i * 1.26 + 0.4;
+        b.push(mul(translate(Math.cos(a) * 0.5, 0, Math.sin(a) * 0.5), rotY(a))), b.cyl([0, 0, 0], 0.28, 0.06, 0.9, C.trunkDark, 6, !0, !0), b.pop();
+      }
+      for (let i = 0; i < 12; i++) {
+        let a = i / 12 * 6.283, y = 0.3 + i % 4 * 0.9;
+        b.box([Math.cos(a) * 0.5, y, Math.sin(a) * 0.5], [0.08, 0.5 + i % 3 * 0.2, 0.08], dk(C.trunk, 0.8));
+      }
+      let boughs = [[0.3, 2.9, 1], [2, 3.3, 0.9], [3.9, 3, 1.1], [5.4, 3.6, 0.85]];
+      for (let [a, y, l] of boughs)
+        b.push(mul(translate(Math.cos(a) * 0.25, y, Math.sin(a) * 0.25), mul(rotY(-a + 1.57), rotX(1.05)))), b.cyl([0, 0, 0], 0.22, 0.08, 2.6 * l, C.trunk, 8, !0, !0), b.pop();
+      let seed = 3, rr = () => (seed = seed * 16807 % 2147483647, seed / 2147483647), lobe = (x, y, z, r2, c) => b.sphere([x, y, z], r2, c, 9, 0.72 + rr() * 0.2, !0);
+      for (let i = 0; i < 9; i++) {
+        let a = i / 9 * 6.283 + rr() * 0.4, d = 1.9 + rr() * 0.6;
+        lobe(Math.cos(a) * d, 4.4 + rr() * 0.6, Math.sin(a) * d, 1.15 + rr() * 0.35, i % 2 ? C.leaf2 : dk(C.leaf, 0.92));
+      }
+      for (let i = 0; i < 8; i++) {
+        let a = i / 8 * 6.283 + 0.35 + rr() * 0.4, d = 1.5 + rr() * 0.5;
+        lobe(Math.cos(a) * d, 5.6 + rr() * 0.6, Math.sin(a) * d, 1.2 + rr() * 0.35, i % 2 ? C.leaf : C.leaf3);
       }
       for (let i = 0; i < 5; i++) {
-        let a = i / 5 * Math.PI * 2;
-        b.push(mul(translate(Math.cos(a) * 0.22, 2.7 + i % 2 * 0.4, Math.sin(a) * 0.22), mul(rotY(a), rotX(0.95)))), b.cyl([0, 0, 0], 0.18, 0.07, 2.3, C.trunk, 10, !0, !0), b.pop();
+        let a = i / 5 * 6.283 + rr(), d = 0.7 + rr() * 0.5;
+        lobe(Math.cos(a) * d, 6.7 + rr() * 0.5, Math.sin(a) * d, 1.05 + rr() * 0.3, lt(C.leaf3, 0.1));
       }
-      b.sphere([0, 5.1, 0], 2.5, C.leaf, 16, 0.8, !0);
-      for (let i = 0; i < 8; i++) {
-        let a = i / 8 * Math.PI * 2, rr = 1.9;
-        b.sphere([Math.cos(a) * rr, 4.5 + i % 2 * 0.7, Math.sin(a) * rr], 1.35 + i % 3 * 0.15, i % 2 ? C.leaf2 : C.leaf3, 12, 0.88, !0);
-      }
-      for (let i = 0; i < 6; i++) {
-        let a = i / 6 * Math.PI * 2 + 0.5, rr = 1.3;
-        b.sphere([Math.cos(a) * rr, 6.2, Math.sin(a) * rr], 1.1, i % 2 ? C.leaf : C.leaf3, 12, 0.85, !0);
-      }
-      b.sphere([0.3, 6.9, 0.2], 1.4, lt(C.leaf, 0.18), 12, 0.8, !0), b.sphere([-1.2, 3.9, 1.4], 0.9, dk(C.leaf2, 0.85), 10, 0.9, !0);
+      lobe(0, 5.3, 0, 1.9, C.leaf2), lobe(0.4, 7.4, 0.2, 0.95, lt(C.leaf3, 0.25));
     }), M2.tree2 = mkAO(0, 6.5, 0.55, (b) => {
       let bark = rgb(15262936), mark = rgb(3814960), leafA = rgb(11065418), leafB = rgb(9226298), leafC = rgb(12904544);
       b.cyl([0, 0, 0], 0.3, 0.18, 5.2, bark, 12, !0, !0);
@@ -829,6 +839,18 @@ void main(){
         let a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50;
         b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(7309930) : rgb(9080710), 5, !1, !1), h > 85 && b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(15791352), 5, !1, !1);
       }
+    }), M2.pole = mkAO(0, 2.5, 0.65, (b) => {
+      let w = rgb(8020552);
+      b.cyl([0, 0, 0], 0.16, 0.13, 9, w, 8, !0, !0), b.box([0, 8.4, 0], [2.2, 0.14, 0.14], w), b.box([0, 7.6, 0], [1.6, 0.12, 0.12], w);
+      for (let x of [-0.9, -0.3, 0.3, 0.9]) b.cyl([x, 8.55, 0], 0.05, 0.05, 0.16, rgb(7320520), 6, !0, !0);
+      b.box([0.5, 4.5, 0], [0.5, 0.7, 0.5], rgb(10133670));
+    }), M2.flowers = mkAO(0, 0.3, 0.8, (b) => {
+      let sd = 5, rr = () => (sd = sd * 16807 % 2147483647, sd / 2147483647);
+      for (let k = 0; k < 14; k++) {
+        let x = (rr() - 0.5) * 2.4, z = (rr() - 0.5) * 2.4, c = [C.red, C.yellow, rgb(16734899), C.white, rgb(16747038)][k % 5];
+        b.cyl([x, 0, z], 0.02, 0.015, 0.3, dk(C.leaf2, 0.8), 5, !0, !0), b.sphere([x, 0.32, z], 0.07, c, 6, 0.7, !0);
+      }
+      b.sphere([0, 0.1, 0], 0.9, dk(C.leaf2, 0.9), 8, 0.25, !0);
     }), M2.curb = mkAO(0, 0.3, 0.75, (b) => {
       b.box([0, 0.12, 0], [0.5, 0.24, 8], rgb(12105390)), b.box([0.9, 0.1, 0], [1.4, 0.2, 8], rgb(11118496));
       for (let k = -3; k <= 3; k++) b.box([0.9, 0.21, k * 1.15], [1.42, 0.01, 0.04], rgb(9407878));
@@ -853,7 +875,7 @@ void main(){
     }), M2.chestOpen = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.push(mul(translate(0, 0.85, -0.45), rotX(-1.2))), b.rbox([0, 0.2, 0], [1.48, 0.34, 0.98], C.wood, 0.05), b.pop(), b.box([0, 0.55, 0], [1.32, 0.12, 0.82], C.gold);
     }), M2.lamp = mkAO(0, 1.5, 0.7, (b) => {
-      b.cyl([0, 0, 0], 0.16, 0.09, 4.8, rgb(2763824), 12, !0, !0), b.cyl([0, 0, 0], 0.26, 0.18, 0.5, rgb(2763824), 12, !0, !0), b.push(mul(translate(0, 4.8, 0), rotZ(-1.35))), b.cyl([0, 0, 0], 0.07, 0.05, 1.15, rgb(2763824), 10, !0, !0), b.pop(), b.box([1.05, 4.9, 0], [0.7, 0.16, 0.36], rgb(2763824)), b.box([1.05, 4.78, 0], [0.6, 0.08, 0.3], rgb(16774864)), b.sphere([1.05, 4.7, 0], 0.16, rgb(16774864), 10, 0.8, !0);
+      b.cyl([0, 0, 0], 0.16, 0.09, 4.8, rgb(2763824), 12, !0, !0), b.cyl([0, 0, 0], 0.26, 0.18, 0.5, rgb(2763824), 12, !0, !0), b.push(mul(translate(0, 4.8, 0), rotZ(-1.35))), b.cyl([0, 0, 0], 0.07, 0.05, 1.15, rgb(2763824), 10, !0, !0), b.pop(), b.box([1.05, 4.9, 0], [0.5, 0.12, 0.26], rgb(2763824)), b.box([1.05, 4.82, 0], [0.42, 0.05, 0.2], rgb(16774864)), b.sphere([1.05, 4.76, 0], 0.1, rgb(16774864), 10, 0.8, !0);
     }), M2.bench = mkAO(0, 0.5, 0.7, (b) => {
       b.box([0, 0.45, 0], [1.7, 0.08, 0.52], C.wood), b.box([0, 0.8, -0.22], [1.7, 0.48, 0.07], C.wood);
       for (let x of [-0.75, 0.75]) b.rbox([x, 0.25, 0], [0.09, 0.54, 0.54], rgb(2763824), 0.02);
@@ -1000,7 +1022,14 @@ void main(){
           let t2 = k / 6;
           b.box([0, H2 + rh * t2 + 0.02, -hd * (1 - t2)], [w + 2 * ov, 0.05, 0.08], dk(rc, 0.88)), b.box([0, H2 + rh * t2 + 0.02, hd * (1 - t2)], [w + 2 * ov, 0.05, 0.08], dk(rc, 0.88));
         }
-        b.box([0, H2 - 0.12, hd + 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim), b.box([0, H2 - 0.12, -hd - 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim), b.tri([w / 2, H2, -d / 2], [w / 2, H2 + rh, 0], [w / 2, H2, d / 2], this.p.wall2), b.tri([-w / 2, H2, d / 2], [-w / 2, H2 + rh, 0], [-w / 2, H2, -d / 2], this.p.wall2);
+        b.box([0, H2 - 0.12, hd + 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim), b.box([0, H2 - 0.12, -hd - 0.02], [w + 2 * ov, 0.28, 0.08], this.p.trim);
+        for (let sz of [-1, 1]) {
+          b.box([0, H2 - 0.3, sz * (hd + 0.1)], [w + 2 * ov, 0.14, 0.22], dk(this.p.trim, 0.85));
+          for (let sx of [-1, 1])
+            b.cyl([sx * (w / 2 - 0.3), H2 / 2 - 0.1, sz * (hd - 0.05)], 0.07, 0.07, H2 - 0.4, dk(this.p.trim, 0.8), 8, !0, !0), b.box([sx * (w / 2 - 0.3), H2 - 0.35, sz * (hd - 0.1)], [0.16, 0.16, 0.5], dk(this.p.trim, 0.8));
+        }
+        for (let sx of [-1, 1]) b.box([sx * (w / 2 + 0.02), H2 / 2 + 0.15, 0], [0.12, H2 - 0.3, 0.12], this.p.trim);
+        b.tri([w / 2, H2, -d / 2], [w / 2, H2 + rh, 0], [w / 2, H2, d / 2], this.p.wall2), b.tri([-w / 2, H2, d / 2], [-w / 2, H2 + rh, 0], [-w / 2, H2, -d / 2], this.p.wall2);
       } else {
         b.quad([-hw, H2, -hd], [hw, H2, -hd], [0, H2 + rh, -hd], [0, H2 + rh, -hd], rc), b.quad([-hw, H2, hd], [0, H2 + rh, hd], [0, H2 + rh, -hd], [-hw, H2, -hd], rc), b.quad([hw, H2, -hd], [0, H2 + rh, -hd], [0, H2 + rh, hd], [hw, H2, hd], rc), b.quad([-hw, H2, hd], [-hw, H2, -hd], [0, H2 + rh, -hd], [0, H2 + rh, hd], dk(rc, 0.65)), b.quad([hw, H2, -hd], [hw, H2, hd], [0, H2 + rh, hd], [0, H2 + rh, -hd], dk(rc, 0.65));
         for (let k = 0; k < 8; k++) {
@@ -1288,10 +1317,15 @@ void main(){
       let d = Math.hypot(x - ISLAND[0], z - ISLAND[2]);
       return d < 70 ? 6 - sstep((d - 45) / 25) * 14 + vnoise(x * 0.08, z * 0.08) * 0.6 : -8;
     }
-    let r = Math.hypot(x * 0.95, z * 1.05), h = 0;
-    for (let o = 0, f = 45e-4, a = 26; o < 4; o++, f *= 2, a *= 0.42) h += vnoise(x * f + 31, z * f + 17) * a;
+    let r = Math.hypot(x * 0.95, z * 1.05), ridge = 1 - Math.abs(vnoise(x * 32e-4 + 31, z * 32e-4 + 17) * 2 - 1), h = ridge * ridge * 30 - 6;
+    h += (vnoise(x * 9e-3 + 7, z * 9e-3 + 3) - 0.5) * 16 + (vnoise(x * 0.028 + 50, z * 0.028 + 9) - 0.5) * 3.5;
     let coast = vnoise(x * 0.01 + 5, z * 0.01 + 9) * 60;
-    h = h - 8 + 16 * (1 - clamp((r - 200 + coast * 0.6) / 110, 0, 1)), h -= riverMask(x, z) * 10 * clamp((h + 2) / 6, 0, 1);
+    h = h - 6 + 16 * (1 - clamp((r - 200 + coast * 0.6) / 110, 0, 1));
+    {
+      let tq = h / 5, fr = tq - Math.floor(tq), soft = fr * fr * (3 - 2 * fr), terr = (Math.floor(tq) + soft) * 5, mask = sstep((vnoise(x * 6e-3 + 90, z * 6e-3 + 40) - 0.45) * 4) * clamp((h - 4) / 10, 0, 1);
+      h = h * (1 - mask) + terr * mask;
+    }
+    h -= riverMask(x, z) * 10 * clamp((h + 2) / 6, 0, 1);
     for (let [lx, lz, lr] of LAKES) {
       let d = Math.hypot(x - lx, z - lz);
       if (d < lr) {
@@ -1390,6 +1424,13 @@ void main(){
         }
       }
       for (let [ia, ib] of ROADS) {
+        let A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L;
+        for (let t2 = 17; t2 < L - 10; t2 += 34) {
+          let x = A.x + (B.x - A.x) * t2 / L + nx * 6.5, z = A.z + (B.z - A.z) * t2 / L + nz * 6.5, y = terrainH(x, z);
+          y > 0.5 && this.statics.push({ mesh: "pole", pos: [x, y - 0.2, z], yaw, boxes: [{ min: [x - 0.2, y, z - 0.2], max: [x + 0.2, y + 9, z + 0.2] }] });
+        }
+      }
+      for (let [ia, ib] of ROADS) {
         let A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z);
         for (let t2 = 0; t2 < L; t2 += 7) {
           let x = A.x + (B.x - A.x) * t2 / L, z = A.z + (B.z - A.z) * t2 / L, y = terrainH(x, z);
@@ -1456,6 +1497,10 @@ void main(){
           this.statics.push({ mesh: "curb", pos: [x, p.h - 0.1, z], yaw: ty + (side > 0 ? 0 : Math.PI), boxes: [] });
         }
         for (let side of [-1, 1]) this.statics.push({ mesh: "sign", pos: [p.x + ca * p.r * 0.72 * side + sa * 8, p.h - 0.1, p.z - sa * p.r * 0.72 * side + ca * 8], yaw: ty, boxes: [] });
+        for (let k = 0; k < 10; k++) {
+          let a = rand(0, 6.28), rr = rand(10, p.r * 0.8), x = p.x + Math.cos(a) * rr, z = p.z + Math.sin(a) * rr;
+          roadDist(x, z) < 7 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) || this.statics.push({ mesh: "flowers", pos: [x, terrainH(x, z) - 0.05, z], yaw: a, boxes: [] });
+        }
         for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) {
           let x = p.x + ca * tt, z = p.z - sa * tt;
           this.statics.push({ mesh: "dash", pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] });
@@ -1578,8 +1623,8 @@ void main(){
       let g = new MB(), S2 = 24, rs = (cx * 73856093 ^ cz * 19349663) >>> 0 || 1, rnd = () => (rs ^= rs << 13, rs ^= rs >>> 17, rs ^= rs << 5, (rs >>> 0) % 1e4 / 1e4);
       for (let k = 0; k < 1e3; k++) {
         let x = cx * S2 + rnd() * S2, z = cz * S2 + rnd() * S2, y = terrainH(x, z);
-        if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
-        let hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14, c = [0.34 + rnd() * 0.14, 0.66 + rnd() * 0.18, 0.2 + rnd() * 0.1];
+        if (y < 2.3 || roadDist(x, z) < 4.6 || Math.abs(terrainH(x + 1, z) - terrainH(x - 1, z)) + Math.abs(terrainH(x, z + 1) - terrainH(x, z - 1)) > 1.1 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
+        let hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14, c = [0.24 + rnd() * 0.1, 0.52 + rnd() * 0.16, 0.16 + rnd() * 0.08];
         for (let aa of [a, a + 1.05, a + 2.1]) {
           let dx = Math.cos(aa) * w, dz = Math.sin(aa) * w, tipX = x + dx * 0.5 + Math.cos(a + 1.5) * 0.12, tipZ = z + dz * 0.5 + Math.sin(a + 1.5) * 0.12;
           g.triN([x - dx, y, z - dz], [x + dx, y, z + dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], c), g.triN([x + dx, y, z + dz], [x - dx, y, z - dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], dk(c, 0.9));
@@ -1822,7 +1867,7 @@ void main(){
     }
     svg.innerHTML = '<rect width="100" height="60" fill="#3b8fc4"/>' + s + '<ellipse cx="50" cy="52" rx="40" ry="10" fill="#e8f6ff" opacity="0.55"/>';
   }
-  var BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain", "bridge", "curb", "sign", "bush", "rock"]), baked = [];
+  var BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain", "bridge", "curb", "sign", "bush", "rock", "pole", "flowers"]), baked = [];
   {
     let cells = /* @__PURE__ */ new Map();
     for (let s of W.statics) {
@@ -2408,18 +2453,22 @@ void main(){
     H.weak.style.display = ws ? "block" : "none", ws && (H.weak.style.left = ws[0] + "px", H.weak.style.top = ws[1] + "px");
   }
   function drawChar(ch, root, a) {
-    let st = ch.style, ph = a.anim, sp = clamp(a.speed / 6, 0, 1.3), s1 = Math.sin(ph), c1 = Math.cos(ph), lean = a.sprint ? 0.28 : 0.05, bob = a.grounded ? Math.abs(Math.sin(ph)) * 0.05 * sp : 0, drop = 0, thL = -s1 * 0.75 * sp, thR = s1 * 0.75 * sp, shL = Math.max(0, c1) * 1.1 * sp, shR = Math.max(0, -c1) * 1.1 * sp;
-    !a.grounded && a.pose !== "sky" && a.pose !== "glide" && (thL = -0.5, thR = 0.2, shL = 1.2, shR = 0.9);
-    let uL = s1 * 0.6 * sp, uR = -s1 * 0.6 * sp, fL = -0.5 - Math.max(0, s1) * 0.4 * sp, fR = -0.5 - Math.max(0, -s1) * 0.4 * sp, zL = 0.12, zR = -0.12, hR = -0.1;
+    let st = ch.style, ph = a.anim, sp = clamp(a.speed / 6, 0, 1.3), s1 = Math.sin(ph), c1 = Math.cos(ph), idle = sp < 0.05 && a.grounded, lean = a.sprint ? 0.32 : 0.06 + sp * 0.08, bob = a.grounded ? Math.abs(Math.sin(ph)) * 0.06 * sp : 0, drop = 0, twist = s1 * 0.12 * sp, thL = -s1 * 0.85 * sp, thR = s1 * 0.85 * sp, shL = (Math.max(0, -c1) * 1.3 + 0.1) * sp, shR = (Math.max(0, c1) * 1.3 + 0.1) * sp;
+    !a.grounded && a.pose !== "sky" && a.pose !== "glide" && (thL = -0.6, thR = 0.25, shL = 1.3, shR = 1);
+    let uL = s1 * 0.7 * sp, uR = -s1 * 0.7 * sp, fL = -0.6 - Math.max(0, s1) * 0.5 * sp, fR = -0.6 - Math.max(0, -s1) * 0.5 * sp, zL = 0.1, zR = -0.1;
+    if (idle) {
+      let br = Math.sin(t * 1.8);
+      uL = 0.05 + br * 0.03, uR = -0.05 - br * 0.03, fL = fR = -0.35, zL = 0.12, zR = -0.12, bob = br * 8e-3, thL = thR = 0, shL = shR = 0.04;
+    }
     if (a.pose === "aim" || a.pose === "build") {
       let p = -a.pitch * 0.6;
-      uR = -0.9 + p, fR = -1.2, zR = -0.1, uL = -1.2 + p, fL = -0.9, zL = 0.7;
+      uR = -1.35 + p, fR = -0.9, zR = -0.25, uL = -1.25 + p, fL = -1.15, zL = 0.75;
     }
     if (a.pose === "pick") {
       let sw = a.swing && a.swing > 0 ? Math.sin(a.swing * 6.3) : 0;
-      uR = -1.2 - sw * 1.6, fR = -0.9 + sw * 0.5, zR = 0.1;
+      uR = -1.3 - sw * 1.6, fR = -0.8 + sw * 0.5, zR = 0.05, uL = -0.4, fL = -0.9, zL = 0.4;
     }
-    a.pose === "sky" && (uL = uR = -2.4, zL = 1.1, zR = -1.1, fL = fR = -0.3, thL = 0.3, thR = 0.3, shL = shR = 0.2, lean = 1.25), a.pose === "glide" && (uL = uR = -2.9, zL = 0.35, zR = -0.35, fL = fR = -0.4, thL = thR = 0.2, shL = shR = 0.3, lean = 0.15), a.pose === "lobby" && (uL = 0.1, uR = -0.1, fL = fR = -0.35, zL = 0.18, zR = -0.18, thL = thR = shL = shR = 0, lean = 0);
+    a.pose === "sky" && (uL = uR = -2.4, zL = 1.1, zR = -1.1, fL = fR = -0.3, thL = 0.3, thR = 0.3, shL = shR = 0.2, lean = 1.25), a.pose === "glide" && (uL = uR = -2.9, zL = 0.35, zR = -0.35, fL = fR = -0.4, thL = thR = 0.2, shL = shR = 0.3, lean = 0.15), a.pose === "lobby" && (uL = 0.1, uR = -0.1, fL = fR = -0.35, zL = 0.18, zR = -0.18, thL = thR = shL = shR = 0, lean = 0, twist = 0);
     let yawWig = 0;
     if (a.pose === "emote") {
       let e = a.emote ?? 0, w = t * 6;
@@ -2433,26 +2482,26 @@ void main(){
       } else
         uL = -2.9, fL = -1.3, zL = 0.2, uR = -0.4, fR = -1.5, zR = -0.5, thL = -0.9, thR = 0.3, shL = 1.6, shR = 0.5, drop = 0.35, yawWig = Math.sin(w) * 0.1;
     }
-    a.pose === "crouch" && (drop = 0.55, thL = thR = -1.1, shL = shR = 1.5, lean = 0.35, uR = -1.35 - a.pitch, fR = -0.35, uL = -1.1 - a.pitch, fL = -1, zL = 0.55);
-    let m = mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig)), hip = mul(m, translate(0, 0.9, 0)), upper = mul(hip, rotX(lean));
-    R.draw(ch.torso, mul(mul(upper, translate(0, -0.78, 0)), scaleM(0.94, 1, 0.94)), [1, 1, 1], 1, st), R.draw(ch.head, mul(mul(mul(upper, translate(0, 0.78, 0)), rotX(-a.pitch * 0.5 - lean * 0.6)), scaleM(0.84, 0.84, 0.84)), [1, 1, 1], 1, st);
+    a.pose === "crouch" && (drop = 0.5, thL = thR = -1.15, shL = shR = 1.6, lean = 0.4, uR = -1.35 - a.pitch, fR = -0.35, uL = -1.1 - a.pitch, fL = -1, zL = 0.55);
+    let m = mul(mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig)), scaleM(0.93, 0.93, 0.93)), hip = mul(m, translate(0, 1, 0)), upper = mul(mul(hip, rotX(lean)), rotY(twist));
+    R.draw(ch.torso, upper, [1, 1, 1], 1, st), R.draw(ch.head, mul(mul(upper, translate(0, 0.66, 0)), rotX(-a.pitch * 0.5 - lean * 0.7)), [1, 1, 1], 1, st);
     let armM = (side, u, z, f) => {
-      let sh = mul(mul(mul(upper, translate(side * 0.4, 0.67, 0)), rotZ(-side * z)), rotX(u));
+      let sh = mul(mul(mul(upper, translate(side * 0.27, 0.5, 0)), rotZ(-side * z)), rotX(u));
       R.draw(ch.upperArm, sh, [1, 1, 1], 1, st);
-      let el = mul(mul(sh, translate(0, -0.32, 0)), rotX(f));
-      return R.draw(ch.foreArm, el, [1, 1, 1], 1, st), mul(el, translate(0, -0.33, 0));
+      let el = mul(mul(sh, translate(0, -0.31, 0)), rotX(f));
+      return R.draw(ch.foreArm, el, [1, 1, 1], 1, st), mul(el, translate(0, -0.38, 0));
     }, handR = armM(-1, uR, zR, fR);
     armM(1, uL, zL, fL);
     let legM = (side, th, sh) => {
-      let h = mul(mul(hip, translate(side * 0.16, 0, 0)), rotX(th));
-      R.draw(ch.thigh, mul(h, scaleM(1, 1.15, 1)), [1, 1, 1], 1, st), R.draw(ch.shin, mul(mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), scaleM(1, 1.12, 1)), [1, 1, 1], 1, st);
+      let h = mul(mul(hip, translate(side * 0.12, 0, 0)), rotX(th));
+      R.draw(ch.thigh, h, [1, 1, 1], 1, st), R.draw(ch.shin, mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), [1, 1, 1], 1, st);
     };
-    if (legM(1, thL, shL), legM(-1, thR, shR), a.held === "pickaxe") R.draw(M.pickaxe, mul(handR, mul(translate(0, 0, 0.05), rotX(1.4))));
+    if (legM(1, thL, shL), legM(-1, thR, shR), a.held === "pickaxe") R.draw(M.pickaxe, mul(handR, mul(translate(0, 0.05, 0.04), rotX(1.4))));
     else if (a.held) {
-      let gm = a.pose === "aim" || a.pose === "crouch" ? mul(mul(upper, translate(-0.38, 0.55, 0.3)), mul(rotY(-0.2), rotX(-a.pitch * 0.6))) : mul(mul(upper, translate(-0.3, 0.1, 0.25)), mul(rotY(0.5), rotX(-0.9)));
-      R.draw(M[a.held], mul(gm, trs([0, 0, 0], 0, 0, 1.6)));
+      let gm = a.pose === "aim" || a.pose === "crouch" ? mul(mul(upper, translate(-0.2, 0.36, 0.34)), mul(rotY(-0.08), rotX(-a.pitch * 0.6))) : mul(mul(upper, translate(-0.28, -0.02, 0.2)), mul(rotY(0.45), rotX(-0.95)));
+      R.draw(M[a.held], mul(gm, trs([0, 0, 0], 0, 0, 1.45)));
     }
-    a.pose === "glide" && R.draw(M.glider, mul(m, translate(0, 2.55, 0.15)));
+    a.pose === "glide" && R.draw(M.glider, mul(m, translate(0, 2.6, 0.15)));
   }
   var SET = $("settings");
   function settingsOpen(on) {

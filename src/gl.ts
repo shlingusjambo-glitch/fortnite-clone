@@ -49,6 +49,12 @@ void main(){
     vec3 dirt = vec3(0.62, 0.50, 0.34) * (0.9 + 0.2 * v3);
     float dk = smoothstep(0.18, 0.3, slope) * (1.0 - rk);
     col = mix(mix(grass, dirt, dk), rock, rk);
+    float grey = 1.0 - smoothstep(0.02, 0.08, abs(vCol.r - vCol.g) + abs(vCol.g - vCol.b));
+    if (grey > 0.5 && vCol.r < 0.55) {   // asphalt: speckle, tyre-worn lanes, hairline cracks
+      float sp = vn(vWorld.xz * 9.0), cr = smoothstep(0.48, 0.5, abs(vn(vWorld.xz * 0.9 + 7.0) - 0.5)) ;
+      col = vCol * (0.82 + 0.25 * sp) * (1.0 - 0.35 * (1.0 - cr) * step(0.0, 1.0)) ;
+      col = mix(col, col * 0.75, (1.0 - cr) * 0.6); rough = 0.95;
+    }
     if (rk > 0.5) rough = 0.9;
   }
   else if (st == 6) {            // animated cartoon water with specular
@@ -82,7 +88,7 @@ void main(){
   float lit = 1.0;
   if (s.x > 0.0 && s.x < 1.0 && s.y > 0.0 && s.y < 1.0 && s.z < 1.0) {
     float bias = 0.0012 + 0.0025 * (1.0 - d);
-    if (uShadowQ > 1.5) { lit = 0.0; for (int i = -1; i <= 1; i++) for (int j = -1; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + vec2(i, j) * uTexel, s.z - bias)); lit /= 9.0; }
+    if (uShadowQ > 1.5) { lit = 0.0; for (int i = -2; i <= 1; i++) for (int j = -2; j <= 1; j++) lit += texture(uShadow, vec3(s.xy + (vec2(i, j) + 0.5) * uTexel, s.z - bias)); lit /= 16.0; }
     else if (uShadowQ > 0.5) lit = texture(uShadow, vec3(s.xy, s.z - bias));
   }
   float hemi = 0.5 + 0.5 * n.y;
@@ -104,8 +110,8 @@ void main(){
   float f = 1.0 - exp(-dist * uFogD);
   vec3 fogC = mix(uFog, vec3(0.86, 0.90, 0.97), clamp(1.0 - (vWorld.y - uCam.y) * 0.004, 0.0, 1.0));   // haze bluer/brighter toward the horizon
   c = mix(c, fogC, clamp(f, 0.0, 0.94));
-  c = pow(c * 1.06, vec3(0.95));
-  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.02);
+  c *= 1.15; c = (c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14);   // ACES-style tonemap: controlled highlights, richer mids
+  c = mix(vec3(dot(c, vec3(0.3, 0.59, 0.11))), c, 1.06);
   o = vec4(c, uAlpha);
 }`;
 const DVS = `#version 300 es
@@ -202,7 +208,7 @@ export class Renderer {
       gl.bindVertexArray(this.emptyVao); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.depthMask(true); gl.enable(gl.CULL_FACE);
     }
     gl.useProgram(this.prog);
-    gl.uniformMatrix4fv(this.u.uVP, false, vp); gl.uniformMatrix4fv(this.u.uLVP, false, lvp); gl.uniform3fv(this.u.uCam, cam.pos); gl.uniform3fv(this.u.uSun, sun); gl.uniform3fv(this.u.uFog, this.fog); gl.uniform1f(this.u.uTexel, 1 / SM); gl.uniform1f(this.u.uT, t); gl.uniform1f(this.u.uFogD, 0.0032 / (1 + Math.max(0, cam.pos[1] - 25) / 30));
+    gl.uniformMatrix4fv(this.u.uVP, false, vp); gl.uniformMatrix4fv(this.u.uLVP, false, lvp); gl.uniform3fv(this.u.uCam, cam.pos); gl.uniform3fv(this.u.uSun, sun); gl.uniform3fv(this.u.uFog, this.fog); gl.uniform1f(this.u.uTexel, 1 / SM); gl.uniform1f(this.u.uT, t); gl.uniform1f(this.u.uFogD, 0.0021 / (1 + Math.max(0, cam.pos[1] - 25) / 30));
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.shadowTex); gl.uniform1i(this.u.uShadow, 0); gl.uniform1f(this.u.uShadowQ, this.shadows);
     const one = (it: Item) => { gl.uniformMatrix4fv(this.u.uM, false, it.mat); gl.uniform3fv(this.u.uTint, it.tint); gl.uniform1f(this.u.uAlpha, it.alpha); gl.uniform1f(this.u.uStyle, it.style); gl.bindVertexArray(it.m.vao); gl.drawArrays(gl.TRIANGLES, 0, it.m.n); };
     for (const it of this.items) if (it.alpha >= 1 && !it.two) one(it);

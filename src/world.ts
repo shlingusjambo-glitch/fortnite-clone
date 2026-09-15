@@ -46,10 +46,14 @@ export const ISLAND: V3 = [0, 0, -1100];   // spawn island centre (well off the 
 export function terrainH(x: number, z: number): number {
   if (z < -700) { const d = Math.hypot(x - ISLAND[0], z - ISLAND[2]); return d < 70 ? 6 - sstep((d - 45) / 25) * 14 + vnoise(x * 0.08, z * 0.08) * 0.6 : -8; }   // flat spawn island with a beach drop-off
   const r = Math.hypot(x * 0.95, z * 1.05);
-  let h = 0;
-  for (let o = 0, f = 0.0045, a = 26; o < 4; o++, f *= 2.0, a *= 0.42) h += vnoise(x * f + 31, z * f + 17) * a;   // broad rolling hills
+  // authored-feeling landforms: ridged macro shapes (valleys + ridgelines), rolling mid hills, fine grain,
+  // then soft terracing on steeper ground so hillsides read as stylised eroded strata instead of blobs
+  const ridge = 1 - Math.abs(vnoise(x * 0.0032 + 31, z * 0.0032 + 17) * 2 - 1);
+  let h = ridge * ridge * 30 - 6;
+  h += (vnoise(x * 0.009 + 7, z * 0.009 + 3) - 0.5) * 16 + (vnoise(x * 0.028 + 50, z * 0.028 + 9) - 0.5) * 3.5;
   const coast = vnoise(x * 0.01 + 5, z * 0.01 + 9) * 60;
-  h = h - 8 + 16 * (1 - clamp((r - 200 + coast * 0.6) / 110, 0, 1));
+  h = h - 6 + 16 * (1 - clamp((r - 200 + coast * 0.6) / 110, 0, 1));
+  { const step = 5, tq = h / step, fr = tq - Math.floor(tq), soft = fr * fr * (3 - 2 * fr); const terr = (Math.floor(tq) + soft) * step; const mask = sstep((vnoise(x * 0.006 + 90, z * 0.006 + 40) - 0.45) * 4) * clamp((h - 4) / 10, 0, 1); h = h * (1 - mask) + terr * mask; }
   h -= riverMask(x, z) * 10 * clamp((h + 2) / 6, 0, 1);
   for (const [lx, lz, lr] of LAKES) { const d = Math.hypot(x - lx, z - lz); if (d < lr) { const t = clamp((1 - d / lr) * 2.2, 0, 1), k = t * t * (3 - 2 * t); h = h * (1 - k) + -4.5 * k; } }
   for (const [mx, mz, mr, mh] of MESAS) { const d = Math.hypot(x - mx, z - mz); if (d < mr + 10) { const k = sstep((mr - d) / 7 + 1); const top = h + mh + vnoise(x * 0.05, z * 0.05) * 2; h = h * (1 - k) + top * k; } }
@@ -128,6 +132,8 @@ export class World {
     for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283, rr = 30 + (k % 3) * 8; this.props.push({ type: k % 3 ? 'tree' : 'pine', pos: [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.2, ISLAND[2] + Math.sin(a) * rr], yaw: a, s: 1.5, hp: 250, r: 0.6, h: 9, dead: 0 }); }
     // wooden bridges where roads cross water
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 4; t < L - 4; t += 8) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L; if (terrainH(x, z) < 0.6) { const c = Math.cos(yaw), sn = Math.sin(yaw); this.statics.push({ mesh: 'bridge', pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] }); } } }
+    // telephone poles along roads (one side, every ~34m) and flower patches on POI lawns
+    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L; for (let t = 17; t < L - 10; t += 34) { const x = A.x + (B.x - A.x) * t / L + nx * 6.5, z = A.z + (B.z - A.z) * t / L + nz * 6.5, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'pole', pos: [x, y - 0.2, z], yaw, boxes: [{ min: [x - 0.2, y, z - 0.2], max: [x + 0.2, y + 9, z + 0.2] }] }); } }
     // road center dashes
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 0; t < L; t += 7) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'dash', pos: [x, y, z], yaw, boxes: [] }); } }
     const rotBox = (bx: LBox, k: number, o: V3): Box => {   // rotate local AABB by k*90deg around Y then offset
@@ -175,6 +181,7 @@ export class World {
       // curbs + sidewalks along the main street, a sign at each end, shrubs against house walls
       if (p.layout === 'street' || p.layout === 'grid') for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 8) for (const side of [-1, 1]) { const x = p.x + ca * tt + sa * 6.2 * side, z = p.z - sa * tt + ca * 6.2 * side; this.statics.push({ mesh: 'curb', pos: [x, p.h - 0.1, z], yaw: ty + (side > 0 ? 0 : Math.PI), boxes: [] }); }
       for (const side of [-1, 1]) this.statics.push({ mesh: 'sign', pos: [p.x + ca * p.r * 0.72 * side + sa * 8, p.h - 0.1, p.z - sa * p.r * 0.72 * side + ca * 8], yaw: ty, boxes: [] });
+      for (let k = 0; k < 10; k++) { const a = rand(0, 6.28), rr = rand(10, p.r * 0.8), x = p.x + Math.cos(a) * rr, z = p.z + Math.sin(a) * rr; if (roadDist(x, z) < 7 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] + 1)) continue; this.statics.push({ mesh: 'flowers', pos: [x, terrainH(x, z) - 0.05, z], yaw: a, boxes: [] }); }
       // street furniture along the main street
       for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) { const x = p.x + ca * tt, z = p.z - sa * tt; this.statics.push({ mesh: 'dash', pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] }); }
       for (let tt = -p.r * 0.6; tt < p.r * 0.6; tt += 24) { const x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7; addStatic('lamp', [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
@@ -226,10 +233,10 @@ export class World {
     const rnd = () => { rs ^= rs << 13; rs ^= rs >>> 17; rs ^= rs << 5; return ((rs >>> 0) % 10000) / 10000; };
     for (let k = 0; k < 1000; k++) {
       const x = cx * S + rnd() * S, z = cz * S + rnd() * S, y = terrainH(x, z);
-      if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
+      if (y < 2.3 || roadDist(x, z) < 4.6 || Math.abs(terrainH(x + 1, z) - terrainH(x - 1, z)) + Math.abs(terrainH(x, z + 1) - terrainH(x, z - 1)) > 1.1 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
       // Tall, lush grass blades (0.45m - 0.75m tall) matching reference images
       const hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14;
-      const c: Col = [0.34 + rnd() * 0.14, 0.66 + rnd() * 0.18, 0.2 + rnd() * 0.1];
+      const c: Col = [0.24 + rnd() * 0.1, 0.52 + rnd() * 0.16, 0.16 + rnd() * 0.08];
       // 3 intersecting blades per clump for full 3D volume
       for (const aa of [a, a + 1.05, a + 2.1]) {
         const dx = Math.cos(aa) * w, dz = Math.sin(aa) * w;
