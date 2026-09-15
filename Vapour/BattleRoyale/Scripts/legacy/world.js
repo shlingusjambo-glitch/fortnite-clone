@@ -1,0 +1,726 @@
+import { add, scale, clamp, rand, norm } from "./math";
+import { MB, rgb, dk } from "./models";
+import { BUILDERS } from "./buildings";
+const SIZE = 720, STEP = 3;
+const hash = (x, z) => {
+  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
+  return s - Math.floor(s);
+};
+function vnoise(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z), fx = x - xi, fz = z - zi, sx = fx * fx * (3 - 2 * fx), sz = fz * fz * (3 - 2 * fz);
+  const a = hash(xi, zi), b = hash(xi + 1, zi), c = hash(xi, zi + 1), d = hash(xi + 1, zi + 1);
+  return a + (b - a) * sx + (c - a) * sz + (a - b - c + d) * sx * sz;
+}
+const sstep = (t) => {
+  t = clamp(t, 0, 1);
+  return t * t * (3 - 2 * t);
+};
+const POIS = [
+  // Chapter 1 Season 1 layout (north = -z)
+  { name: "ANARCHY ACRES", x: -40, z: -250, h: 10, r: 55, houses: 5, kinds: ["barn", "barn", "cottage", "tower", "colonial"], layout: "scatter" },
+  { name: "PLEASANT PARK", x: -190, z: -130, h: 9, r: 70, houses: 8, kinds: ["colonial", "colonial", "cottage", "colonial", "colonial", "cottage", "colonial", "colonial"], layout: "ring" },
+  { name: "LOOT LAKE", x: 0, z: -40, h: 3.2, r: 10, houses: 1, kinds: ["colonial"], layout: "scatter" },
+  { name: "WAILING WOODS", x: 215, z: -195, h: 12, r: 55, houses: 4, kinds: ["cottage", "tower", "cottage", "tower"], layout: "scatter" },
+  { name: "TOMATO TOWN", x: 110, z: -175, h: 9, r: 48, houses: 5, kinds: ["shop", "gas", "cottage", "shop", "colonial"], layout: "street" },
+  { name: "LONELY LODGE", x: 265, z: -40, h: 11, r: 50, houses: 4, kinds: ["tower", "cottage", "cottage", "barn"], layout: "scatter" },
+  { name: "DUSTY DEPOT", x: 40, z: 60, h: 8, r: 55, houses: 4, kinds: ["warehouse", "warehouse", "warehouse", "tower"], layout: "grid" },
+  { name: "SALTY SPRINGS", x: 40, z: 150, h: 8, r: 60, houses: 7, kinds: ["colonial", "cottage", "colonial", "gas", "cottage", "colonial", "tower"], layout: "street" },
+  { name: "RETAIL ROW", x: 205, z: 110, h: 10, r: 68, houses: 8, kinds: ["shop", "shop", "gas", "warehouse", "motel", "colonial", "cottage", "colonial"], layout: "grid" },
+  { name: "GREASY GROVE", x: -200, z: 120, h: 8, r: 62, houses: 7, kinds: ["gas", "shop", "colonial", "cottage", "colonial", "motel", "cottage"], layout: "street" },
+  { name: "FATAL FIELDS", x: -40, z: 250, h: 9, r: 55, houses: 5, kinds: ["barn", "cottage", "barn", "tower", "colonial"], layout: "scatter" },
+  { name: "MOISTY MIRE", x: 235, z: 240, h: 4, r: 50, houses: 3, kinds: ["cottage", "tower", "cottage"], layout: "scatter" },
+  { name: "FLUSH FACTORY", x: -195, z: 260, h: 7, r: 50, houses: 4, kinds: ["warehouse", "warehouse", "shop", "tower"], layout: "grid" },
+  { name: "LUCKY LANDING", x: 60, z: 300, h: 6, r: 40, houses: 3, kinds: ["motel", "shop", "cottage"], layout: "street" }
+];
+const LAKES = [[0, -40, 62], [222, 252, 16], [252, 228, 13], [150, 30, 26], [-110, -30, 22], [-260, 20, 30], [120, 230, 24], [-120, 190, 22], [280, 160, 26]];
+const MESAS = [[0, -40, 13, 8], [-110, 40, 30, 16], [150, -100, 34, 20], [-270, -230, 34, 16], [280, 40, 26, 14], [-290, 200, 30, 18], [130, 300, 26, 12], [300, -270, 26, 12]];
+const ROADS = [[0, 1], [0, 4], [4, 3], [4, 5], [1, 9], [1, 6], [4, 6], [6, 7], [7, 8], [8, 5], [9, 10], [7, 10], [10, 13], [8, 11], [12, 9], [12, 10], [13, 11], [3, 5]];
+function riverMask(x, z) {
+  const a = Math.abs(vnoise(x * 4e-3 + 9, z * 4e-3 + 3) - 0.5), b = Math.abs(vnoise(x * 35e-4 + 40, z * 35e-4 + 70) - 0.5);
+  const c = Math.abs(vnoise(x * 3e-3 + 80, z * 3e-3 + 20) - 0.5);
+  return Math.max(1 - Math.min(a, b, c) / 0.065, 0);
+}
+function mesaAt(x, z) {
+  let m = 0;
+  for (const [mx, mz, mr] of MESAS) {
+    const d = Math.hypot(x - mx, z - mz);
+    m = Math.max(m, sstep((mr - d) / 7 + 1));
+  }
+  return m;
+}
+const ISLAND = [0, 0, -1100];
+function terrainH(x, z) {
+  if (z < -700) {
+    const d = Math.hypot(x - ISLAND[0], z - ISLAND[2]);
+    return d < 70 ? 6 - sstep((d - 45) / 25) * 14 + vnoise(x * 0.08, z * 0.08) * 0.6 : -8;
+  }
+  const r = Math.hypot(x * 0.95, z * 1.05);
+  const ridge = 1 - Math.abs(vnoise(x * 32e-4 + 31, z * 32e-4 + 17) * 2 - 1);
+  let h = ridge * ridge * 30 - 6;
+  h += (vnoise(x * 9e-3 + 7, z * 9e-3 + 3) - 0.5) * 16 + (vnoise(x * 0.028 + 50, z * 0.028 + 9) - 0.5) * 3.5;
+  const coast = vnoise(x * 0.01 + 5, z * 0.01 + 9) * 60;
+  h = h - 6 + 16 * (1 - clamp((r - 200 + coast * 0.6) / 110, 0, 1));
+  {
+    const step = 5, tq = h / step, fr = tq - Math.floor(tq), soft = fr * fr * (3 - 2 * fr);
+    const terr = (Math.floor(tq) + soft) * step;
+    const mask = sstep((vnoise(x * 6e-3 + 90, z * 6e-3 + 40) - 0.45) * 4) * clamp((h - 4) / 10, 0, 1);
+    h = h * (1 - mask) + terr * mask;
+  }
+  h -= riverMask(x, z) * 10 * clamp((h + 2) / 6, 0, 1);
+  for (const [lx, lz, lr] of LAKES) {
+    const d = Math.hypot(x - lx, z - lz);
+    if (d < lr) {
+      const t = clamp((1 - d / lr) * 2.2, 0, 1), k = t * t * (3 - 2 * t);
+      h = h * (1 - k) + -4.5 * k;
+    }
+  }
+  for (const [mx, mz, mr, mh] of MESAS) {
+    const d = Math.hypot(x - mx, z - mz);
+    if (d < mr + 10) {
+      const k = sstep((mr - d) / 7 + 1);
+      const top = h + mh + vnoise(x * 0.05, z * 0.05) * 2;
+      h = h * (1 - k) + top * k;
+    }
+  }
+  for (const p of POIS) {
+    const t = clamp((Math.hypot(x - p.x, z - p.z) - p.r) / 30, 0, 1);
+    h = p.h * (1 - t) + h * t;
+  }
+  return h;
+}
+function segDist(x, z, a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z, t = clamp(((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz), 0, 1);
+  return Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t));
+}
+function roadDist(x, z) {
+  let m = 1e9;
+  for (const [ia, ib] of ROADS) m = Math.min(m, segDist(x, z, POIS[ia], POIS[ib]));
+  return m;
+}
+function terrainColor(x, z, y) {
+  if (y < -0.1) return rgb(15922406);
+  if (y < 1.4) return rgb(15327130);
+  if (y < 2.2) return rgb(13950090);
+  const rd = roadDist(x, z);
+  if (z < -700) return rgb(8177227);
+  if (rd < 3.2) return rgb(7040626);
+  if (rd < 4.4) return rgb(11049584);
+  const v = vnoise(x * 0.03, z * 0.03), dirt = vnoise(x * 0.09 + 50, z * 0.09 + 12);
+  if (dirt > 0.86) return rgb(11048030);
+  return v > 0.6 ? rgb(7323202) : v > 0.4 ? rgb(8571983) : rgb(7914569);
+}
+const TILES = (t) => t === "wall" ? 9 : t === "floor" ? 4 : 0;
+const MAT_HP = { wood: 150, stone: 300, metal: 500 };
+class World {
+  terrain;
+  island;
+  terrainChunks = [];
+  props = [];
+  statics = [];
+  houseMeshes = [];
+  houseBoxes = [];
+  pieces = /* @__PURE__ */ new Map();
+  lootSpots = [];
+  chestSpots = [];
+  footprints = [];
+  /** 32m spatial hash of props + statics so collision/raycast only touch nearby objects */
+  grid = /* @__PURE__ */ new Map();
+  static GC = 32;
+  gkey(x, z) {
+    return (Math.floor(x / World.GC) + 512) * 4096 + Math.floor(z / World.GC) + 512;
+  }
+  cell(x, z) {
+    const k = this.gkey(x, z);
+    let c = this.grid.get(k);
+    if (!c) {
+      c = { props: [], statics: [] };
+      this.grid.set(k, c);
+    }
+    return c;
+  }
+  buildGrid() {
+    this.grid.clear();
+    for (const q of this.props) this.cell(q.pos[0], q.pos[2]).props.push(q);
+    for (const s of this.statics) {
+      if (!s.boxes.length) continue;
+      const a = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
+      for (const b of s.boxes) for (let i = 0; i < 3; i++) {
+        a.min[i] = Math.min(a.min[i], b.min[i]);
+        a.max[i] = Math.max(a.max[i], b.max[i]);
+      }
+      s.aabb = a;
+      for (let x = a.min[0]; x <= a.max[0] + World.GC; x += World.GC) for (let z = a.min[2]; z <= a.max[2] + World.GC; z += World.GC) {
+        const c = this.cell(Math.min(x, a.max[0]), Math.min(z, a.max[2]));
+        if (!c.statics.includes(s)) c.statics.push(s);
+      }
+    }
+  }
+  /** cells within rad of (x,z) */
+  near(x, z, rad) {
+    const out = [];
+    for (let cx = x - rad; cx <= x + rad + World.GC; cx += World.GC) for (let cz = z - rad; cz <= z + rad + World.GC; cz += World.GC) {
+      const c = this.grid.get(this.gkey(Math.min(cx, x + rad), Math.min(cz, z + rad)));
+      if (c && !out.includes(c)) out.push(c);
+    }
+    return out;
+  }
+  constructor(r) {
+    const n = Math.floor(SIZE / STEP), CH = 6, per = Math.ceil(n / CH);
+    const N = (x, z) => norm([terrainH(x - 1, z) - terrainH(x + 1, z), 2, terrainH(x, z - 1) - terrainH(x, z + 1)]);
+    for (let ci = 0; ci < CH; ci++) for (let cj = 0; cj < CH; cj++) {
+      const b = new MB();
+      for (let i = ci * per; i < Math.min(n, (ci + 1) * per); i++) for (let j = cj * per; j < Math.min(n, (cj + 1) * per); j++) {
+        const x0 = -SIZE / 2 + i * STEP, z0 = -SIZE / 2 + j * STEP, x1 = x0 + STEP, z1 = z0 + STEP;
+        const p = (x, z) => [x, terrainH(x, z), z];
+        const a = p(x0, z0), bb = p(x1, z0), c = p(x1, z1), d = p(x0, z1);
+        if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue;
+        const mx = x0 + STEP / 2, mz = z0 + STEP / 2, col = terrainColor(mx, mz, (a[1] + c[1]) / 2);
+        b.triN(a, d, c, N(x0, z0), N(x0, z1), N(x1, z1), col);
+        b.triN(a, c, bb, N(x0, z0), N(x1, z1), N(x1, z0), col);
+      }
+      const cs = per * STEP;
+      this.terrainChunks.push({ mesh: b.build(r), c: [-SIZE / 2 + (ci + 0.5) * cs, 0, -SIZE / 2 + (cj + 0.5) * cs], r: cs * 0.71 });
+    }
+    this.terrain = this.terrainChunks[0].mesh;
+    {
+      const b = new MB();
+      for (let x = ISLAND[0] - 75; x < ISLAND[0] + 75; x += STEP) for (let z = ISLAND[2] - 75; z < ISLAND[2] + 75; z += STEP) {
+        const p = (px, pz) => [px, terrainH(px, pz), pz];
+        const a = p(x, z), bb = p(x + STEP, z), c = p(x + STEP, z + STEP), d = p(x, z + STEP);
+        if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue;
+        const col = terrainColor(x, z, (a[1] + c[1]) / 2);
+        b.triN(a, d, c, N(x, z), N(x, z + STEP), N(x + STEP, z + STEP), col);
+        b.triN(a, c, bb, N(x, z), N(x + STEP, z + STEP), N(x + STEP, z), col);
+      }
+      this.island = b.build(r);
+    }
+    for (let k = 0; k < 14; k++) {
+      const a = k / 14 * 6.283, rr = 30 + k % 3 * 8;
+      this.props.push({ type: k % 3 ? "tree" : "pine", pos: [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.2, ISLAND[2] + Math.sin(a) * rr], yaw: a, s: 1.5, hp: 250, r: 0.6, h: 9, dead: 0 });
+    }
+    for (const [ia, ib] of ROADS) {
+      const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z);
+      for (let t = 4; t < L - 4; t += 8) {
+        const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L;
+        if (terrainH(x, z) < 0.6) {
+          const c = Math.cos(yaw), sn = Math.sin(yaw);
+          this.statics.push({ mesh: "bridge", pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] });
+        }
+      }
+    }
+    for (const [ia, ib] of ROADS) {
+      const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L;
+      for (let t = 17; t < L - 10; t += 34) {
+        const x = A.x + (B.x - A.x) * t / L + nx * 6.5, z = A.z + (B.z - A.z) * t / L + nz * 6.5, y = terrainH(x, z);
+        if (y > 0.5) this.statics.push({ mesh: "pole", pos: [x, y - 0.2, z], yaw, boxes: [{ min: [x - 0.2, y, z - 0.2], max: [x + 0.2, y + 9, z + 0.2] }] });
+      }
+    }
+    for (const [ia, ib] of ROADS) {
+      const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z);
+      for (let t = 0; t < L; t += 7) {
+        const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L, y = terrainH(x, z);
+        if (y > 0.5) this.statics.push({ mesh: "dash", pos: [x, y, z], yaw, boxes: [] });
+      }
+    }
+    const rotBox = (bx, k, o) => {
+      const c = [bx.min, bx.max].flatMap((m) => [[bx.min[0], m[2]], [bx.max[0], m[2]]]);
+      const rr = c.map(([x, z]) => {
+        for (let i = 0; i < k; i++) [x, z] = [z, -x];
+        return [x, z];
+      });
+      return { min: [Math.min(...rr.map((v) => v[0])) + o[0], bx.min[1] + o[1], Math.min(...rr.map((v) => v[1])) + o[2]], max: [Math.max(...rr.map((v) => v[0])) + o[0], bx.max[1] + o[1], Math.max(...rr.map((v) => v[1])) + o[2]] };
+    };
+    const rotPt = (p, k, o) => {
+      let [x, z] = [p[0], p[2]];
+      for (let i = 0; i < k; i++) [x, z] = [z, -x];
+      return [x + o[0], p[1] + o[1], z + o[2]];
+    };
+    const addStatic = (mesh, pos, k, lboxes) => {
+      const hp = mesh.startsWith("house") ? 900 : mesh === "car" || mesh === "truck" ? 400 : 220;
+      this.statics.push({ mesh, pos, yaw: k * Math.PI / 2, boxes: lboxes.map((bx) => rotBox(bx, k, pos)), hp, maxHp: hp, shake: 0, dead: false });
+    };
+    const footprints = this.footprints;
+    const placeBuilding = (kind, x, z, k, pi, seed) => {
+      const bd = BUILDERS[kind](pi, seed), rad = Math.hypot(bd.w, bd.d) / 2 + 2;
+      for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + rad) return false;
+      footprints.push([x, z, rad]);
+      this.houseMeshes.push(r.upload(new Float32Array(bd.b.d)));
+      const y = terrainH(x, z) - 0.15, pos = [x, y, z];
+      addStatic("house" + (this.houseMeshes.length - 1), pos, k, bd.boxes);
+      this.houseBoxes.push(...this.statics[this.statics.length - 1].boxes);
+      for (const l of bd.loot) this.lootSpots.push(rotPt(l, k, pos));
+      for (const c of bd.chests) this.chestSpots.push(rotPt(c, k, pos));
+      const fa = k * Math.PI / 2, fx = Math.sin(fa), fz = Math.cos(fa), sx = Math.cos(fa), sz = -Math.sin(fa), front = bd.d / 2 + 5;
+      if (kind === "colonial" || kind === "cottage") {
+        if (seed % 2 === 0) addStatic(seed % 4 ? "car" : "truck", [x + fx * front + sx * 5, y + 0.15, z + fz * front + sz * 5], k, [{ min: [-1.3, 0, -2.2], max: [1.3, 2.8, 3.8] }]);
+        addStatic("mailbox", [x + fx * (front + 1) - sx * 3, y + 0.15, z + fz * (front + 1) - sz * 3], k, []);
+        if (seed % 3 === 0) {
+          addStatic("fence", [x + fx * (front + 2) - sx * 4, y + 0.15, z + fz * (front + 2) - sz * 4], k, []);
+          addStatic("fence", [x + fx * (front + 2) + sx * 4, y + 0.15, z + fz * (front + 2) + sz * 4], k, []);
+        }
+        addStatic("hedge", [x - sx * (bd.w / 2 + 2.5), y + 0.15, z - sz * (bd.w / 2 + 2.5)], (k + 1) % 4, []);
+        for (const c of [[-1, 1], [1, 1], [-1, -1]]) addStatic("bush", [x + sx * c[0] * (bd.w / 2 + 1.2) + fx * c[1] * (bd.d / 2 + 1), y + 0.15, z + sz * c[0] * (bd.w / 2 + 1.2) + fz * c[1] * (bd.d / 2 + 1)], 0, []);
+        addStatic("rock", [x - fx * (bd.d / 2 + 6) + sx * 5, y + 0.15, z - fz * (bd.d / 2 + 6) + sz * 5], k, []);
+      }
+      if (kind === "shop" || kind === "gas" || kind === "motel") {
+        addStatic("dumpster", [x - sx * (bd.w / 2 + 3), y, z - sz * (bd.w / 2 + 3)], k, [{ min: [-1.1, 0, -0.6], max: [1.1, 1.4, 0.6] }]);
+        addStatic("lamp", [x + fx * (front + 2) + sx * (bd.w / 2 - 1), y + 0.15, z + fz * (front + 2) + sz * (bd.w / 2 - 1)], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]);
+      }
+      if (kind === "warehouse") {
+        addStatic("truck", [x + fx * (front + 4) - sx * 6, y + 0.15, z + fz * (front + 4) - sz * 6], k, [{ min: [-1.3, 0, -2.2], max: [1.3, 2.8, 3.8] }]);
+      }
+      return true;
+    };
+    for (let pi = 0; pi < POIS.length; pi++) {
+      const p = POIS[pi], ty = pi % 4 * Math.PI / 2, ca = Math.cos(ty), sa = Math.sin(ty);
+      const slots = [];
+      if (p.layout === "ring") {
+        for (let i = 0; i < p.houses; i++) {
+          const a = i / p.houses * 6.28;
+          slots.push([Math.cos(a) * 36, Math.sin(a) * 36, (Math.round(Math.atan2(-Math.cos(a), -Math.sin(a)) / (Math.PI / 2)) % 4 + 4) % 4]);
+        }
+      } else if (p.layout === "street") {
+        for (let i = 0; i < p.houses; i++) {
+          const row = i % 2, col = Math.floor(i / 2);
+          slots.push([(col - (Math.ceil(p.houses / 2) - 1) / 2) * 30, row ? 20 : -20, row ? 2 : 0]);
+        }
+      } else if (p.layout === "grid") {
+        for (let i = 0; i < p.houses; i++) {
+          const row = Math.floor(i / 3), col = i % 3;
+          slots.push([(col - 1) * 34, (row - 0.5) * 36, row ? 2 : 0]);
+        }
+      } else {
+        for (let i = 0; i < p.houses; i++) {
+          const a = i * 2.4 + 0.7, rr = 16 + i % 3 * 14;
+          slots.push([Math.cos(a) * rr, Math.sin(a) * rr, i % 4]);
+        }
+      }
+      for (let i = 0; i < p.houses; i++) {
+        const [lx, lz, lk] = slots[i], x = p.x + lx * ca + lz * sa, z = p.z - lx * sa + lz * ca, k = (lk + pi % 4) % 4;
+        placeBuilding(p.kinds[i % p.kinds.length], x, z, k, pi + i, i + pi * 3);
+      }
+      if (p.layout === "street" || p.layout === "grid") for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 8) for (const side of [-1, 1]) {
+        const x = p.x + ca * tt + sa * 6.2 * side, z = p.z - sa * tt + ca * 6.2 * side;
+        this.statics.push({ mesh: "curb", pos: [x, p.h - 0.1, z], yaw: ty + (side > 0 ? 0 : Math.PI), boxes: [] });
+      }
+      for (const side of [-1, 1]) this.statics.push({ mesh: "sign", pos: [p.x + ca * p.r * 0.72 * side + sa * 8, p.h - 0.1, p.z - sa * p.r * 0.72 * side + ca * 8], yaw: ty, boxes: [] });
+      for (let k = 0; k < 10; k++) {
+        const a = rand(0, 6.28), rr = rand(10, p.r * 0.8), x = p.x + Math.cos(a) * rr, z = p.z + Math.sin(a) * rr;
+        if (roadDist(x, z) < 7 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] + 1)) continue;
+        this.statics.push({ mesh: "flowers", pos: [x, terrainH(x, z) - 0.05, z], yaw: a, boxes: [] });
+      }
+      for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) {
+        const x = p.x + ca * tt, z = p.z - sa * tt;
+        this.statics.push({ mesh: "dash", pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] });
+      }
+      for (let tt = -p.r * 0.6; tt < p.r * 0.6; tt += 24) {
+        const x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7;
+        addStatic("lamp", [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]);
+      }
+      if (p.name === "ANARCHY ACRES" || p.name === "FATAL FIELDS") {
+        for (let row = -3; row <= 3; row++) for (let c = -5; c <= 5; c++) {
+          const x = p.x + 30 + c * 4.2, z = p.z - 30 + row * 5;
+          let ok = true;
+          for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false;
+          if (ok) addStatic("hedge", [x, p.h - 0.3, z], 0, []);
+        }
+      }
+      if (p.name === "WAILING WOODS") {
+        for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) {
+          if ((gx + gz) % 2 === 0 && Math.random() < 0.55) continue;
+          if (Math.random() < 0.3) continue;
+          addStatic("hedge", [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]);
+        }
+        this.chestSpots.push([p.x + 60, p.h, p.z + 30]);
+      }
+      if (p.name === "DUSTY DEPOT" || p.name === "FLUSH FACTORY") {
+        for (let k = 0; k < 14; k++) {
+          const x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = Math.random() < 0.4 ? 2 : 1;
+          let ok = true;
+          for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false;
+          if (!ok) continue;
+          for (let l = 0; l < h; l++) addStatic("crate", [x, p.h + l * 2, z], Math.floor(rand(0, 4)), l ? [] : [{ min: [-1, 0, -1], max: [1, 2 * h, 1] }]);
+        }
+        this.chestSpots.push([p.x, p.h, p.z]);
+      }
+      if (p.name === "PLEASANT PARK") {
+        for (let i = -3; i <= 3; i++) {
+          addStatic("fence", [p.x + 40 + i * 8, p.h, p.z - 62], 0, []);
+          addStatic("fence", [p.x + 40 + i * 8, p.h, p.z - 38], 0, []);
+        }
+        for (let i = -2; i <= 2; i++) {
+          this.statics.push({ mesh: "dash", pos: [p.x + 40 + i * 6, p.h, p.z - 50], yaw: Math.PI / 2, boxes: [] });
+        }
+        this.statics.push({ mesh: "dash", pos: [p.x + 40, p.h, p.z - 56], yaw: 0, boxes: [] }, { mesh: "dash", pos: [p.x + 40, p.h, p.z - 44], yaw: 0, boxes: [] });
+      }
+      if (p.name === "PLEASANT PARK") {
+        addStatic("fountain", [p.x, p.h, p.z], 0, [{ min: [-3, 0, -3], max: [3, 1, 3] }]);
+        for (let a = 0; a < 6; a++) addStatic("bench", [p.x + Math.cos(a * Math.PI / 3) * 8, p.h, p.z + Math.sin(a * Math.PI / 3) * 8], a, []);
+      }
+      if (p.name === "SALTY SPRINGS" || p.name === "RETAIL ROW" || p.name === "ANARCHY ACRES" || p.name === "DUSTY DEPOT") addStatic("waterTower", [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21, 3.8] }]);
+      if (p.name === "ANARCHY ACRES" || p.name === "FATAL FIELDS") for (let i = -3; i <= 3; i++) {
+        addStatic("fence", [p.x + i * 8, p.h, p.z - 40], 0, []);
+        addStatic("fence", [p.x + i * 8, p.h, p.z + 40], 0, []);
+      }
+    }
+    placeBuilding("cottage", ISLAND[0] + 28, ISLAND[2] + 18, 3, 1, 2);
+    placeBuilding("cottage", ISLAND[0] - 30, ISLAND[2] - 14, 1, 4, 5);
+    placeBuilding("tower", ISLAND[0] + 4, ISLAND[2] - 34, 0, 0, 0);
+    for (let k = 0; k < 8; k++) {
+      const a = k / 8 * 6.283 + 0.3, rr = 20 + k % 2 * 6;
+      addStatic(k % 3 === 0 ? "crate" : k % 3 === 1 ? "bush" : "rock", [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.1, ISLAND[2] + Math.sin(a) * rr], k % 4, k % 3 === 0 ? [{ min: [-1, 0, -1], max: [1, 2, 1] }] : []);
+    }
+    for (let k = -2; k <= 2; k++) this.statics.push({ mesh: "fence", pos: [ISLAND[0] + k * 6, terrainH(ISLAND[0] + k * 6, ISLAND[2] + 40) - 0.1, ISLAND[2] + 40], yaw: 0, boxes: [] });
+    for (let i = 1; i < MESAS.length; i += 2) {
+      const [mx, mz] = MESAS[i];
+      placeBuilding(i % 4 === 1 ? "tower" : "cottage", mx, mz, i % 4, i, i);
+      this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]);
+    }
+    const put = (x, z, type, s) => {
+      const y = terrainH(x, z);
+      if (y < 2.2) return;
+      for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) return;
+      if (roadDist(x, z) < 6) return;
+      this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === "bush" ? 30 : 250, r: (type === "rock" ? 1.4 : type === "bush" ? 0.7 : 0.4) * s, h: (type === "rock" ? 1.2 : type === "bush" ? 1 : 6) * s, dead: 0 });
+    };
+    for (let k = 0; k < 1500; k++) {
+      const x = rand(-SIZE / 2, SIZE / 2), z = rand(-SIZE / 2, SIZE / 2), rv = Math.random();
+      let ok = true;
+      for (const p of POIS) if (Math.hypot(x - p.x, z - p.z) < p.r * 0.7 && p.layout !== "scatter") ok = false;
+      if (!ok) continue;
+      const type = rv < 0.4 ? "tree" : rv < 0.55 ? "tree2" : rv < 0.72 ? "pine" : rv < 0.9 ? "rock" : "bush";
+      put(x, z, type, type === "pine" ? rand(1.1, 1.7) : type === "rock" ? rand(0.9, 1.8) : type === "bush" ? rand(1.2, 1.8) : rand(1.3, 1.9));
+    }
+    for (const [cx, cz, cr, pineK] of [[215, -195, 60, 0.85], [265, -40, 55, 0.9], [235, 240, 60, 0.2], [-120, 40, 50, 0.6], [-300, -60, 45, 0.5], [120, 10, 40, 0.4]]) {
+      for (let k = 0; k < 220; k++) {
+        const a = rand(0, 6.28), rr = Math.sqrt(Math.random()) * cr;
+        const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
+        const pine = Math.random() < pineK;
+        put(x, z, pine ? "pine" : Math.random() < 0.7 ? "tree" : "tree2", pine ? rand(1.3, 2) : rand(1.4, 2));
+      }
+    }
+    for (const [ia, ib] of ROADS) {
+      const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L;
+      for (let tt = 30; tt < L - 30; tt += rand(10, 18)) {
+        const s = Math.random() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14);
+        put(x, z, Math.random() < 0.8 ? "tree" : "bush", rand(1.3, 1.8));
+      }
+    }
+    for (const [mx, mz, mr] of MESAS) for (let k = 0; k < 10; k++) {
+      const a = rand(0, 6.28);
+      put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), Math.random() < 0.5 ? "pine" : "rock", rand(1.2, 1.8));
+      for (let q = 0; q < 2; q++) put(mx + Math.cos(a) * (mr + rand(6, 14)), mz + Math.sin(a) * (mr + rand(6, 14)), "rock", rand(1.4, 2.4));
+    }
+    this.buildGrid();
+  }
+  /** lush 3D grass blade clusters with varied heights, wildflowers and wind sway */
+  grassChunks = /* @__PURE__ */ new Map();
+  grassChunk(r, cx, cz) {
+    const key = cx + "," + cz;
+    let m = this.grassChunks.get(key);
+    if (m) return m;
+    const g = new MB(), S = 24, seed = cx * 73856093 ^ cz * 19349663;
+    let rs = seed >>> 0 || 1;
+    const rnd = () => {
+      rs ^= rs << 13;
+      rs ^= rs >>> 17;
+      rs ^= rs << 5;
+      return (rs >>> 0) % 1e4 / 1e4;
+    };
+    for (let k = 0; k < 1e3; k++) {
+      const x = cx * S + rnd() * S, z = cz * S + rnd() * S, y = terrainH(x, z);
+      if (y < 2.3 || roadDist(x, z) < 4.6 || Math.abs(terrainH(x + 1, z) - terrainH(x - 1, z)) + Math.abs(terrainH(x, z + 1) - terrainH(x, z - 1)) > 1.1 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
+      const hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14;
+      const c = [0.24 + rnd() * 0.1, 0.52 + rnd() * 0.16, 0.16 + rnd() * 0.08];
+      for (const aa of [a, a + 1.05, a + 2.1]) {
+        const dx = Math.cos(aa) * w, dz = Math.sin(aa) * w;
+        const tipX = x + dx * 0.5 + Math.cos(a + 1.5) * 0.12, tipZ = z + dz * 0.5 + Math.sin(a + 1.5) * 0.12;
+        g.triN([x - dx, y, z - dz], [x + dx, y, z + dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], c);
+        g.triN([x + dx, y, z + dz], [x - dx, y, z - dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], dk(c, 0.9));
+      }
+      if (rnd() < 0.08) {
+        const flowerCol = rnd() < 0.6 ? [1, 0.92, 0.35] : [0.98, 0.98, 0.98];
+        g.sphere([x, y + hgt * 0.85, z], 0.065, flowerCol, 6, 1, true);
+      }
+    }
+    m = g.build(r);
+    this.grassChunks.set(key, m);
+    return m;
+  }
+  /** top-down map image (used by minimap + fullscreen map) */
+  drawMap(cv) {
+    const ctx = cv.getContext("2d"), n = cv.width, px = SIZE / n, img = ctx.createImageData(n, n);
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) {
+      const x = -SIZE / 2 + i * px, z = -SIZE / 2 + j * px, y = terrainH(x, z);
+      let c = y < -0.2 ? y < -4 ? rgb(3840728) : rgb(6210278) : terrainColor(x, z, y);
+      if (y > 0.5) {
+        const rd = roadDist(x, z);
+        if (rd < 2.2) c = rgb(14276300);
+        else if (rd < 3.2) c = rgb(11052444);
+      }
+      if (y >= -0.2) {
+        const sh = 0.72 + 0.5 * Math.max(0, (terrainH(x - 2, z - 2) - terrainH(x + 2, z + 2)) / 6 + 0.5), band = 1 - 0.06 * ((Math.floor(y / 4) % 2 + 2) % 2);
+        c = [Math.min(1, c[0] * sh * band), Math.min(1, c[1] * sh * band), Math.min(1, c[2] * sh * band)];
+        if (mesaAt(x, z) > 0.05 && mesaAt(x, z) < 0.9) c = [0.62, 0.58, 0.5];
+      } else if (y > -1.2) c = rgb(10474728);
+      const o = (j * n + i) * 4;
+      img.data[o] = c[0] * 255;
+      img.data[o + 1] = c[1] * 255;
+      img.data[o + 2] = c[2] * 255;
+      img.data[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    for (const q of this.props) if (q.type !== "bush" && q.type !== "rock") {
+      const i = (q.pos[0] + SIZE / 2) / px, j = (q.pos[2] + SIZE / 2) / px;
+      ctx.fillStyle = q.type === "pine" ? "#2f6e3a" : "#3f8a34";
+      ctx.beginPath();
+      ctx.arc(i, j, 1.3, 0, 6.28);
+      ctx.fill();
+      ctx.fillStyle = "#1d3d22aa";
+      ctx.beginPath();
+      ctx.arc(i + 0.6, j + 0.6, 1.3, 0, 6.28);
+      ctx.fill();
+    }
+    ctx.fillStyle = "#e4e6e8";
+    for (const s of this.statics) if (s.mesh.startsWith("house")) {
+      const i = (s.pos[0] + SIZE / 2) / px, j = (s.pos[2] + SIZE / 2) / px;
+      ctx.fillStyle = "#5a5a60";
+      ctx.fillRect(i - 2.5, j - 2, 6, 5);
+      ctx.fillStyle = "#e4e6e8";
+      ctx.fillRect(i - 3, j - 2.5, 6, 5);
+    }
+  }
+  drawLabels(cv) {
+    const ctx = cv.getContext("2d"), px = SIZE / cv.width;
+    ctx.font = "italic bold 15px Impact, Arial";
+    ctx.textAlign = "center";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#000a";
+    ctx.fillStyle = "#fff";
+    for (const p of POIS) {
+      const i = (p.x + SIZE / 2) / px, j = (p.z + SIZE / 2) / px + 5;
+      ctx.strokeText(p.name, i, j);
+      ctx.fillText(p.name, i, j);
+    }
+  }
+  // ---------------- building ----------------
+  /** pieces bucketed by 8m cell for cheap ground/collision lookups */
+  pieceCells = /* @__PURE__ */ new Map();
+  pcKey(x, z) {
+    return Math.floor(x / 8) + "," + Math.floor(z / 8);
+  }
+  pcAdd(p) {
+    const k = this.pcKey(p.pos[0], p.pos[2]);
+    let a = this.pieceCells.get(k);
+    if (!a) this.pieceCells.set(k, a = []);
+    a.push(p);
+  }
+  pcDel(p) {
+    const a = this.pieceCells.get(this.pcKey(p.pos[0], p.pos[2]));
+    if (a) {
+      const i = a.indexOf(p);
+      if (i >= 0) a.splice(i, 1);
+    }
+  }
+  piecesNear(x, z, rad) {
+    const out = [];
+    for (let cx = Math.floor((x - rad) / 8); cx <= Math.floor((x + rad) / 8); cx++) for (let cz = Math.floor((z - rad) / 8); cz <= Math.floor((z + rad) / 8); cz++) {
+      const a = this.pieceCells.get(cx + "," + cz);
+      if (a) out.push(...a);
+    }
+    return out;
+  }
+  static key(type, p, dir) {
+    return `${type}:${p[0]},${p[1]},${p[2]}:${type === "floor" || type === "pyramid" ? 0 : dir % 2}`;
+  }
+  place(type, mat, pos, dir) {
+    const key = World.key(type, pos, dir);
+    if (this.pieces.has(key)) return null;
+    const p = { type, mat, pos, dir, hp: MAT_HP[mat], maxHp: MAT_HP[mat], key, edit: 0, born: performance.now() / 1e3 };
+    this.pieces.set(key, p);
+    this.pcAdd(p);
+    return p;
+  }
+  damagePiece(p, d) {
+    p.hp -= d;
+    if (p.hp <= 0) this.removePiece(p);
+  }
+  removePiece(p) {
+    this.pieces.delete(p.key);
+    this.pcDel(p);
+  }
+  clearPieces() {
+    this.pieces.clear();
+    this.pieceCells.clear();
+  }
+  pieceBox(p) {
+    const [x, y, z] = p.pos;
+    if (p.type === "wall") return p.dir % 2 === 0 ? { min: [x - 2, y, z - 0.13], max: [x + 2, y + 4, z + 0.13], ref: p } : { min: [x - 0.13, y, z - 2], max: [x + 0.13, y + 4, z + 2], ref: p };
+    if (p.type === "floor") return { min: [x - 2, y - 0.22, z - 2], max: [x + 2, y + 0.02, z + 2], ref: p };
+    if (p.type === "ramp") return { min: [x - 2, y - 0.25, z - 2], max: [x + 2, y + 4, z + 2], ref: p };
+    return { min: [x - 2, y, z - 2], max: [x + 2, y + 2, z + 2], ref: p };
+  }
+  /** collision boxes honoring edits (removed tiles leave holes) */
+  pieceBoxes(p) {
+    if (!p.edit || !TILES(p.type)) return [this.pieceBox(p)];
+    const [x, y, z] = p.pos, out = [];
+    if (p.type === "wall") {
+      const along = p.dir % 2 === 0 ? 0 : 2;
+      for (let i = 0; i < 9; i++) {
+        if (p.edit & 1 << i) continue;
+        const r = Math.floor(i / 3), c = i % 3, lo = -2 + c * 4 / 3, hi = lo + 4 / 3;
+        const b = { min: [x - 0.13, y + r * 4 / 3, z - 0.13], max: [x + 0.13, y + (r + 1) * 4 / 3, z + 0.13], ref: p };
+        b.min[along] = p.pos[along] + lo;
+        b.max[along] = p.pos[along] + hi;
+        out.push(b);
+      }
+    } else for (let i = 0; i < 4; i++) {
+      if (p.edit & 1 << i) continue;
+      const cx = i % 2 ? 1 : -1, cz = i > 1 ? 1 : -1;
+      out.push({ min: [x + Math.min(0, cx * 2), y - 0.22, z + Math.min(0, cz * 2)], max: [x + Math.max(0, cx * 2), y + 0.02, z + Math.max(0, cz * 2)], ref: p });
+    }
+    return out;
+  }
+  /** ramps are solid slabs: 8 stepped boxes under the slope so nothing passes through from the side or below */
+  rampBoxes(p) {
+    const [x, y, z] = p.pos, out = [], alongZ = p.dir % 2 === 0, sign = p.dir === 0 || p.dir === 3 ? 1 : -1;
+    for (let i = 0; i < 8; i++) {
+      const lo = -2 + i * 0.5, hi = lo + 0.5, top = y + (i + 1) * 0.5;
+      const a0 = sign > 0 ? lo : -hi, a1 = sign > 0 ? hi : -lo;
+      out.push(alongZ ? { min: [x - 2, y - 0.25, z + a0], max: [x + 2, top, z + a1], ref: p } : { min: [x + a0, y - 0.25, z - 2], max: [x + a1, top, z + 2], ref: p });
+    }
+    return out;
+  }
+  /** which tile of a wall/floor a world point (on the piece) falls in, or -1 */
+  tileAt(p, pt) {
+    const lx = pt[0] - p.pos[0], ly = pt[1] - p.pos[1], lz = pt[2] - p.pos[2];
+    if (p.type === "wall") {
+      const a = p.dir % 2 === 0 ? lx : lz, c = clamp(Math.floor((a + 2) / (4 / 3)), 0, 2), r = clamp(Math.floor(ly / (4 / 3)), 0, 2);
+      return r * 3 + c;
+    }
+    if (p.type === "floor") return (lx > 0 ? 1 : 0) + (lz > 0 ? 2 : 0);
+    return -1;
+  }
+  slopeH(p, x, z) {
+    const lx = x - p.pos[0], lz = z - p.pos[2];
+    if (Math.abs(lx) > 2 || Math.abs(lz) > 2) return -Infinity;
+    if (p.type === "pyramid") return p.pos[1] + 2 - Math.max(Math.abs(lx), Math.abs(lz));
+    if (p.type !== "ramp") return -Infinity;
+    const a = p.dir * Math.PI / 2, fz = -Math.sin(a) * lx + Math.cos(a) * lz;
+    return p.pos[1] + (fz + 2);
+  }
+  solids(x, z, rad = 10) {
+    const out = [];
+    for (const p of this.piecesNear(x, z, rad + 2)) if (Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad) {
+      if (p.type === "wall" || p.type === "floor") out.push(...this.pieceBoxes(p));
+      else if (p.type === "ramp") out.push(...this.rampBoxes(p));
+    }
+    for (const c of this.near(x, z, rad)) {
+      for (const q of c.props) if (!q.dead && q.type !== "bush" && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad) out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
+      for (const s of c.statics) if (!s.dead && s.aabb && s.aabb.min[0] < x + rad && s.aabb.max[0] > x - rad && s.aabb.min[2] < z + rad && s.aabb.max[2] > z - rad) out.push(...s.boxes);
+    }
+    return out;
+  }
+  groundH(x, z, feetY) {
+    let g = terrainH(x, z);
+    for (const p of this.piecesNear(x, z, 3)) {
+      if (p.type !== "ramp" && p.type !== "pyramid") continue;
+      const h = this.slopeH(p, x, z);
+      if (h > g && feetY > h - 1.6 && feetY < h + 0.6) g = h;
+    }
+    return g;
+  }
+  // ---------------- raycast ----------------
+  static rayBox(o, d, b, maxT) {
+    let t0 = 0, t1 = maxT, ax = -1;
+    for (let i = 0; i < 3; i++) {
+      const inv = 1 / d[i];
+      let a = (b.min[i] - o[i]) * inv, c = (b.max[i] - o[i]) * inv;
+      if (a > c) [a, c] = [c, a];
+      if (a > t0) {
+        t0 = a;
+        ax = i;
+      }
+      t1 = Math.min(t1, c);
+      if (t0 > t1) return null;
+    }
+    const n = [0, 0, 0];
+    if (ax >= 0) n[ax] = d[ax] > 0 ? -1 : 1;
+    return { t: t0, n };
+  }
+  raycast(o, d, maxT, extra = []) {
+    let best = null;
+    const consider = (h) => {
+      if (h && (!best || h.t < best.t)) best = h;
+    };
+    let prev = o[1] - terrainH(o[0], o[2]);
+    for (let t = 0; t < maxT; t += 1) {
+      const p = add(o, scale(d, t)), dh = p[1] - terrainH(p[0], p[2]);
+      if (dh < 0) {
+        const tt = t - 1 * (-dh / (prev - dh || 1));
+        consider({ t: tt, p: add(o, scale(d, tt)), n: [0, 1, 0], kind: "terrain" });
+        break;
+      }
+      prev = dh;
+      if (p[1] > 80 && d[1] > 0) break;
+    }
+    const seen = /* @__PURE__ */ new Set(), tEnd = best ? best.t : maxT;
+    for (let t = 0; t <= tEnd + World.GC; t += World.GC * 0.5) {
+      const px = o[0] + d[0] * Math.min(t, tEnd), pz = o[2] + d[2] * Math.min(t, tEnd);
+      for (const c of this.near(px, pz, World.GC * 0.5)) {
+        if (seen.has(c)) continue;
+        seen.add(c);
+        for (const q of c.props) {
+          if (q.dead || q.type === "bush") continue;
+          const h = World.rayBox(o, d, { min: [q.pos[0] - q.r, q.pos[1], q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r] }, maxT);
+          if (h) consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: "prop", ref: q });
+        }
+        for (const s of c.statics) {
+          if (s.dead || !s.aabb || !World.rayBox(o, d, s.aabb, maxT)) continue;
+          for (const bx of s.boxes) {
+            const h = World.rayBox(o, d, bx, maxT);
+            if (h) consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: "static", ref: s });
+          }
+        }
+      }
+    }
+    for (const p of this.pieces.values()) {
+      const h = World.rayBox(o, d, this.pieceBox(p), maxT);
+      if (!h) continue;
+      if (p.type === "wall" || p.type === "floor") {
+        for (const bx of this.pieceBoxes(p)) {
+          const hh = World.rayBox(o, d, bx, maxT);
+          if (hh) consider({ t: hh.t, p: add(o, scale(d, hh.t)), n: hh.n, kind: "piece", ref: p });
+        }
+        continue;
+      }
+      for (let t = h.t; t < h.t + 8 && t < maxT; t += 0.15) {
+        const pt = add(o, scale(d, t));
+        const sh = this.slopeH(p, pt[0], pt[2]);
+        if (sh === -Infinity) break;
+        if (pt[1] <= sh && pt[1] >= p.pos[1] - 0.3) {
+          consider({ t, p: pt, n: [0, 1, 0], kind: "piece", ref: p });
+          break;
+        }
+      }
+    }
+    for (const b of extra) {
+      const h = World.rayBox(o, d, b, maxT);
+      if (h) consider({ t: h.t, p: add(o, scale(d, h.t)), n: h.n, kind: "box", ref: b.ref });
+    }
+    return best;
+  }
+}
+export {
+  ISLAND,
+  MAT_HP,
+  POIS,
+  SIZE,
+  STEP,
+  TILES,
+  World,
+  mesaAt,
+  roadDist,
+  terrainColor,
+  terrainH
+};

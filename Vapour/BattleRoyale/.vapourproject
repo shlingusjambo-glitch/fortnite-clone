@@ -1,0 +1,12 @@
+{
+  "formatVersion": 1,
+  "id": "0766fab4-5c30-4973-9e18-1894c271ba10",
+  "name": "Battle Royale",
+  "editorVersion": "0.2.0-alpha",
+  "startupScene": "Assets/Scenes/Main.scene.json",
+  "scriptEntry": "Scripts/main.ts",
+  "rendering": {
+    "preferredCanvasFormat": "auto",
+    "powerPreference": "high-performance"
+  }
+}

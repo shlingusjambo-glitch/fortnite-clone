@@ -1,0 +1,229 @@
+{
+  "formatVersion": 1,
+  "id": "9ecdb75c-f333-43cf-9ba7-b4b784d237ec",
+  "name": "Main",
+  "entities": [
+    {
+      "id": "4fef7f90-5ac7-44c8-83d3-0c91c19a9a71",
+      "name": "Cube",
+      "enabled": true,
+      "components": [
+        {
+          "typeName": "vapour.MeshRenderer",
+          "version": 1,
+          "data": {
+            "mesh": "builtin:cube",
+            "material": "builtin:default",
+            "baseColor": [
+              0.24,
+              0.48,
+              1,
+              1
+            ],
+            "metallic": 0,
+            "roughness": 0.6,
+            "emissive": 0,
+            "alphaCutoff": 0.01
+          }
+        },
+        {
+          "typeName": "vapour.Transform",
+          "version": 1,
+          "data": {
+            "position": [
+              -0.9,
+              0.5,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "58267e5e-5c9b-4634-b010-6de16a0e7547",
+      "name": "Ground",
+      "enabled": true,
+      "components": [
+        {
+          "typeName": "vapour.MeshRenderer",
+          "version": 1,
+          "data": {
+            "mesh": "builtin:plane",
+            "material": "builtin:default",
+            "baseColor": [
+              0.18,
+              0.19,
+              0.2,
+              1
+            ],
+            "metallic": 0,
+            "roughness": 0.9,
+            "emissive": 0,
+            "alphaCutoff": 0.01
+          }
+        },
+        {
+          "typeName": "vapour.Transform",
+          "version": 1,
+          "data": {
+            "position": [
+              0,
+              0,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "scale": [
+              12,
+              1,
+              12
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "74eece5b-1a62-4366-b48e-1e20d17ca7f2",
+      "name": "Directional Light",
+      "enabled": true,
+      "components": [
+        {
+          "typeName": "vapour.DirectionalLight",
+          "version": 1,
+          "data": {
+            "color": [
+              1,
+              0.96,
+              0.88
+            ],
+            "intensity": 3
+          }
+        },
+        {
+          "typeName": "vapour.Transform",
+          "version": 1,
+          "data": {
+            "position": [
+              0,
+              4,
+              2
+            ],
+            "rotation": [
+              0.40821789367673483,
+              -0.23456971600980447,
+              0.109381654946615,
+              0.875426098065593
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "895661ea-3339-4a97-a4f0-db2a6fbd61ed",
+      "name": "Sphere",
+      "enabled": true,
+      "components": [
+        {
+          "typeName": "vapour.MeshRenderer",
+          "version": 1,
+          "data": {
+            "mesh": "builtin:sphere",
+            "material": "builtin:default",
+            "baseColor": [
+              0.85,
+              0.45,
+              0.25,
+              1
+            ],
+            "metallic": 0.9,
+            "roughness": 0.25,
+            "emissive": 0,
+            "alphaCutoff": 0.01
+          }
+        },
+        {
+          "typeName": "vapour.Transform",
+          "version": 1,
+          "data": {
+            "position": [
+              0.9,
+              0.5,
+              0
+            ],
+            "rotation": [
+              0,
+              0,
+              0,
+              1
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "id": "cf853b77-8e55-4917-a072-b3ff21e1cd69",
+      "name": "Main Camera",
+      "enabled": true,
+      "components": [
+        {
+          "typeName": "vapour.Camera",
+          "version": 1,
+          "data": {
+            "projection": "perspective",
+            "fieldOfView": 60,
+            "orthographicSize": 10,
+            "near": 0.1,
+            "far": 1000
+          }
+        },
+        {
+          "typeName": "vapour.Transform",
+          "version": 1,
+          "data": {
+            "position": [
+              0,
+              2,
+              6
+            ],
+            "rotation": [
+              -0.10452846326765346,
+              0,
+              0,
+              0.9945218953682733
+            ],
+            "scale": [
+              1,
+              1,
+              1
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

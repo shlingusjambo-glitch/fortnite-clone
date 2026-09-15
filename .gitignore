@@ -1,4 +1,9 @@
 node_modules
 dist
 .vercel
-Vapour
+Vapour/vapour-engine-0.2.5-alpha
+Vapour/EngineSource
+Vapour/EngineCheck
+Vapour/.DS_Store
+Vapour/BattleRoyale/.vapour
+Vapour/BattleRoyale/dist
