@@ -13,22 +13,27 @@ function vnoise(x: number, z: number) {
 }
 const sstep = (t: number) => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 export interface POI { name: string; x: number; z: number; h: number; r: number; houses: number; kinds: BuildingKind[]; layout: 'grid' | 'ring' | 'street' | 'scatter'; }
-export const POIS: POI[] = [
-  { name: 'PLEASANT PARK', x: -160, z: -140, h: 9, r: 70, houses: 8, kinds: ['colonial', 'colonial', 'cottage', 'colonial', 'colonial', 'cottage', 'colonial', 'colonial'], layout: 'ring' },
-  { name: 'SALTY SPRINGS', x: 40, z: -50, h: 8, r: 62, houses: 7, kinds: ['colonial', 'cottage', 'colonial', 'gas', 'cottage', 'colonial', 'tower'], layout: 'street' },
-  { name: 'RETAIL ROW', x: 190, z: 20, h: 10, r: 70, houses: 8, kinds: ['shop', 'shop', 'gas', 'warehouse', 'motel', 'colonial', 'cottage', 'colonial'], layout: 'grid' },
-  { name: 'LAZY LAKE', x: 60, z: 170, h: 7, r: 66, houses: 7, kinds: ['motel', 'colonial', 'colonial', 'cottage', 'shop', 'tower', 'colonial'], layout: 'street' },
-  { name: 'MISTY MEADOWS', x: -150, z: 150, h: 8, r: 62, houses: 6, kinds: ['barn', 'barn', 'cottage', 'cottage', 'tower', 'colonial'], layout: 'scatter' },
-  { name: 'SWEATY SANDS', x: -240, z: 10, h: 4, r: 58, houses: 6, kinds: ['motel', 'shop', 'cottage', 'cottage', 'colonial', 'gas'], layout: 'street' },
-  { name: 'WEEPING WOODS', x: -40, z: 60, h: 12, r: 60, houses: 4, kinds: ['cottage', 'tower', 'cottage', 'tower'], layout: 'scatter' },
-  { name: 'DIRTY DOCKS', x: 210, z: -160, h: 5, r: 58, houses: 5, kinds: ['warehouse', 'warehouse', 'warehouse', 'tower', 'shop'], layout: 'grid' },
-  { name: 'CRAGGY CLIFFS', x: 60, z: -262, h: 24, r: 50, houses: 4, kinds: ['cottage', 'shop', 'tower', 'cottage'], layout: 'street' },
-  { name: 'FRENZY FARM', x: -70, z: -235, h: 11, r: 52, houses: 4, kinds: ['barn', 'cottage', 'tower', 'colonial'], layout: 'scatter' },
+export const POIS: POI[] = [   // Chapter 1 Season 1 layout (north = -z)
+  { name: 'ANARCHY ACRES', x: -40, z: -250, h: 10, r: 55, houses: 5, kinds: ['barn', 'barn', 'cottage', 'tower', 'colonial'], layout: 'scatter' },
+  { name: 'PLEASANT PARK', x: -190, z: -130, h: 9, r: 70, houses: 8, kinds: ['colonial', 'colonial', 'cottage', 'colonial', 'colonial', 'cottage', 'colonial', 'colonial'], layout: 'ring' },
+  { name: 'LOOT LAKE', x: 0, z: -40, h: 3.2, r: 10, houses: 1, kinds: ['colonial'], layout: 'scatter' },
+  { name: 'WAILING WOODS', x: 215, z: -195, h: 12, r: 55, houses: 4, kinds: ['cottage', 'tower', 'cottage', 'tower'], layout: 'scatter' },
+  { name: 'TOMATO TOWN', x: 110, z: -175, h: 9, r: 48, houses: 5, kinds: ['shop', 'gas', 'cottage', 'shop', 'colonial'], layout: 'street' },
+  { name: 'LONELY LODGE', x: 265, z: -40, h: 11, r: 50, houses: 4, kinds: ['tower', 'cottage', 'cottage', 'barn'], layout: 'scatter' },
+  { name: 'DUSTY DEPOT', x: 40, z: 60, h: 8, r: 55, houses: 4, kinds: ['warehouse', 'warehouse', 'warehouse', 'tower'], layout: 'grid' },
+  { name: 'SALTY SPRINGS', x: 40, z: 150, h: 8, r: 60, houses: 7, kinds: ['colonial', 'cottage', 'colonial', 'gas', 'cottage', 'colonial', 'tower'], layout: 'street' },
+  { name: 'RETAIL ROW', x: 205, z: 110, h: 10, r: 68, houses: 8, kinds: ['shop', 'shop', 'gas', 'warehouse', 'motel', 'colonial', 'cottage', 'colonial'], layout: 'grid' },
+  { name: 'GREASY GROVE', x: -200, z: 120, h: 8, r: 62, houses: 7, kinds: ['gas', 'shop', 'colonial', 'cottage', 'colonial', 'motel', 'cottage'], layout: 'street' },
+  { name: 'FATAL FIELDS', x: -40, z: 250, h: 9, r: 55, houses: 5, kinds: ['barn', 'cottage', 'barn', 'tower', 'colonial'], layout: 'scatter' },
+  { name: 'MOISTY MIRE', x: 235, z: 240, h: 4, r: 50, houses: 3, kinds: ['cottage', 'tower', 'cottage'], layout: 'scatter' },
+  { name: 'FLUSH FACTORY', x: -195, z: 260, h: 7, r: 50, houses: 4, kinds: ['warehouse', 'warehouse', 'shop', 'tower'], layout: 'grid' },
+  { name: 'LUCKY LANDING', x: 60, z: 300, h: 6, r: 40, houses: 3, kinds: ['motel', 'shop', 'cottage'], layout: 'street' },
 ];
-const LAKES: [number, number, number][] = [[150, 140, 34], [-70, -30, 24], [210, 110, 30], [-190, -210, 36], [-20, 240, 40], [140, -90, 26], [-270, -110, 30]];
+
+const LAKES: [number, number, number][] = [[0, -40, 62], [150, 30, 26], [-110, -30, 22], [-260, 20, 30], [120, 230, 24], [-120, 190, 22], [280, 160, 26]];
 /** flat-topped hills with steep rock walls: [x, z, radius, height] */
-const MESAS: [number, number, number, number][] = [[-110, 30, 34, 16], [130, -215, 38, 22], [270, -60, 30, 14], [-250, 240, 40, 18], [20, 300, 30, 12], [300, 190, 34, 16], [-300, -240, 26, 12], [170, 270, 26, 14]];
-const ROADS: [number, number][] = [[0, 1], [1, 2], [1, 3], [3, 4], [0, 5], [4, 5], [1, 6], [6, 4], [2, 7], [0, 9], [9, 8], [8, 7], [3, 2]];
+const MESAS: [number, number, number, number][] = [[0, -40, 13, 8], [-110, 40, 30, 16], [150, -100, 34, 20], [-270, -230, 34, 16], [280, 40, 26, 14], [-290, 200, 30, 18], [130, 300, 26, 12], [300, -270, 26, 12]];
+const ROADS: [number, number][] = [[0, 1], [0, 4], [4, 3], [4, 5], [1, 9], [1, 6], [4, 6], [6, 7], [7, 8], [8, 5], [9, 10], [7, 10], [10, 13], [8, 11], [12, 9], [12, 10], [13, 11], [3, 5]];
 function riverMask(x: number, z: number) {
   const a = Math.abs(vnoise(x * 0.004 + 9, z * 0.004 + 3) - 0.5), b = Math.abs(vnoise(x * 0.0035 + 40, z * 0.0035 + 70) - 0.5);
   const c = Math.abs(vnoise(x * 0.003 + 80, z * 0.003 + 20) - 0.5);
@@ -64,7 +69,7 @@ export function terrainColor(x: number, z: number, y: number): Col {
   if (rd < 4.4) return rgb(0xa89a70);             // dirt shoulder
   const v = vnoise(x * 0.03, z * 0.03), dirt = vnoise(x * 0.09 + 50, z * 0.09 + 12);
   if (dirt > 0.86) return rgb(0xa8945e);            // worn dirt patches
-  return v > 0.6 ? rgb(0x8fd44e) : v > 0.4 ? rgb(0x9fdd58) : rgb(0x97d852);
+  return v > 0.6 ? rgb(0x7fcf3d) : v > 0.4 ? rgb(0x93dc4c) : rgb(0x88d644);
 }
 
 export interface Prop { type: 'tree' | 'tree2' | 'pine' | 'rock' | 'bush'; pos: V3; yaw: number; s: number; hp: number; r: number; h: number; dead: number; }
@@ -157,8 +162,8 @@ export class World {
       for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) { const x = p.x + ca * tt, z = p.z - sa * tt; this.statics.push({ mesh: 'dash', pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] }); }
       for (let tt = -p.r * 0.6; tt < p.r * 0.6; tt += 24) { const x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7; addStatic('lamp', [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
       if (p.name === 'PLEASANT PARK') { addStatic('fountain', [p.x, p.h, p.z], 0, [{ min: [-3, 0, -3], max: [3, 1, 3] }]); for (let a = 0; a < 6; a++) addStatic('bench', [p.x + Math.cos(a * Math.PI / 3) * 8, p.h, p.z + Math.sin(a * Math.PI / 3) * 8], a, []); }
-      if (p.name === 'SALTY SPRINGS' || p.name === 'RETAIL ROW' || p.name === 'FRENZY FARM') addStatic('waterTower', [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21.0, 3.8] }]);
-      if (p.name === 'MISTY MEADOWS' || p.name === 'FRENZY FARM') for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + i * 8, p.h, p.z - 40], 0, []); addStatic('fence', [p.x + i * 8, p.h, p.z + 40], 0, []); }
+      if (p.name === 'SALTY SPRINGS' || p.name === 'RETAIL ROW' || p.name === 'ANARCHY ACRES' || p.name === 'DUSTY DEPOT') addStatic('waterTower', [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21.0, 3.8] }]);
+      if (p.name === 'ANARCHY ACRES' || p.name === 'FATAL FIELDS') for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + i * 8, p.h, p.z - 40], 0, []); addStatic('fence', [p.x + i * 8, p.h, p.z + 40], 0, []); }
     }
     // vegetation: authored clusters (woods, tree lines along roads/rivers) + sparse fill
     const put = (x: number, z: number, type: Prop['type'], s: number) => { const y = terrainH(x, z); if (y < 2.2) return; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) return; if (roadDist(x, z) < 6) return; this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === 'bush' ? 30 : 250, r: (type === 'rock' ? 1.4 : type === 'bush' ? 0.7 : 0.4) * s, h: (type === 'rock' ? 1.2 : type === 'bush' ? 1 : 6) * s, dead: 0 }); };
@@ -168,7 +173,7 @@ export class World {
       const type: Prop['type'] = rv < 0.4 ? 'tree' : rv < 0.55 ? 'tree2' : rv < 0.72 ? 'pine' : rv < 0.9 ? 'rock' : 'bush';
       put(x, z, type, type === 'pine' ? rand(1.1, 1.7) : type === 'rock' ? rand(0.9, 1.8) : type === 'bush' ? rand(1.2, 1.8) : rand(1.3, 1.9));
     }
-    for (const [cx, cz, cr, pineK] of [[-40, 60, 70, 0.8], [120, -230, 45, 0.9], [-260, 250, 50, 0.3], [250, 160, 55, 0.6], [-20, 320, 40, 0.2], [-300, -60, 45, 0.5]] as [number, number, number, number][]) {   // woods
+    for (const [cx, cz, cr, pineK] of [[215, -195, 60, 0.85], [265, -40, 55, 0.9], [235, 240, 60, 0.2], [-120, 40, 50, 0.6], [-300, -60, 45, 0.5], [120, 10, 40, 0.4]] as [number, number, number, number][]) {   // woods
       for (let k = 0; k < 220; k++) { const a = rand(0, 6.28), rr = Math.sqrt(Math.random()) * cr; const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr; const pine = Math.random() < pineK; put(x, z, pine ? 'pine' : Math.random() < 0.7 ? 'tree' : 'tree2', pine ? rand(1.3, 2.0) : rand(1.4, 2.0)); }
     }
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L; for (let tt = 30; tt < L - 30; tt += rand(10, 18)) { const s = Math.random() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14); put(x, z, Math.random() < 0.8 ? 'tree' : 'bush', rand(1.3, 1.8)); } }
@@ -216,7 +221,9 @@ export class World {
     ctx.fillStyle = '#3f8a34';
     for (const q of this.props) if (q.type !== 'bush' && q.type !== 'rock') { const i = (q.pos[0] + SIZE / 2) / px, j = (q.pos[2] + SIZE / 2) / px; ctx.fillRect(i - 0.8, j - 0.8, 1.6, 1.6); }
     ctx.fillStyle = '#e4e6e8';
-    for (const s of this.statics) if (s.mesh.startsWith('house') || s.mesh === 'building') { const i = (s.pos[0] + SIZE / 2) / px, j = (s.pos[2] + SIZE / 2) / px; ctx.fillRect(i - 3, j - 2.5, 6, 5); }
+    for (const s of this.statics) if (s.mesh.startsWith('house')) { const i = (s.pos[0] + SIZE / 2) / px, j = (s.pos[2] + SIZE / 2) / px; ctx.fillRect(i - 3, j - 2.5, 6, 5); }
+    ctx.font = 'italic bold 15px Impact, Arial'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = '#000a'; ctx.fillStyle = '#fff';
+    for (const p of POIS) { const i = (p.x + SIZE / 2) / px, j = (p.z + SIZE / 2) / px + 5; ctx.strokeText(p.name, i, j); ctx.fillText(p.name, i, j); }
   }
 
   // ---------------- building ----------------
