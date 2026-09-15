@@ -3,11 +3,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc && esbuild src/main.ts --bundle --format=iife --target=es2020 --outfile=build/game.js --minify-syntax",
-    "watch": "esbuild src/main.ts --bundle --format=iife --target=es2020 --outfile=build/game.js --watch",
+    "build": "tsc && esbuild src/main.ts --bundle --format=iife --target=es2020 --outfile=game.js --minify-syntax",
+    "watch": "esbuild src/main.ts --bundle --format=iife --target=es2020 --outfile=game.js --watch",
     "serve": "python3 serve.py 8765",
     "serve:lan": "python3 -m http.server 8765 --bind 0.0.0.0",
-    "bundle": "esbuild src/main.ts --bundle --format=iife --target=es2020 --outfile=build/game.js --minify-syntax"
+    "bundle": "esbuild src/main.ts --bundle --format=iife --target=es2020 --outfile=game.js --minify-syntax"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

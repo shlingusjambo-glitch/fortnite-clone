@@ -329,6 +329,10 @@
 <div id="emoteWheel"><div data-e="0"><b>💃</b>Dance</div><div data-e="1"><b>👋</b>Wave</div><div data-e="2"><b>🕺</b>Floss</div><div data-e="3"><b>🙌</b>Take the L</div></div>
 <div id="bigmap"><canvas width="600" height="600"></canvas></div>
 <div id="pause"><h1>PAUSED</h1><div class="btns"><div id="pResume">RESUME</div><div class="sec" id="pSettings">SETTINGS</div><div class="sec" id="pLobby">LEAVE MATCH</div></div><p><b>Click to resume</b><br><kbd>WASD</kbd> / <kbd>L-Stick</kbd> move · <kbd>Shift</kbd> / <kbd>L3</kbd> sprint · <kbd>Space</kbd> / <kbd>A</kbd> jump · <kbd>Ctrl</kbd> / <kbd>R3</kbd> crouch · <kbd>E</kbd> / <kbd>X</kbd> interact · <kbd>R</kbd> reload · <kbd>RT</kbd> fire · <kbd>LT</kbd> ADS · <kbd>RB</kbd>/<kbd>LB</kbd> switch slot/piece · <kbd>Z</kbd>/<kbd>B</kbd> build mode · <kbd>X</kbd>/<kbd>Y</kbd> edit mode · <kbd>M</kbd> map<br><i style="color:#5ee0ff">🎮 Regular Controller Controls &amp; Rumble Supported!</i></p></div>
-<script src="game.js"></script>
+<script src="game.js" defer></script>
+<script>
+// If the bundle fails to load (bad proxy, missing file), say so instead of showing a dead menu.
+setTimeout(function(){ if(!window.G){ var d=document.createElement('div'); d.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99;background:#c0303a;color:#fff;padding:10px 18px;font:14px/1.4 Arial;border-radius:4px;max-width:90vw'; d.textContent='Game script failed to load (game.js). If you are behind a proxy, make sure it passes through .js and .mp3 files unchanged.'; document.body.appendChild(d);} }, 6000);
+</script>
 </body>
 </html>
