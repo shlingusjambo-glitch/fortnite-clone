@@ -1848,7 +1848,9 @@ void main(){
   function botDamage(dm, n, by, how = "with a weapon") {
     if (dm.dead) return;
     let sh = Math.min(dm.shield, n);
-    if (dm.shield -= sh, dm.hp -= n - sh, dm.lastHit = t, dm.hp > 0) {
+    dm.shield -= sh, dm.hp -= n - sh, dm.lastHit = t;
+    let att = by === "Player" ? P.pos : bots.find((x) => x.name === by)?.pos;
+    if (att && (dm.memory = [...att], dm.memoryT = t, Math.random() < 0.4 + dm.skill * 0.6 && (dm.yaw = Math.atan2(att[0] - dm.pos[0], att[2] - dm.pos[2]), dm.retarget = 0), !dm.enemy && dm.weapon && dm.mode !== "heal" && (dm.mode = "hunt")), dm.hp > 0) {
       Math.random() < 0.22 && botVoice(dm);
       return;
     }

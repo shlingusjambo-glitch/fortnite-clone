@@ -274,6 +274,9 @@ function buildTarget(): { type: PieceType; pos: V3; dir: number } {
 function botDamage(dm: Bot, n: number, by: string, how = 'with a weapon') {
   if (dm.dead) return;
   const sh = Math.min(dm.shield, n); dm.shield -= sh; dm.hp -= n - sh; dm.lastHit = t;
+  // getting shot tells the bot where from: remember the attacker and (skill-based) snap toward them so perception can lock on
+  const att = by === 'Player' ? P.pos : bots.find(x => x.name === by)?.pos;
+  if (att) { dm.memory = [...att] as V3; dm.memoryT = t; if (Math.random() < 0.4 + dm.skill * 0.6) { dm.yaw = Math.atan2(att[0] - dm.pos[0], att[2] - dm.pos[2]); dm.retarget = 0; } if (!dm.enemy && dm.weapon && dm.mode !== 'heal') dm.mode = 'hunt'; }
   if (dm.hp > 0) { if (Math.random() < .22) botVoice(dm); return; }
   dm.dead = true; P.alive--;
   if (Math.random() < 0.35) { const killer = bots.find(x => x.name === by); if (killer && !killer.dead) { killer.emoteT = 3; killer.emote = Math.floor(rand(0, 4)); } }
