@@ -701,6 +701,16 @@ void main(){
     }), M2.truck = mk((b) => {
       let red = rgb(13645868), chrome = rgb(13421772);
       b.rbox([0, 0.75, 0.8], [2, 0.65, 1.8], red, 0.08), b.rbox([0, 1.35, -0.3], [1.9, 0.85, 1.6], red, 0.08), b.box([0, 1.38, 0.52], [1.7, 0.55, 0.04], C.glass), b.box([0, 1.38, -0.3], [1.92, 0.48, 1.3], C.glass), b.rbox([0, 0.85, -1.8], [2, 0.55, 2.2], red, 0.06), b.box([0, 0.65, -1.8], [1.7, 0.12, 2], rgb(4473924)), b.box([0, 0.75, 1.72], [1.6, 0.35, 0.06], chrome), b.sphere([-0.7, 0.75, 1.74], 0.12, rgb(16775376), 10, 1, !0), b.sphere([0.7, 0.75, 1.74], 0.12, rgb(16775376), 10, 1, !0);
+      for (let k = 0; k < 5; k++) b.box([0, 0.62 + k * 0.07, 1.73], [1.4, 0.02, 0.02], dk(chrome, 0.7));
+      b.box([0, 0.45, 1.78], [2.1, 0.18, 0.1], chrome), b.box([0, 0.45, -2.95], [2.1, 0.18, 0.1], chrome);
+      for (let sx of [-1, 1])
+        b.box([sx, 1.4, 0.35], [0.2, 0.12, 0.1], red), b.box([sx * 0.96, 1.15, -0.3], [0.01, 0.5, 0.02], dk(red, 0.6)), b.box([sx * 0.98, 1.2, -0.1], [0.04, 0.03, 0.2], chrome);
+      b.box([0, 1.82, -0.3], [1.7, 0.06, 1.4], dk(red, 0.9));
+      for (let k = -1; k <= 1; k++) b.sphere([k * 0.5, 1.87, 0.2], 0.06, rgb(16756768), 8, 1, !0);
+      for (let sx of [-1, 1]) for (let k = 0; k < 4; k++) b.box([sx, 1, -1 - k * 0.55], [0.05, 0.45, 0.06], dk(red, 0.75));
+      b.box([0, 0.98, -2.88], [1.9, 0.4, 0.06], dk(red, 0.85)), b.box([0, 1, -2.92], [0.5, 0.15, 0.02], rgb(16053488));
+      for (let sx of [-0.8, 0.8]) b.box([sx, 0.9, -2.93], [0.22, 0.14, 0.03], rgb(14168112));
+      b.push(mul(translate(-0.4, 1.15, -1.8), rotY(0.3))), b.box([0, 0, 0], [0.8, 0.6, 0.8], rgb(11569754)), b.pop(), b.cyl([0.5, 0.71, -1.4], 0.3, 0.3, 0.7, rgb(3829672), 12, !0, !0);
       for (let sx of [-1.05, 1.05])
         for (let sz of [-1.6, 1])
           b.push(mul(translate(sx, 0.38, sz), rotZ(Math.PI / 2))), b.cyl([0, 0, 0], 0.38, 0.38, 0.26, rgb(2105894), 16, !0, !0), b.cyl([0, 0.02, 0], 0.22, 0.22, 0.28, chrome, 12, !0, !0), b.pop();
@@ -720,7 +730,7 @@ void main(){
           }
           b.pop();
         }
-    }), M2.chest = mk((b) => {
+    }), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);
       for (let sx of [-0.52, 0.52]) {
         b.box([sx, 0.52, 0], [0.1, 1.06, 1.02], rgb(3814962));
@@ -2721,7 +2731,8 @@ void main(){
         R.draw(M.hitbox, mul(mul(trs(pc.pos, pc.dir * Math.PI / 2), translate(local[0], local[1], local[2])), trs([0, 0, 0], 0, 0, size)), sel ? [0.3, 0.8, 1.4] : [1.2, 1.2, 1.2], sel ? 0.55 : 0.15, 7, !1);
       }
     }
-    for (let c of chests) R.draw(c.open ? M.chestOpen : M.chest, trs(c.pos, c.yaw));
+    for (let c of chests)
+      R.draw(c.open ? M.chestOpen : M.chest, trs(c.pos, c.yaw), c.open ? [1, 1, 1] : [1.15, 1.1, 0.9]), !c.open && len(sub(c.pos, camPos)) < 60 && R.draw(M.glow, trs(c.pos, 0, 0, 1 + Math.sin(t * 3) * 0.08), [1, 0.85, 0.3], 0.16, 7, !1);
     for (let g of items)
       g.item.kind === "ammo" ? R.draw(M.ammo, trs(g.pos, 0.6, 0, 1.6)) : R.draw(M[g.item.kind], trs(add(g.pos, [0, 0.6 + Math.sin(t * 3) * 0.1, 0]), t * 1.5, 0, 1.3));
     for (let f of fx) if (f.kind === "tracer" && f.to) {

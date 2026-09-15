@@ -1029,6 +1029,14 @@ export function buildModels(r: Renderer): Models {
     b.box([0, 0.75, 1.72], [1.6, 0.35, 0.06], chrome);
     b.sphere([-0.7, 0.75, 1.74], 0.12, rgb(0xfff8d0), 10, 1, true);
     b.sphere([0.7, 0.75, 1.74], 0.12, rgb(0xfff8d0), 10, 1, true);
+    for (let k = 0; k < 5; k++) b.box([0, 0.62 + k * 0.07, 1.73], [1.4, 0.02, 0.02], dk(chrome, 0.7));                  // grille bars
+    b.box([0, 0.45, 1.78], [2.1, 0.18, 0.1], chrome); b.box([0, 0.45, -2.95], [2.1, 0.18, 0.1], chrome);              // bumpers
+    for (const sx of [-1.0, 1.0]) { b.box([sx, 1.4, 0.35], [0.2, 0.12, 0.1], red); b.box([sx * 0.96, 1.15, -0.3], [0.01, 0.5, 0.02], dk(red, 0.6)); b.box([sx * 0.98, 1.2, -0.1], [0.04, 0.03, 0.2], chrome); }   // mirrors, door seams, handles
+    b.box([0, 1.82, -0.3], [1.7, 0.06, 1.4], dk(red, 0.9)); for (let k = -1; k <= 1; k++) b.sphere([k * 0.5, 1.87, 0.2], 0.06, rgb(0xffb020), 8, 1, true);   // roof + cab lights
+    for (const sx of [-1.0, 1.0]) for (let k = 0; k < 4; k++) b.box([sx, 1.0, -1.0 - k * 0.55], [0.05, 0.45, 0.06], dk(red, 0.75));   // bed side rails
+    b.box([0, 0.98, -2.88], [1.9, 0.4, 0.06], dk(red, 0.85)); b.box([0, 1.0, -2.92], [0.5, 0.15, 0.02], rgb(0xf4f4f0));            // tailgate + plate
+    for (const sx of [-0.8, 0.8]) b.box([sx, 0.9, -2.93], [0.22, 0.14, 0.03], rgb(0xd83030));                                        // tail lights
+    b.push(mul(translate(-0.4, 1.15, -1.8), rotY(0.3))); b.box([0, 0, 0], [0.8, 0.6, 0.8], rgb(0xb08a5a)); b.pop(); b.cyl([0.5, 0.71, -1.4], 0.3, 0.3, 0.7, rgb(0x3a6fa8), 12, true, true);   // cargo: crate + barrel
     // 4 Wheels with rubber tires and chrome hubcaps
     for (const sx of [-1.05, 1.05]) {
       for (const sz of [-1.6, 1.0]) {
@@ -1069,6 +1077,7 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Golden Treasure Chest (Iconic glowing chest)
+  M.glow = mk(b => b.sphere([0, 0.4, 0], 1.0, rgb(0xffd23a), 12, 0.9, true));
   M.chest = mk(b => {
     b.rbox([0, 0.35, 0], [1.44, 0.70, 0.94], C.woodDark, 0.04);                        // chest base
     b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);                            // lid

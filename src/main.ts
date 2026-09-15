@@ -1028,7 +1028,7 @@ function frame(now: number) {
       R.draw(M.hitbox, mul(mul(trs(pc.pos, pc.dir * Math.PI / 2), translate(local[0], local[1], local[2])), trs([0, 0, 0], 0, 0, size)), sel ? [0.3, 0.8, 1.4] : [1.2, 1.2, 1.2], sel ? 0.55 : 0.15, 7, false);
     }
   }
-  for (const c of chests) R.draw(c.open ? M.chestOpen : M.chest, trs(c.pos, c.yaw));
+  for (const c of chests) { R.draw(c.open ? M.chestOpen : M.chest, trs(c.pos, c.yaw), c.open ? [1, 1, 1] : [1.15, 1.1, 0.9]); if (!c.open && len(sub(c.pos, camPos)) < 60) R.draw(M.glow, trs(c.pos, 0, 0, 1 + Math.sin(t * 3) * 0.08), [1, 0.85, 0.3], 0.16, 7, false); }
   for (const g of items) { if (g.item.kind === 'ammo') R.draw(M.ammo, trs(g.pos, 0.6, 0, 1.6)); else R.draw(M[g.item.kind], trs(add(g.pos, [0, 0.6 + Math.sin(t * 3) * 0.1, 0]), t * 1.5, 0, 1.3)); }
   for (const f of fx) if (f.kind === 'tracer' && f.to) { const d = sub(f.to, f.pos), L = len(d); R.draw(M.tracer, trs(f.pos, Math.atan2(d[0], d[2]), -Math.asin(clamp(d[1] / L, -1, 1)), [1, 1, L]), [1, 1, 1], 1, 0, false); }
   for (const d of bots) if (!d.dead && d.state !== 'bus' && Math.abs(d.pos[0] - camPos[0]) < cull && Math.abs(d.pos[2] - camPos[2]) < cull) drawChar(CHARS[d.skin], trs(d.pos, d.yaw), { anim: d.anim, speed: Math.hypot(d.vel[0], d.vel[2]), grounded: d.grounded || d.state !== 'ground', pitch: d.pitch, pose: d.emoteT > 0 ? 'emote' : d.state === 'sky' ? 'sky' : d.state === 'glide' ? 'glide' : d.mode === 'crank' || d.mode === 'box' || d.mode === 'rush' ? 'build' : d.weapon && d.enemy ? 'aim' : 'idle', held: d.state !== 'ground' || d.emoteT > 0 || d.mode === 'crank' || d.mode === 'box' || d.mode === 'rush' ? undefined : d.weapon ?? 'pickaxe', emote: d.emote });
