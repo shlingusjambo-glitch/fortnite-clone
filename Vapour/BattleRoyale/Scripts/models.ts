@@ -1,11 +1,11 @@
 import { V3, M4, cross, norm, sub, transformPoint, transformDir, ident, mul, translate, rotY, rotX, rotZ, scaleM, rand } from './math';
-import { Renderer, Mesh } from '../renderer';
+import { Renderer, Mesh } from './renderer';
 
 export type Col = V3;
 export const rgb = (h: number): Col => [((h >> 16) & 255) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255];
 export const dk = (c: Col, k: number): Col => [c[0] * k, c[1] * k, c[2] * k];
 /** bake a vertical ambient-occlusion gradient into vertex colours: darker near y0, full colour by y1 */
-export function aoY(d: number[], y0: number, y1: number, dark: number) { for (let i = 0; i < d.length; i += 9) { const t = Math.min(1, Math.max(0, (d[i + 1] - y0) / (y1 - y0))), k = dark + (1 - dark) * t * t * (3 - 2 * t); d[i + 6] *= k; d[i + 7] *= k; d[i + 8] *= k; } }
+export function aoY(d: number[], y0: number, y1: number, dark: number) { for (let i = 0; i < d.length; i += 9) { const t = Math.min(1, Math.max(0, (d[i + 1]! - y0) / (y1 - y0))), k = dark + (1 - dark) * t * t * (3 - 2 * t); d[i + 6]! *= k; d[i + 7]! *= k; d[i + 8]! *= k; } }
 export const lt = (c: Col, k: number): Col => [Math.min(1, c[0] + (1 - c[0]) * k), Math.min(1, c[1] + (1 - c[1]) * k), Math.min(1, c[2] + (1 - c[2]) * k)];
 
 /**
@@ -483,7 +483,8 @@ export function house(b: MB, s: HouseSpec): LBox[] {
   return boxes;
 }
 
-export interface Models { [k: string]: Mesh; }
+export type ModelKey = 'ammo' | 'ar' | 'balloon' | 'bandage' | 'barn' | 'beam' | 'bench' | 'boogie' | 'bridge' | 'burst' | 'bus' | 'bush' | 'bushItem' | 'car' | 'chest' | 'chestOpen' | 'chug' | 'crate' | 'curb' | 'dash' | 'dumpster' | 'fence' | 'fish' | 'flowers' | 'fountain' | 'glider' | 'glow' | 'grenade' | 'hedge' | 'hitbox' | 'hunting' | 'impulse' | 'lamp' | 'launchpad' | 'mailbox' | 'medkit' | 'miniShield' | 'mountains' | 'pad' | 'pickaxe' | 'pine' | 'pistol' | 'pole' | 'revolver' | 'rock' | 'rocket' | 'rod' | 'rpg' | 'scar' | 'shadow' | 'shieldPot' | 'shotgun' | 'sign' | 'silenced' | 'smg' | 'sniper' | 'storm' | 'tac' | 'tracer' | 'tree' | 'tree2' | 'truck' | 'water' | 'waterTower';
+export type Models = Record<ModelKey | `${'wall' | 'ramp' | 'floor' | 'pyramid'}_${'wood' | 'stone' | 'metal'}`, Mesh> & { [k: string]: Mesh | undefined };
 
 /** Edited pieces with tiles removed by edit mask */
 export function editedPiece(r: Renderer, type: 'wall' | 'floor', mat: string, mask: number): Mesh {
@@ -520,7 +521,7 @@ export function editedPiece(r: Renderer, type: 'wall' | 'floor', mat: string, ma
 /** Build all high-poly game models, weapons, build pieces, and props */
 export function buildModels(r: Renderer): Models {
   const mkAO = (y0: number, y1: number, dark: number, f: (b: MB) => void) => { const b = new MB(); f(b); aoY(b.d, y0, y1, dark); return b.build(r); };
-  const M: Models = {};
+  const M = {} as Models;
   const mk = (f: (b: MB) => void) => { const b = new MB(); f(b); return b.build(r); };
 
   // ==================== HIGH-POLY WEAPONS ====================
@@ -672,7 +673,7 @@ export function buildModels(r: Renderer): Models {
   M.grenade = mk(b => { b.sphere([0, 0.15, 0], 0.14, rgb(0x4a6a3a), 10, 1.2, true); b.cyl([0, 0.3, 0], 0.05, 0.05, 0.08, rgb(0x888888), 8, true, true); b.box([0.06, 0.34, 0], [0.12, 0.02, 0.03], rgb(0xcccccc)); for (let k = 0; k < 3; k++) b.torus([0, 0.08 + k * 0.07, 0], 0.14, 0.008, rgb(0x2e4a26), 10, 4); });
   M.launchpad = mkAO(0, 0.4, 0.7, b => { b.cyl([0, 0, 0], 1.5, 1.4, 0.25, rgb(0x2c3e5a), 16, true, true); b.cyl([0, 0.25, 0], 1.0, 1.0, 0.08, C.blue, 16, true, true); for (let k = 0; k < 4; k++) { b.push(rotY(k * 1.57)); b.box([0.5, 0.4, 0], [0.7, 0.06, 0.16], C.holographic); b.pop(); } b.cyl([0, 0.3, 0], 0.25, 0.25, 0.3, C.yellow, 10, true, true); for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283; b.box([Math.cos(a) * 1.25, 0.16, Math.sin(a) * 1.25], [0.2, 0.1, 0.2], C.yellow); } });
   M.bushItem = mk(b => { b.sphere([0, 0.25, 0], 0.25, C.leaf2, 8, 0.8, true); b.sphere([0.15, 0.3, 0.1], 0.16, C.leaf3, 8, 0.8, true); b.sphere([-0.15, 0.32, -0.05], 0.15, C.leaf, 8, 0.8, true); });
-  M.boogie = mk(b => { b.sphere([0, 0.16, 0], 0.16, rgb(0xc9c9d8), 12, 1, true); for (let k = 0; k < 10; k++) { const a = k * 2.4, y = 0.16 + Math.sin(k * 1.7) * 0.1; b.sphere([Math.cos(a) * 0.14, y, Math.sin(a) * 0.14], 0.03, [C.red, C.blue, C.yellow, rgb(0xff3ec9)][k % 4], 6, 1, true); } b.cyl([0, 0.32, 0], 0.04, 0.04, 0.06, rgb(0x888888), 8, true, true); });
+  M.boogie = mk(b => { b.sphere([0, 0.16, 0], 0.16, rgb(0xc9c9d8), 12, 1, true); for (let k = 0; k < 10; k++) { const a = k * 2.4, y = 0.16 + Math.sin(k * 1.7) * 0.1; b.sphere([Math.cos(a) * 0.14, y, Math.sin(a) * 0.14], 0.03, [C.red, C.blue, C.yellow, rgb(0xff3ec9)][k % 4]!, 6, 1, true); } b.cyl([0, 0.32, 0], 0.04, 0.04, 0.06, rgb(0x888888), 8, true, true); });
   M.impulse = mk(b => { b.sphere([0, 0.16, 0], 0.15, C.blue, 12, 1, true); b.torus([0, 0.16, 0], 0.16, 0.02, C.holographic, 14, 6); b.cyl([0, 0.32, 0], 0.04, 0.04, 0.06, rgb(0x888888), 8, true, true); });
   M.chug = mk(b => { b.cyl([0, 0, 0], 0.2, 0.22, 0.55, rgb(0x3aa2ff), 14, true, true); b.torus([0, 0.35, 0.22], 0.08, 0.025, rgb(0x2c6fb0), 12, 6); b.cyl([0, 0.55, 0], 0.09, 0.09, 0.08, rgb(0x2c6fb0), 10, true, true); b.box([0, 0.28, 0.21], [0.22, 0.18, 0.01], C.white); });
 
@@ -906,7 +907,7 @@ export function buildModels(r: Renderer): Models {
     for (let k = 0; k < 9; k++) { const a = k * 2.1, y = 0.4 + k * 0.5; b.box([Math.cos(a) * 0.24, y, Math.sin(a) * 0.24], [0.14, 0.08 + (k % 3) * 0.04, 0.06], mark); }
     for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.8; b.push(mul(translate(Math.cos(a) * 0.15, 3.0 + i * 0.4, Math.sin(a) * 0.15), mul(rotY(a), rotX(0.8)))); b.cyl([0, 0, 0], 0.1, 0.04, 2.2, bark, 8, true, true); b.pop(); }
     b.sphere([0, 5.6, 0], 1.7, leafB, 12, 0.9, true);
-    for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283, rr = 1.5 + (i % 2) * 0.4; b.sphere([Math.cos(a) * rr, 4.8 + (i % 3) * 0.7, Math.sin(a) * rr], 0.9 + (i % 2) * 0.2, [leafA, leafB, leafC][i % 3], 10, 0.9, true); }
+    for (let i = 0; i < 10; i++) { const a = i / 10 * 6.283, rr = 1.5 + (i % 2) * 0.4; b.sphere([Math.cos(a) * rr, 4.8 + (i % 3) * 0.7, Math.sin(a) * rr], 0.9 + (i % 2) * 0.2, [leafA, leafB, leafC][i % 3]!, 10, 0.9, true); }
     b.sphere([0.2, 6.9, 0.1], 1.0, leafC, 10, 0.85, true);
   });
 
@@ -1055,13 +1056,13 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Golden Treasure Chest (Iconic glowing chest)
-  M.crate = mkAO(0, 1.2, 0.72, b => { const c = rgb(0xb08a5a); b.box([0, 1, 0], [2, 2, 2], c); for (const e of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { b.box([e[0], 1, e[1]], [e[0] ? 0.08 : 2.04, 2.04, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 0.06, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0], 1.94, e[1]], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); } b.box([0, 2.02, 0], [2.04, 0.06, 2.04], dk(c, 0.8)); b.box([0.3, 1.2, 1.03], [0.7, 0.4, 0.02], rgb(0x333333)); });
+  M.crate = mkAO(0, 1.2, 0.72, b => { const c = rgb(0xb08a5a); b.box([0, 1, 0], [2, 2, 2], c); for (const e of [[0, 1], [0, -1], [1, 0], [-1, 0]]) { b.box([e[0]!, 1, e[1]!], [e[0] ? 0.08 : 2.04, 2.04, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0]!, 0.06, e[1]!], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); b.box([e[0]!, 1.94, e[1]!], [e[0] ? 0.08 : 2.04, 0.12, e[1] ? 0.08 : 2.04], dk(c, 0.7)); } b.box([0, 2.02, 0], [2.04, 0.06, 2.04], dk(c, 0.8)); b.box([0.3, 1.2, 1.03], [0.7, 0.4, 0.02], rgb(0x333333)); });
   M.mountains = mk(b => {   // distant faceted mountain ring beyond the island, read through fog
     let seed = 7; const rr = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     for (let i = 0; i < 44; i++) { const a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50; b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(0x6f8a6a) : rgb(0x8a8f86), 5, false, false); if (h > 85) b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(0xf0f4f8), 5, false, false); }
   });
   M.pole = mkAO(0, 2.5, 0.65, b => { const w = rgb(0x7a6248); b.cyl([0, 0, 0], 0.16, 0.13, 9.0, w, 8, true, true); b.box([0, 8.4, 0], [2.2, 0.14, 0.14], w); b.box([0, 7.6, 0], [1.6, 0.12, 0.12], w); for (const x of [-0.9, -0.3, 0.3, 0.9]) b.cyl([x, 8.55, 0], 0.05, 0.05, 0.16, rgb(0x6fb3c8), 6, true, true); b.box([0.5, 4.5, 0], [0.5, 0.7, 0.5], rgb(0x9aa0a6)); });   // telephone pole + transformer
-  M.flowers = mkAO(0, 0.3, 0.8, b => { let sd = 5; const rr = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; }; for (let k = 0; k < 14; k++) { const x = (rr() - 0.5) * 2.4, z = (rr() - 0.5) * 2.4, c = [C.red, C.yellow, rgb(0xff5ab3), C.white, rgb(0xff8a1e)][k % 5]; b.cyl([x, 0, z], 0.02, 0.015, 0.3, dk(C.leaf2, 0.8), 5, true, true); b.sphere([x, 0.32, z], 0.07, c, 6, 0.7, true); } b.sphere([0, 0.1, 0], 0.9, dk(C.leaf2, 0.9), 8, 0.25, true); });
+  M.flowers = mkAO(0, 0.3, 0.8, b => { let sd = 5; const rr = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; }; for (let k = 0; k < 14; k++) { const x = (rr() - 0.5) * 2.4, z = (rr() - 0.5) * 2.4, c = [C.red, C.yellow, rgb(0xff5ab3), C.white, rgb(0xff8a1e)][k % 5]; b.cyl([x, 0, z], 0.02, 0.015, 0.3, dk(C.leaf2, 0.8), 5, true, true); b.sphere([x, 0.32, z], 0.07, c!, 6, 0.7, true); } b.sphere([0, 0.1, 0], 0.9, dk(C.leaf2, 0.9), 8, 0.25, true); });
   M.curb = mkAO(0, 0.3, 0.75, b => { b.box([0, 0.12, 0], [0.5, 0.24, 8], rgb(0xb8b6ae)); b.box([0.9, 0.1, 0], [1.4, 0.2, 8], rgb(0xa9a7a0)); for (let k = -3; k <= 3; k++) b.box([0.9, 0.21, k * 1.15], [1.42, 0.01, 0.04], rgb(0x8f8d86)); });   // curb + sidewalk slabs
   M.sign = mkAO(0, 1.0, 0.7, b => { b.cyl([0, 0, 0], 0.05, 0.05, 2.6, rgb(0x7a7f86), 8, true, true); b.box([0, 2.5, 0], [0.9, 0.22, 0.04], rgb(0x2f8a3a)); b.box([0, 2.5, 0.025], [0.7, 0.1, 0.01], C.white); b.box([0, 1.9, 0], [0.6, 0.6, 0.04], rgb(0xd83030)); b.box([0, 1.9, 0.025], [0.4, 0.08, 0.01], C.white); });
   M.bridge = mkAO(-2, 0.5, 0.7, b => { const w = rgb(0x9a7a50); for (let i = 0; i < 16; i++) b.plank([0, 0.3, -3.75 + i * 0.5], [4.4, 0.16, 0.46], w, 0.02); for (const sx of [-2.1, 2.1]) { b.box([sx, 0.15, 0], [0.25, 0.4, 8], dk(w, 0.7)); b.box([sx, 1.1, 0], [0.08, 0.08, 8], dk(w, 0.8)); for (let k = -3; k <= 3; k++) b.box([sx, 0.7, k * 1.2], [0.1, 0.9, 0.1], dk(w, 0.8)); } for (const sz of [-3, 0, 3]) for (const sx of [-1.8, 1.8]) b.cyl([sx, -2, sz], 0.2, 0.2, 2.5, dk(w, 0.6), 8, true, true); });

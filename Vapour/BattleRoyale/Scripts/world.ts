@@ -1,7 +1,7 @@
 import { V3, add, scale, sub, clamp, rand, norm, cross } from './math';
 import { MB, rgb, dk, Col, LBox, C } from './models';
 import { BUILDERS, BuildingKind } from './buildings';
-import { Renderer, Mesh } from '../renderer';
+import { Renderer, Mesh } from './renderer';
 
 // ---------------- terrain (authored: broad hills + mesas with cliff walls + river valleys) ----------------
 export const SIZE = 720, STEP = 3;
@@ -64,7 +64,7 @@ function segDist(x: number, z: number, a: POI, b: POI) {
   const dx = b.x - a.x, dz = b.z - a.z, t = clamp(((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz), 0, 1);
   return Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t));
 }
-export function roadDist(x: number, z: number) { let m = 1e9; for (const [ia, ib] of ROADS) m = Math.min(m, segDist(x, z, POIS[ia], POIS[ib])); return m; }
+export function roadDist(x: number, z: number) { let m = 1e9; for (const [ia, ib] of ROADS) m = Math.min(m, segDist(x, z, POIS[ia]!, POIS[ib]!)); return m; }
 /** base ground colour; the terrain shader adds grass/dirt/rock detail on top */
 export function terrainColor(x: number, z: number, y: number): Col {
   if (y < -0.1) return rgb(0xf2f4e6);            // foam line at the waterline
@@ -104,7 +104,7 @@ export class World {
     for (const s of this.statics) {
       if (!s.boxes.length) continue;
       const a: Box = { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] };
-      for (const b of s.boxes) for (let i = 0; i < 3; i++) { a.min[i] = Math.min(a.min[i], b.min[i]); a.max[i] = Math.max(a.max[i], b.max[i]); }
+      for (const b of s.boxes) for (let i = 0; i < 3; i++) { a.min[i] = Math.min(a.min[i]!, b.min[i]!); a.max[i] = Math.max(a.max[i]!, b.max[i]!); }
       s.aabb = a;
       for (let x = a.min[0]; x <= a.max[0] + World.GC; x += World.GC) for (let z = a.min[2]; z <= a.max[2] + World.GC; z += World.GC) { const c = this.cell(Math.min(x, a.max[0]), Math.min(z, a.max[2])); if (!c.statics.includes(s)) c.statics.push(s); }
     }
@@ -127,19 +127,19 @@ export class World {
       }
       const cs = per * STEP; this.terrainChunks.push({ mesh: b.build(r), c: [-SIZE / 2 + (ci + 0.5) * cs, 0, -SIZE / 2 + (cj + 0.5) * cs], r: cs * 0.71 });
     }
-    this.terrain = this.terrainChunks[0].mesh;
+    this.terrain = this.terrainChunks[0]!.mesh;
     { const b = new MB(); for (let x = ISLAND[0] - 75; x < ISLAND[0] + 75; x += STEP) for (let z = ISLAND[2] - 75; z < ISLAND[2] + 75; z += STEP) { const p = (px: number, pz: number): V3 => [px, terrainH(px, pz), pz]; const a = p(x, z), bb = p(x + STEP, z), c = p(x + STEP, z + STEP), d = p(x, z + STEP); if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue; const col = terrainColor(x, z, (a[1] + c[1]) / 2); b.triN(a, d, c, N(x, z), N(x, z + STEP), N(x + STEP, z + STEP), col); b.triN(a, c, bb, N(x, z), N(x + STEP, z + STEP), N(x + STEP, z), col); } this.island = b.build(r); }
     for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283, rr = 30 + (k % 3) * 8; this.props.push({ type: k % 3 ? 'tree' : 'pine', pos: [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.2, ISLAND[2] + Math.sin(a) * rr], yaw: a, s: 1.5, hp: 250, r: 0.6, h: 9, dead: 0 }); }
     // wooden bridges where roads cross water
-    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 4; t < L - 4; t += 8) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L; if (terrainH(x, z) < 0.6) { const c = Math.cos(yaw), sn = Math.sin(yaw); this.statics.push({ mesh: 'bridge', pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] }); } } }
+    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B!.x - A!.x, B!.z - A!.z), yaw = Math.atan2(B!.x - A!.x, B!.z - A!.z); for (let t = 4; t < L - 4; t += 8) { const x = A!.x + (B!.x - A!.x) * t / L, z = A!.z + (B!.z - A!.z) * t / L; if (terrainH(x, z) < 0.6) { const c = Math.cos(yaw), sn = Math.sin(yaw); this.statics.push({ mesh: 'bridge', pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] }); } } }
     // telephone poles along roads (one side, every ~34m) and flower patches on POI lawns
-    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L; for (let t = 17; t < L - 10; t += 34) { const x = A.x + (B.x - A.x) * t / L + nx * 6.5, z = A.z + (B.z - A.z) * t / L + nz * 6.5, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'pole', pos: [x, y - 0.2, z], yaw, boxes: [{ min: [x - 0.2, y, z - 0.2], max: [x + 0.2, y + 9, z + 0.2] }] }); } }
+    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B!.x - A!.x, B!.z - A!.z), yaw = Math.atan2(B!.x - A!.x, B!.z - A!.z), nx = -(B!.z - A!.z) / L, nz = (B!.x - A!.x) / L; for (let t = 17; t < L - 10; t += 34) { const x = A!.x + (B!.x - A!.x) * t / L + nx * 6.5, z = A!.z + (B!.z - A!.z) * t / L + nz * 6.5, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'pole', pos: [x, y - 0.2, z], yaw, boxes: [{ min: [x - 0.2, y, z - 0.2], max: [x + 0.2, y + 9, z + 0.2] }] }); } }
     // road center dashes
-    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 0; t < L; t += 7) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'dash', pos: [x, y, z], yaw, boxes: [] }); } }
+    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B!.x - A!.x, B!.z - A!.z), yaw = Math.atan2(B!.x - A!.x, B!.z - A!.z); for (let t = 0; t < L; t += 7) { const x = A!.x + (B!.x - A!.x) * t / L, z = A!.z + (B!.z - A!.z) * t / L, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'dash', pos: [x, y, z], yaw, boxes: [] }); } }
     const rotBox = (bx: LBox, k: number, o: V3): Box => {   // rotate local AABB by k*90deg around Y then offset
       const c = [bx.min, bx.max].flatMap(m => [[bx.min[0], m[2]], [bx.max[0], m[2]]]) as [number, number][];
       const rr = c.map(([x, z]) => { for (let i = 0; i < k; i++) [x, z] = [z, -x]; return [x, z]; });
-      return { min: [Math.min(...rr.map(v => v[0])) + o[0], bx.min[1] + o[1], Math.min(...rr.map(v => v[1])) + o[2]], max: [Math.max(...rr.map(v => v[0])) + o[0], bx.max[1] + o[1], Math.max(...rr.map(v => v[1])) + o[2]] };
+      return { min: [Math.min(...rr.map(v => v[0]!)) + o[0], bx.min[1] + o[1], Math.min(...rr.map(v => v[1]!)) + o[2]], max: [Math.max(...rr.map(v => v[0]!)) + o[0], bx.max[1] + o[1], Math.max(...rr.map(v => v[1]!)) + o[2]] };
     };
     const rotPt = (p: V3, k: number, o: V3): V3 => { let [x, z] = [p[0], p[2]]; for (let i = 0; i < k; i++) [x, z] = [z, -x]; return [x + o[0], p[1] + o[1], z + o[2]]; };
     const addStatic = (mesh: string, pos: V3, k: number, lboxes: LBox[]) => { const hp = mesh.startsWith('house') ? 900 : mesh === 'car' || mesh === 'truck' ? 400 : 220; this.statics.push({ mesh, pos, yaw: k * Math.PI / 2, boxes: lboxes.map(bx => rotBox(bx, k, pos)), hp, maxHp: hp, shake: 0, dead: false }); };
@@ -151,7 +151,7 @@ export class World {
       this.houseMeshes.push(r.upload(new Float32Array(bd.b.d)));
       const y = terrainH(x, z) - 0.15, pos: V3 = [x, y, z];
       addStatic('house' + (this.houseMeshes.length - 1), pos, k, bd.boxes);
-      this.houseBoxes.push(...this.statics[this.statics.length - 1].boxes);
+      this.houseBoxes.push(...this.statics[this.statics.length - 1]!.boxes);
       for (const l of bd.loot) this.lootSpots.push(rotPt(l, k, pos)); for (const c of bd.chests) this.chestSpots.push(rotPt(c, k, pos));
       // yard props in front of houses
       const fa = k * Math.PI / 2, fx = Math.sin(fa), fz = Math.cos(fa), sx = Math.cos(fa), sz = -Math.sin(fa), front = bd.d / 2 + 5;
@@ -160,7 +160,7 @@ export class World {
         addStatic('mailbox', [x + fx * (front + 1) - sx * 3, y + 0.15, z + fz * (front + 1) - sz * 3], k, []);
         if (seed % 3 === 0) { addStatic('fence', [x + fx * (front + 2) - sx * 4, y + 0.15, z + fz * (front + 2) - sz * 4], k, []); addStatic('fence', [x + fx * (front + 2) + sx * 4, y + 0.15, z + fz * (front + 2) + sz * 4], k, []); }
         addStatic('hedge', [x - sx * (bd.w / 2 + 2.5), y + 0.15, z - sz * (bd.w / 2 + 2.5)], (k + 1) % 4, []);
-        for (const c of [[-1, 1], [1, 1], [-1, -1]]) addStatic('bush', [x + sx * c[0] * (bd.w / 2 + 1.2) + fx * c[1] * (bd.d / 2 + 1.0), y + 0.15, z + sz * c[0] * (bd.w / 2 + 1.2) + fz * c[1] * (bd.d / 2 + 1.0)], 0, []);   // foundation shrubs
+        for (const c of [[-1, 1], [1, 1], [-1, -1]]) addStatic('bush', [x + sx * c[0]! * (bd.w / 2 + 1.2) + fx * c[1]! * (bd.d / 2 + 1.0), y + 0.15, z + sz * c[0]! * (bd.w / 2 + 1.2) + fz * c[1]! * (bd.d / 2 + 1.0)], 0, []);   // foundation shrubs
         addStatic('rock', [x - fx * (bd.d / 2 + 6) + sx * 5, y + 0.15, z - fz * (bd.d / 2 + 6) + sz * 5], k, []);
       }
       if (kind === 'shop' || kind === 'gas' || kind === 'motel') { addStatic('dumpster', [x - sx * (bd.w / 2 + 3), y, z - sz * (bd.w / 2 + 3)], k, [{ min: [-1.1, 0, -0.6], max: [1.1, 1.4, 0.6] }]); addStatic('lamp', [x + fx * (front + 2) + sx * (bd.w / 2 - 1), y + 0.15, z + fz * (front + 2) + sz * (bd.w / 2 - 1)], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
@@ -170,46 +170,46 @@ export class World {
     for (let pi = 0; pi < POIS.length; pi++) {
       const p = POIS[pi], ty = (pi % 4) * Math.PI / 2, ca = Math.cos(ty), sa = Math.sin(ty);
       const slots: [number, number, number][] = [];   // local x,z,k(facing)
-      if (p.layout === 'ring') { for (let i = 0; i < p.houses; i++) { const a = i / p.houses * 6.28; slots.push([Math.cos(a) * 36, Math.sin(a) * 36, ((Math.round((Math.atan2(-Math.cos(a), -Math.sin(a))) / (Math.PI / 2)) % 4) + 4) % 4]); } }
-      else if (p.layout === 'street') { for (let i = 0; i < p.houses; i++) { const row = i % 2, col = Math.floor(i / 2); slots.push([(col - (Math.ceil(p.houses / 2) - 1) / 2) * 30, row ? 20 : -20, row ? 2 : 0]); } }
-      else if (p.layout === 'grid') { for (let i = 0; i < p.houses; i++) { const row = Math.floor(i / 3), col = i % 3; slots.push([(col - 1) * 34, (row - 0.5) * 36, row ? 2 : 0]); } }
-      else { for (let i = 0; i < p.houses; i++) { const a = i * 2.4 + 0.7, rr = 16 + (i % 3) * 14; slots.push([Math.cos(a) * rr, Math.sin(a) * rr, i % 4]); } }
-      for (let i = 0; i < p.houses; i++) {
-        const [lx, lz, lk] = slots[i], x = p.x + lx * ca + lz * sa, z = p.z - lx * sa + lz * ca, k = (lk + (pi % 4)) % 4;
-        placeBuilding(p.kinds[i % p.kinds.length], x, z, k, pi + i, i + pi * 3);
+      if (p!.layout === 'ring') { for (let i = 0; i < p!.houses; i++) { const a = i / p!.houses * 6.28; slots.push([Math.cos(a) * 36, Math.sin(a) * 36, ((Math.round((Math.atan2(-Math.cos(a), -Math.sin(a))) / (Math.PI / 2)) % 4) + 4) % 4]); } }
+      else if (p!.layout === 'street') { for (let i = 0; i < p!.houses; i++) { const row = i % 2, col = Math.floor(i / 2); slots.push([(col - (Math.ceil(p!.houses / 2) - 1) / 2) * 30, row ? 20 : -20, row ? 2 : 0]); } }
+      else if (p!.layout === 'grid') { for (let i = 0; i < p!.houses; i++) { const row = Math.floor(i / 3), col = i % 3; slots.push([(col - 1) * 34, (row - 0.5) * 36, row ? 2 : 0]); } }
+      else { for (let i = 0; i < p!.houses; i++) { const a = i * 2.4 + 0.7, rr = 16 + (i % 3) * 14; slots.push([Math.cos(a) * rr, Math.sin(a) * rr, i % 4]); } }
+      for (let i = 0; i < p!.houses; i++) {
+        const [lx, lz, lk] = slots[i]!, x = p!.x + lx * ca + lz * sa, z = p!.z - lx * sa + lz * ca, k = (lk + (pi % 4)) % 4;
+        placeBuilding(p!.kinds[i % p!.kinds.length]!, x, z, k, pi + i, i + pi * 3);
       }
       // curbs + sidewalks along the main street, a sign at each end, shrubs against house walls
-      if (p.layout === 'street' || p.layout === 'grid') for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 8) for (const side of [-1, 1]) { const x = p.x + ca * tt + sa * 6.2 * side, z = p.z - sa * tt + ca * 6.2 * side; this.statics.push({ mesh: 'curb', pos: [x, p.h - 0.1, z], yaw: ty + (side > 0 ? 0 : Math.PI), boxes: [] }); }
-      for (const side of [-1, 1]) this.statics.push({ mesh: 'sign', pos: [p.x + ca * p.r * 0.72 * side + sa * 8, p.h - 0.1, p.z - sa * p.r * 0.72 * side + ca * 8], yaw: ty, boxes: [] });
-      for (let k = 0; k < 10; k++) { const a = rand(0, 6.28), rr = rand(10, p.r * 0.8), x = p.x + Math.cos(a) * rr, z = p.z + Math.sin(a) * rr; if (roadDist(x, z) < 7 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] + 1)) continue; this.statics.push({ mesh: 'flowers', pos: [x, terrainH(x, z) - 0.05, z], yaw: a, boxes: [] }); }
+      if (p!.layout === 'street' || p!.layout === 'grid') for (let tt = -p!.r * 0.7; tt < p!.r * 0.7; tt += 8) for (const side of [-1, 1]) { const x = p!.x + ca * tt + sa * 6.2 * side, z = p!.z - sa * tt + ca * 6.2 * side; this.statics.push({ mesh: 'curb', pos: [x, p!.h - 0.1, z], yaw: ty + (side > 0 ? 0 : Math.PI), boxes: [] }); }
+      for (const side of [-1, 1]) this.statics.push({ mesh: 'sign', pos: [p!.x + ca * p!.r * 0.72 * side + sa * 8, p!.h - 0.1, p!.z - sa * p!.r * 0.72 * side + ca * 8], yaw: ty, boxes: [] });
+      for (let k = 0; k < 10; k++) { const a = rand(0, 6.28), rr = rand(10, p!.r * 0.8), x = p!.x + Math.cos(a) * rr, z = p!.z + Math.sin(a) * rr; if (roadDist(x, z) < 7 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] + 1)) continue; this.statics.push({ mesh: 'flowers', pos: [x, terrainH(x, z) - 0.05, z], yaw: a, boxes: [] }); }
       // street furniture along the main street
-      for (let tt = -p.r * 0.7; tt < p.r * 0.7; tt += 7) { const x = p.x + ca * tt, z = p.z - sa * tt; this.statics.push({ mesh: 'dash', pos: [x, p.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] }); }
-      for (let tt = -p.r * 0.6; tt < p.r * 0.6; tt += 24) { const x = p.x + ca * tt + sa * 7, z = p.z - sa * tt + ca * 7; addStatic('lamp', [x, p.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
-      if (p.name === 'ANARCHY ACRES' || p.name === 'FATAL FIELDS') {   // crop rows in the fields between barns
-        for (let row = -3; row <= 3; row++) for (let c = -5; c <= 5; c++) { const x = p.x + 30 + c * 4.2, z = p.z - 30 + row * 5; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (ok) addStatic('hedge', [x, p.h - 0.3, z], 0, []); }
+      for (let tt = -p!.r * 0.7; tt < p!.r * 0.7; tt += 7) { const x = p!.x + ca * tt, z = p!.z - sa * tt; this.statics.push({ mesh: 'dash', pos: [x, p!.h - 0.1, z], yaw: Math.PI / 2 + ty, boxes: [] }); }
+      for (let tt = -p!.r * 0.6; tt < p!.r * 0.6; tt += 24) { const x = p!.x + ca * tt + sa * 7, z = p!.z - sa * tt + ca * 7; addStatic('lamp', [x, p!.h, z], 0, [{ min: [-0.15, 0, -0.15], max: [0.15, 5, 0.15] }]); }
+      if (p!.name === 'ANARCHY ACRES' || p!.name === 'FATAL FIELDS') {   // crop rows in the fields between barns
+        for (let row = -3; row <= 3; row++) for (let c = -5; c <= 5; c++) { const x = p!.x + 30 + c * 4.2, z = p!.z - 30 + row * 5; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (ok) addStatic('hedge', [x, p!.h - 0.3, z], 0, []); }
       }
-      if (p.name === 'WAILING WOODS') {   // hedge maze: 9x9 grid with random gaps
-        for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) { if ((gx + gz) % 2 === 0 && rand() < 0.55) continue; if (rand() < 0.3) continue; addStatic('hedge', [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]); }
-        this.chestSpots.push([p.x + 60, p.h, p.z + 30]);
+      if (p!.name === 'WAILING WOODS') {   // hedge maze: 9x9 grid with random gaps
+        for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) { if ((gx + gz) % 2 === 0 && rand() < 0.55) continue; if (rand() < 0.3) continue; addStatic('hedge', [p!.x + 60 + gx * 4, p!.h, p!.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]); }
+        this.chestSpots.push([p!.x + 60, p!.h, p!.z + 30]);
       }
-      if (p.name === 'DUSTY DEPOT' || p.name === 'FLUSH FACTORY') {   // container yard: crate stacks between the warehouses
-        for (let k = 0; k < 14; k++) { const x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = rand() < 0.4 ? 2 : 1; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (!ok) continue; for (let l = 0; l < h; l++) addStatic('crate', [x, p.h + l * 2, z], Math.floor(rand(0, 4)), l ? [] : [{ min: [-1, 0, -1], max: [1, 2 * h, 1] }]); }
-        this.chestSpots.push([p.x, p.h, p.z]);
+      if (p!.name === 'DUSTY DEPOT' || p!.name === 'FLUSH FACTORY') {   // container yard: crate stacks between the warehouses
+        for (let k = 0; k < 14; k++) { const x = p!.x + rand(-30, 30), z = p!.z + rand(-12, 12), h = rand() < 0.4 ? 2 : 1; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (!ok) continue; for (let l = 0; l < h; l++) addStatic('crate', [x, p!.h + l * 2, z], Math.floor(rand(0, 4)), l ? [] : [{ min: [-1, 0, -1], max: [1, 2 * h, 1] }]); }
+        this.chestSpots.push([p!.x, p!.h, p!.z]);
       }
-      if (p.name === 'PLEASANT PARK') {
-        for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + 40 + i * 8, p.h, p.z - 62], 0, []); addStatic('fence', [p.x + 40 + i * 8, p.h, p.z - 38], 0, []); }   // soccer pitch
-        for (let i = -2; i <= 2; i++) { this.statics.push({ mesh: 'dash', pos: [p.x + 40 + i * 6, p.h, p.z - 50], yaw: Math.PI / 2, boxes: [] }); }
-        this.statics.push({ mesh: 'dash', pos: [p.x + 40, p.h, p.z - 56], yaw: 0, boxes: [] }, { mesh: 'dash', pos: [p.x + 40, p.h, p.z - 44], yaw: 0, boxes: [] });
+      if (p!.name === 'PLEASANT PARK') {
+        for (let i = -3; i <= 3; i++) { addStatic('fence', [p!.x + 40 + i * 8, p!.h, p!.z - 62], 0, []); addStatic('fence', [p!.x + 40 + i * 8, p!.h, p!.z - 38], 0, []); }   // soccer pitch
+        for (let i = -2; i <= 2; i++) { this.statics.push({ mesh: 'dash', pos: [p!.x + 40 + i * 6, p!.h, p!.z - 50], yaw: Math.PI / 2, boxes: [] }); }
+        this.statics.push({ mesh: 'dash', pos: [p!.x + 40, p!.h, p!.z - 56], yaw: 0, boxes: [] }, { mesh: 'dash', pos: [p!.x + 40, p!.h, p!.z - 44], yaw: 0, boxes: [] });
       }
-      if (p.name === 'PLEASANT PARK') { addStatic('fountain', [p.x, p.h, p.z], 0, [{ min: [-3, 0, -3], max: [3, 1, 3] }]); for (let a = 0; a < 6; a++) addStatic('bench', [p.x + Math.cos(a * Math.PI / 3) * 8, p.h, p.z + Math.sin(a * Math.PI / 3) * 8], a, []); }
-      if (p.name === 'SALTY SPRINGS' || p.name === 'RETAIL ROW' || p.name === 'ANARCHY ACRES' || p.name === 'DUSTY DEPOT') addStatic('waterTower', [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21.0, 3.8] }]);
-      if (p.name === 'ANARCHY ACRES' || p.name === 'FATAL FIELDS') for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + i * 8, p.h, p.z - 40], 0, []); addStatic('fence', [p.x + i * 8, p.h, p.z + 40], 0, []); }
+      if (p!.name === 'PLEASANT PARK') { addStatic('fountain', [p!.x, p!.h, p!.z], 0, [{ min: [-3, 0, -3], max: [3, 1, 3] }]); for (let a = 0; a < 6; a++) addStatic('bench', [p!.x + Math.cos(a * Math.PI / 3) * 8, p!.h, p!.z + Math.sin(a * Math.PI / 3) * 8], a, []); }
+      if (p!.name === 'SALTY SPRINGS' || p!.name === 'RETAIL ROW' || p!.name === 'ANARCHY ACRES' || p!.name === 'DUSTY DEPOT') addStatic('waterTower', [p!.x - 44, p!.h, p!.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21.0, 3.8] }]);
+      if (p!.name === 'ANARCHY ACRES' || p!.name === 'FATAL FIELDS') for (let i = -3; i <= 3; i++) { addStatic('fence', [p!.x + i * 8, p!.h, p!.z - 40], 0, []); addStatic('fence', [p!.x + i * 8, p!.h, p!.z + 40], 0, []); }
     }
     // spawn island dressing: cabins, a lookout, crates and shrubs so it reads as a place, not a platform
     placeBuilding('cottage', ISLAND[0] + 28, ISLAND[2] + 18, 3, 1, 2); placeBuilding('cottage', ISLAND[0] - 30, ISLAND[2] - 14, 1, 4, 5); placeBuilding('tower', ISLAND[0] + 4, ISLAND[2] - 34, 0, 0, 0);
     for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283 + 0.3, rr = 20 + (k % 2) * 6; addStatic(k % 3 === 0 ? 'crate' : k % 3 === 1 ? 'bush' : 'rock', [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.1, ISLAND[2] + Math.sin(a) * rr], k % 4, k % 3 === 0 ? [{ min: [-1, 0, -1], max: [1, 2, 1] }] : []); }
     for (let k = -2; k <= 2; k++) this.statics.push({ mesh: 'fence', pos: [ISLAND[0] + k * 6, terrainH(ISLAND[0] + k * 6, ISLAND[2] + 40) - 0.1, ISLAND[2] + 40], yaw: 0, boxes: [] });
-    for (let i = 1; i < MESAS.length; i += 2) { const [mx, mz] = MESAS[i]; placeBuilding(i % 4 === 1 ? 'tower' : 'cottage', mx, mz, i % 4, i, i); this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]); }   // hilltop lookouts on the mesas
+    for (let i = 1; i < MESAS.length; i += 2) { const [mx, mz] = MESAS[i]!; placeBuilding(i % 4 === 1 ? 'tower' : 'cottage', mx, mz, i % 4, i, i); this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]); }   // hilltop lookouts on the mesas
     // vegetation: authored clusters (woods, tree lines along roads/rivers) + sparse fill
     const put = (x: number, z: number, type: Prop['type'], s: number) => { const y = terrainH(x, z); if (y < 2.2) return; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) return; if (roadDist(x, z) < 6) return; this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === 'bush' ? 30 : 250, r: (type === 'rock' ? 1.4 : type === 'bush' ? 0.7 : 0.4) * s, h: (type === 'rock' ? 1.2 : type === 'bush' ? 1 : 6) * s, dead: 0 }); };
     for (let k = 0; k < 1500; k++) {   // sparse fill
@@ -221,7 +221,7 @@ export class World {
     for (const [cx, cz, cr, pineK] of [[215, -195, 60, 0.85], [265, -40, 55, 0.9], [235, 240, 60, 0.2], [-120, 40, 50, 0.6], [-300, -60, 45, 0.5], [120, 10, 40, 0.4]] as [number, number, number, number][]) {   // woods
       for (let k = 0; k < 220; k++) { const a = rand(0, 6.28), rr = Math.sqrt(rand()) * cr; const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr; const pine = rand() < pineK; put(x, z, pine ? 'pine' : rand() < 0.7 ? 'tree' : 'tree2', pine ? rand(1.3, 2.0) : rand(1.4, 2.0)); }
     }
-    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L; for (let tt = 30; tt < L - 30; tt += rand(10, 18)) { const s = rand() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14); put(x, z, rand() < 0.8 ? 'tree' : 'bush', rand(1.3, 1.8)); } }
+    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B!.x - A!.x, B!.z - A!.z), nx = -(B!.z - A!.z) / L, nz = (B!.x - A!.x) / L; for (let tt = 30; tt < L - 30; tt += rand(10, 18)) { const s = rand() < 0.5 ? 1 : -1, x = A!.x + (B!.x - A!.x) * tt / L + nx * s * rand(9, 14), z = A!.z + (B!.z - A!.z) * tt / L + nz * s * rand(9, 14); put(x, z, rand() < 0.8 ? 'tree' : 'bush', rand(1.3, 1.8)); } }
     for (const [mx, mz, mr] of MESAS) for (let k = 0; k < 10; k++) { const a = rand(0, 6.28); put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), rand() < 0.5 ? 'pine' : 'rock', rand(1.2, 1.8)); for (let q = 0; q < 2; q++) put(mx + Math.cos(a) * (mr + rand(6, 14)), mz + Math.sin(a) * (mr + rand(6, 14)), 'rock', rand(1.4, 2.4)); }
     this.buildGrid();
   }
@@ -361,13 +361,13 @@ export class World {
   static rayBox(o: V3, d: V3, b: Box, maxT: number): { t: number; n: V3 } | null {
     let t0 = 0, t1 = maxT, ax = -1;
     for (let i = 0; i < 3; i++) {
-      const inv = 1 / d[i]; let a = (b.min[i] - o[i]) * inv, c = (b.max[i] - o[i]) * inv;
+      const inv = 1 / d[i]!; let a = (b.min[i]! - o[i]!) * inv, c = (b.max[i]! - o[i]!) * inv;
       if (a > c) [a, c] = [c, a];
       if (a > t0) { t0 = a; ax = i; }
       t1 = Math.min(t1, c);
       if (t0 > t1) return null;
     }
-    const n: V3 = [0, 0, 0]; if (ax >= 0) n[ax] = d[ax] > 0 ? -1 : 1;
+    const n: V3 = [0, 0, 0]; if (ax >= 0) n[ax] = d[ax]! > 0 ? -1 : 1;
     return { t: t0, n };
   }
   raycast(o: V3, d: V3, maxT: number, extra: Box[] = []): Hit | null {

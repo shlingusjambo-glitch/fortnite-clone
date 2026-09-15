@@ -23,7 +23,7 @@ export const ident = (): M4 => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1
 export function mul(a: M4, b: M4, out: M4 = new Float32Array(16)): M4 {
   for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
     let s = 0;
-    for (let k = 0; k < 4; k++) s += a[k * 4 + j] * b[i * 4 + k];
+    for (let k = 0; k < 4; k++) s += a[k * 4 + j]! * b[i * 4 + k]!;
     out[i * 4 + j] = s;
   }
   return out;
@@ -50,11 +50,11 @@ export function lookAt(eye: V3, target: V3, up: V3 = [0, 1, 0]): M4 {
   return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, eye), -dot(y, eye), -dot(z, eye), 1]);
 }
 export function transformPoint(m: M4, p: V3): V3 {
-  const w = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15] || 1;
-  return [(m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12]) / w, (m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13]) / w, (m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]) / w];
+  const w = m[3]! * p[0] + m[7]! * p[1] + m[11]! * p[2] + m[15]! || 1;
+  return [(m[0]! * p[0] + m[4]! * p[1] + m[8]! * p[2] + m[12]!) / w, (m[1]! * p[0] + m[5]! * p[1] + m[9]! * p[2] + m[13]!) / w, (m[2]! * p[0] + m[6]! * p[1] + m[10]! * p[2] + m[14]!) / w];
 }
 export function transformDir(m: M4, p: V3): V3 {
-  return [m[0] * p[0] + m[4] * p[1] + m[8] * p[2], m[1] * p[0] + m[5] * p[1] + m[9] * p[2], m[2] * p[0] + m[6] * p[1] + m[10] * p[2]];
+  return [m[0]! * p[0] + m[4]! * p[1] + m[8]! * p[2], m[1]! * p[0] + m[5]! * p[1] + m[9]! * p[2], m[2]! * p[0] + m[6]! * p[1] + m[10]! * p[2]];
 }
 export function ortho(l: number, r: number, b: number, t: number, n: number, f: number): M4 {
   const m = new Float32Array(16);

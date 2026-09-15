@@ -7,7 +7,7 @@ const moduleUrl = new URL('vapour_runtime.js', document.baseURI).href;
 const host = new WebGpuRenderHost(canvas, { moduleUrl });
 
 // The game module builds every mesh at import time through the renderer adapter; the engine uploads them in `start`.
-const gamePromise = import('./legacy/game.js');
+const gamePromise = import('./game');
 let gameMod: Awaited<typeof gamePromise> | null = null;
 const runtime = new GameRuntime(canvas, {
   async start(game) { gameMod = await gamePromise; gameMod.renderer.bind(game, host); },
