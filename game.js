@@ -1512,7 +1512,7 @@ void main(){
       for (let k = 0; k < 1e3; k++) {
         let x = cx * S2 + rnd() * S2, z = cz * S2 + rnd() * S2, y = terrainH(x, z);
         if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some((f) => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
-        let hgt = 0.45 + rnd() * 0.35, w = 0.05 + rnd() * 0.04, a = rnd() * 3.14, c = [0.36 + rnd() * 0.12, 0.82 + rnd() * 0.14, 0.25];
+        let hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14, c = [0.4 + rnd() * 0.14, 0.8 + rnd() * 0.16, 0.22 + rnd() * 0.1];
         for (let aa of [a, a + 1.05, a + 2.1]) {
           let dx = Math.cos(aa) * w, dz = Math.sin(aa) * w, tipX = x + dx * 0.5 + Math.cos(a + 1.5) * 0.12, tipZ = z + dz * 0.5 + Math.sin(a + 1.5) * 0.12;
           g.triN([x - dx, y, z - dz], [x + dx, y, z + dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], c), g.triN([x + dx, y, z + dz], [x - dx, y, z - dz], [tipX, y + hgt, tipZ], [0, 1, 0], [0, 1, 0], [0, 1, 0], dk(c, 0.9));

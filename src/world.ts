@@ -214,8 +214,8 @@ export class World {
       const x = cx * S + rnd() * S, z = cz * S + rnd() * S, y = terrainH(x, z);
       if (y < 2.3 || roadDist(x, z) < 4.6 || this.footprints.some(f => Math.hypot(f[0] - x, f[1] - z) < f[2] - 1)) continue;
       // Tall, lush grass blades (0.45m - 0.75m tall) matching reference images
-      const hgt = 0.45 + rnd() * 0.35, w = 0.05 + rnd() * 0.04, a = rnd() * 3.14;
-      const c: Col = [0.36 + rnd() * 0.12, 0.82 + rnd() * 0.14, 0.25];
+      const hgt = 0.3 + rnd() * 0.3, w = 0.035 + rnd() * 0.03, a = rnd() * 3.14;
+      const c: Col = [0.4 + rnd() * 0.14, 0.8 + rnd() * 0.16, 0.22 + rnd() * 0.1];
       // 3 intersecting blades per clump for full 3D volume
       for (const aa of [a, a + 1.05, a + 2.1]) {
         const dx = Math.cos(aa) * w, dz = Math.sin(aa) * w;
