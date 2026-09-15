@@ -1,12 +1,13 @@
 // Vapour adapter: the game records draws through the same `Renderer` interface the WebGL version used
 // (draw / flush / upload), and this class forwards them to the engine's FrameBuilder with PBR materials,
 // cascaded shadows, procedural sky, fog and the HDR post stack. Game logic never touches WebGPU.
-import { composeMatrix, type GameContext, type WebGpuRenderHost } from '@vapour/engine';
+import type { GameContext, MeshUpload, WebGpuRenderHost } from '@vapour/engine';
+import { TERRAIN_MATERIAL, bakeTerrainTextures } from './terrain';
 export type V3 = [number, number, number]; export type M4 = Float32Array;
 const norm = (a: V3): V3 => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
-export interface Mesh { id: string; n: number; data?: Float32Array; }
+export interface Mesh { id: string; n: number; data?: Float32Array; raw?: MeshUpload; }
 interface Item { m: Mesh; mat: M4; tint: V3; alpha: number; style: number; shadow: boolean; two: boolean; }
 export interface Cam { pos: V3; fwd: V3; fov: number; aspect: number; }
 
@@ -29,7 +30,14 @@ export class Renderer {
   private game: GameContext | null = null; private host: WebGpuRenderHost | null = null;
   private pending: Mesh[] = []; private nextId = 1;
   private camM = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); private sunDir: V3 = [0.55, 0.62, 0.35]; private warned = false;
-  constructor(_canvas: HTMLCanvasElement) {}
+  private canvas: HTMLCanvasElement; private applied = ''; 
+  constructor(canvas: HTMLCanvasElement) { this.canvas = canvas; }
+  /** Render scale: the engine sizes the swapchain from the DOM at up to 2x DPR; a fixed size below that is the FPS lever. */
+  private applyScale() {
+    const dpr = Math.min(devicePixelRatio, 2) * this.scale, w = Math.max(1, Math.floor(this.canvas.clientWidth * dpr)), h = Math.max(1, Math.floor(this.canvas.clientHeight * dpr)), key = this.scale >= 1 ? 'auto' : `${w}x${h}`;
+    if (key === this.applied || !this.host) return; this.applied = key;
+    if (key === 'auto') this.host.setFixedSize(undefined); else this.host.setFixedSize(w, h);
+  }
 
   /** Called once the engine is ready: defines materials and uploads every mesh built before then. */
   bind(game: GameContext, host: WebGpuRenderHost) {
@@ -41,7 +49,8 @@ export class Renderer {
     game.defineMaterial('m:wood', { ...base, alphaMode: 'opaque' });
     game.defineMaterial('m:stone', { ...base, alphaMode: 'opaque' });
     game.defineMaterial('m:metal', { ...base, alphaMode: 'opaque' });
-    game.defineMaterial('m:terrain', { ...base, alphaMode: 'opaque' });
+    const tt = bakeTerrainTextures(); game.uploadTexture('t:terrain', tt.base); game.uploadTexture('t:terrainN', tt.normal);
+    game.defineMaterial('m:terrain', { ...TERRAIN_MATERIAL.upload(), normalScale: 0.9, alphaMode: 'opaque' });
     game.defineMaterial('m:twosided', { ...base, alphaMode: 'opaque', doubleSided: true });
     game.defineMaterial('m:water', { ...base, alphaMode: 'blend', depthWrite: false, doubleSided: true });
     game.defineMaterial('m:unlit', { ...base, alphaMode: 'blend', depthWrite: false, doubleSided: true });
@@ -52,6 +61,7 @@ export class Renderer {
     host.setPostProcess({ exposure: 1.05, toneMapping: 'aces', bloom: { intensity: 0.12, threshold: 1.1, scatter: 0.6 }, saturation: 1.06, contrast: 1.04, vignette: 0.18, antiAliasing: 'fxaa' });
   }
   private gpuUpload(m: Mesh) {
+    if (m.raw) { this.game!.uploadMesh(m.id, m.raw); return; }
     const d = m.data!, n = d.length / 9, positions = new Float32Array(n * 3), normals = new Float32Array(n * 3), colors = new Float32Array(n * 4), indices = new Uint32Array(n);
     for (let i = 0; i < n; i++) { const o = i * 9; positions.set([d[o]!, d[o + 1]!, d[o + 2]!], i * 3); normals.set([d[o + 3]!, d[o + 4]!, d[o + 5]!], i * 3); colors.set([srgb(d[o + 6]!), srgb(d[o + 7]!), srgb(d[o + 8]!), 1], i * 4); indices[i] = i; }
     this.game!.uploadMesh(m.id, { positions, normals, colors, indices });
@@ -62,12 +72,18 @@ export class Renderer {
     if (this.game) this.gpuUpload(m); else this.pending.push(m);
     return m;
   }
+  /** Engine-built geometry (terrain chunks etc.) goes up as-is. */
+  uploadRaw(raw: MeshUpload): Mesh {
+    const m: Mesh = { id: 'g' + this.nextId++, n: raw.indices.length, raw };
+    if (this.game) this.gpuUpload(m); else this.pending.push(m);
+    return m;
+  }
   draw(m: Mesh, mat: M4, tint: V3 = [1, 1, 1], alpha = 1, style = 0, shadow = true, two = false) { if (!m) { console.error('draw(): undefined mesh'); return; } this.items.push({ m, mat, tint, alpha, style, shadow, two }); }
   get itemCount() { return this.items.length; }
   /** Submits everything queued this frame. `sky` false = lobby/gallery lighting. */
   flush(cam: Cam, _vp: M4, sun: V3, _focus: V3, _t: number, sky = true, _shadowRange = 90) {
     const g = this.game; if (!g) { this.items.length = 0; return; }
-    this.sunDir = sun;
+    this.sunDir = sun; this.applyScale();
     const bad = [...cam.pos, ...cam.fwd, cam.fov, cam.aspect].some(v => !Number.isFinite(v));
     if (bad) { if (!this.warned) { this.warned = true; console.error('renderer: non-finite camera', cam); } this.items.length = 0; g.frame.setCamera(this.camM, 60, 0.1, 100); return; }
     const f = norm(cam.fwd), r = norm(cross(f, [0, 1, 0])), u = cross(r, f), c = this.camM;
