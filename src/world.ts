@@ -42,7 +42,9 @@ function riverMask(x: number, z: number) {
 export function mesaAt(x: number, z: number): number {   // 0..1 how much a point is on a mesa top
   let m = 0; for (const [mx, mz, mr] of MESAS) { const d = Math.hypot(x - mx, z - mz); m = Math.max(m, sstep((mr - d) / 7 + 1)); } return m;
 }
+export const ISLAND: V3 = [0, 0, -1100];   // spawn island centre (well off the main map)
 export function terrainH(x: number, z: number): number {
+  if (z < -700) { const d = Math.hypot(x - ISLAND[0], z - ISLAND[2]); return d < 70 ? 6 - sstep((d - 45) / 25) * 14 + vnoise(x * 0.08, z * 0.08) * 0.6 : -8; }   // flat spawn island with a beach drop-off
   const r = Math.hypot(x * 0.95, z * 1.05);
   let h = 0;
   for (let o = 0, f = 0.0045, a = 26; o < 4; o++, f *= 2.0, a *= 0.42) h += vnoise(x * f + 31, z * f + 17) * a;   // broad rolling hills
@@ -65,6 +67,7 @@ export function terrainColor(x: number, z: number, y: number): Col {
   if (y < 1.4) return rgb(0xe9df9a);              // sand
   if (y < 2.2) return rgb(0xd4dc8a);
   const rd = roadDist(x, z);
+  if (z < -700) return rgb(0x8fd44e);
   if (rd < 3.2) return rgb(0x6b6e72);             // asphalt
   if (rd < 4.4) return rgb(0xa89a70);             // dirt shoulder
   const v = vnoise(x * 0.03, z * 0.03), dirt = vnoise(x * 0.09 + 50, z * 0.09 + 12);
@@ -84,7 +87,7 @@ export interface Box { min: V3; max: V3; ref?: any; }
 export interface Hit { t: number; p: V3; n: V3; kind: 'terrain' | 'prop' | 'piece' | 'box' | 'static'; ref?: any; }
 
 export class World {
-  terrain!: Mesh; terrainChunks: { mesh: Mesh; c: V3; r: number }[] = []; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
+  terrain!: Mesh; island!: Mesh; terrainChunks: { mesh: Mesh; c: V3; r: number }[] = []; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
   lootSpots: V3[] = []; chestSpots: V3[] = []; footprints: [number, number, number][] = [];
   /** 32m spatial hash of props + statics so collision/raycast only touch nearby objects */
   grid = new Map<number, { props: Prop[]; statics: Static[] }>();
@@ -121,6 +124,8 @@ export class World {
       const cs = per * STEP; this.terrainChunks.push({ mesh: b.build(r), c: [-SIZE / 2 + (ci + 0.5) * cs, 0, -SIZE / 2 + (cj + 0.5) * cs], r: cs * 0.71 });
     }
     this.terrain = this.terrainChunks[0].mesh;
+    { const b = new MB(); for (let x = ISLAND[0] - 75; x < ISLAND[0] + 75; x += STEP) for (let z = ISLAND[2] - 75; z < ISLAND[2] + 75; z += STEP) { const p = (px: number, pz: number): V3 => [px, terrainH(px, pz), pz]; const a = p(x, z), bb = p(x + STEP, z), c = p(x + STEP, z + STEP), d = p(x, z + STEP); if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue; const col = terrainColor(x, z, (a[1] + c[1]) / 2); b.triN(a, d, c, N(x, z), N(x, z + STEP), N(x + STEP, z + STEP), col); b.triN(a, c, bb, N(x, z), N(x + STEP, z + STEP), N(x + STEP, z), col); } this.island = b.build(r); }
+    for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283, rr = 30 + (k % 3) * 8; this.props.push({ type: k % 3 ? 'tree' : 'pine', pos: [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.2, ISLAND[2] + Math.sin(a) * rr], yaw: a, s: 1.5, hp: 250, r: 0.6, h: 9, dead: 0 }); }
     // wooden bridges where roads cross water
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 4; t < L - 4; t += 8) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L; if (terrainH(x, z) < 0.6) { const c = Math.cos(yaw), sn = Math.sin(yaw); this.statics.push({ mesh: 'bridge', pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] }); } } }
     // road center dashes
@@ -287,6 +292,16 @@ export class World {
     } else for (let i = 0; i < 4; i++) { if (p.edit & (1 << i)) continue; const cx = i % 2 ? 1 : -1, cz = i > 1 ? 1 : -1; out.push({ min: [x + Math.min(0, cx * 2), y - 0.22, z + Math.min(0, cz * 2)], max: [x + Math.max(0, cx * 2), y + 0.02, z + Math.max(0, cz * 2)], ref: p }); }
     return out;
   }
+  /** ramps are solid slabs: 8 stepped boxes under the slope so nothing passes through from the side or below */
+  rampBoxes(p: Piece): Box[] {
+    const [x, y, z] = p.pos, out: Box[] = [], alongZ = p.dir % 2 === 0, sign = p.dir === 0 || p.dir === 3 ? 1 : -1;   // matches slopeH: dir 0 rises +z, 1 rises -x, 2 rises -z, 3 rises +x
+    for (let i = 0; i < 8; i++) {
+      const lo = -2 + i * 0.5, hi = lo + 0.5, top = y + (i + 1) * 0.5;   // local coordinate along the rise
+      const a0 = sign > 0 ? lo : -hi, a1 = sign > 0 ? hi : -lo;
+      out.push(alongZ ? { min: [x - 2, y - 0.25, z + a0], max: [x + 2, top, z + a1], ref: p } : { min: [x + a0, y - 0.25, z - 2], max: [x + a1, top, z + 2], ref: p });
+    }
+    return out;
+  }
   /** which tile of a wall/floor a world point (on the piece) falls in, or -1 */
   tileAt(p: Piece, pt: V3): number {
     const lx = pt[0] - p.pos[0], ly = pt[1] - p.pos[1], lz = pt[2] - p.pos[2];
@@ -304,7 +319,7 @@ export class World {
   }
   solids(x: number, z: number, rad = 10): Box[] {
     const out: Box[] = [];
-    for (const p of this.piecesNear(x, z, rad + 2)) if ((p.type === 'wall' || p.type === 'floor') && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad) out.push(...this.pieceBoxes(p));
+    for (const p of this.piecesNear(x, z, rad + 2)) if (Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad) { if (p.type === 'wall' || p.type === 'floor') out.push(...this.pieceBoxes(p)); else if (p.type === 'ramp') out.push(...this.rampBoxes(p)); }
     for (const c of this.near(x, z, rad)) {
       for (const q of c.props) if (!q.dead && q.type !== 'bush' && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad) out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
       for (const s of c.statics) if (!s.dead && s.aabb && s.aabb.min[0] < x + rad && s.aabb.max[0] > x - rad && s.aabb.min[2] < z + rad && s.aabb.max[2] > z - rad) out.push(...s.boxes);

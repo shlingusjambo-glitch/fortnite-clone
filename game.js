@@ -1252,7 +1252,12 @@ void main(){
     let a = Math.abs(vnoise(x * 4e-3 + 9, z * 4e-3 + 3) - 0.5), b = Math.abs(vnoise(x * 35e-4 + 40, z * 35e-4 + 70) - 0.5), c = Math.abs(vnoise(x * 3e-3 + 80, z * 3e-3 + 20) - 0.5);
     return Math.max(1 - Math.min(a, b, c) / 0.065, 0);
   }
+  var ISLAND = [0, 0, -1100];
   function terrainH(x, z) {
+    if (z < -700) {
+      let d = Math.hypot(x - ISLAND[0], z - ISLAND[2]);
+      return d < 70 ? 6 - sstep((d - 45) / 25) * 14 + vnoise(x * 0.08, z * 0.08) * 0.6 : -8;
+    }
     let r = Math.hypot(x * 0.95, z * 1.05), h = 0;
     for (let o = 0, f = 45e-4, a = 26; o < 4; o++, f *= 2, a *= 0.42) h += vnoise(x * f + 31, z * f + 17) * a;
     let coast = vnoise(x * 0.01 + 5, z * 0.01 + 9) * 60;
@@ -1291,6 +1296,7 @@ void main(){
     if (y < 1.4) return rgb(15327130);
     if (y < 2.2) return rgb(13950090);
     let rd = roadDist(x, z);
+    if (z < -700) return rgb(9425998);
     if (rd < 3.2) return rgb(7040626);
     if (rd < 4.4) return rgb(11049584);
     let v = vnoise(x * 0.03, z * 0.03);
@@ -1299,6 +1305,7 @@ void main(){
   var TILES = (t2) => t2 === "wall" ? 9 : t2 === "floor" ? 4 : 0, MAT_HP = { wood: 150, stone: 300, metal: 500 }, _World = class _World {
     constructor(r) {
       __publicField(this, "terrain");
+      __publicField(this, "island");
       __publicField(this, "terrainChunks", []);
       __publicField(this, "props", []);
       __publicField(this, "statics", []);
@@ -1328,6 +1335,20 @@ void main(){
         this.terrainChunks.push({ mesh: b.build(r), c: [-SIZE / 2 + (ci + 0.5) * cs, 0, -SIZE / 2 + (cj + 0.5) * cs], r: cs * 0.71 });
       }
       this.terrain = this.terrainChunks[0].mesh;
+      {
+        let b = new MB();
+        for (let x = ISLAND[0] - 75; x < ISLAND[0] + 75; x += STEP) for (let z = ISLAND[2] - 75; z < ISLAND[2] + 75; z += STEP) {
+          let p = (px, pz) => [px, terrainH(px, pz), pz], a = p(x, z), bb = p(x + STEP, z), c = p(x + STEP, z + STEP), d = p(x, z + STEP);
+          if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue;
+          let col = terrainColor(x, z, (a[1] + c[1]) / 2);
+          b.triN(a, d, c, N(x, z), N(x, z + STEP), N(x + STEP, z + STEP), col), b.triN(a, c, bb, N(x, z), N(x + STEP, z + STEP), N(x + STEP, z), col);
+        }
+        this.island = b.build(r);
+      }
+      for (let k = 0; k < 14; k++) {
+        let a = k / 14 * 6.283, rr = 30 + k % 3 * 8;
+        this.props.push({ type: k % 3 ? "tree" : "pine", pos: [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.2, ISLAND[2] + Math.sin(a) * rr], yaw: a, s: 1.5, hp: 250, r: 0.6, h: 9, dead: 0 });
+      }
       for (let [ia, ib] of ROADS) {
         let A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z);
         for (let t2 = 4; t2 < L - 4; t2 += 8) {
@@ -1615,6 +1636,15 @@ void main(){
       }
       return out;
     }
+    /** ramps are solid slabs: 8 stepped boxes under the slope so nothing passes through from the side or below */
+    rampBoxes(p) {
+      let [x, y, z] = p.pos, out = [], alongZ = p.dir % 2 === 0, sign = p.dir === 0 || p.dir === 3 ? 1 : -1;
+      for (let i = 0; i < 8; i++) {
+        let lo = -2 + i * 0.5, hi = lo + 0.5, top = y + (i + 1) * 0.5, a0 = sign > 0 ? lo : -hi, a1 = sign > 0 ? hi : -lo;
+        out.push(alongZ ? { min: [x - 2, y - 0.25, z + a0], max: [x + 2, top, z + a1], ref: p } : { min: [x + a0, y - 0.25, z - 2], max: [x + a1, top, z + 2], ref: p });
+      }
+      return out;
+    }
     /** which tile of a wall/floor a world point (on the piece) falls in, or -1 */
     tileAt(p, pt) {
       let lx = pt[0] - p.pos[0], ly = pt[1] - p.pos[1], lz = pt[2] - p.pos[2];
@@ -1634,7 +1664,7 @@ void main(){
     }
     solids(x, z, rad = 10) {
       let out = [];
-      for (let p of this.piecesNear(x, z, rad + 2)) (p.type === "wall" || p.type === "floor") && Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad && out.push(...this.pieceBoxes(p));
+      for (let p of this.piecesNear(x, z, rad + 2)) Math.abs(p.pos[0] - x) < rad && Math.abs(p.pos[2] - z) < rad && (p.type === "wall" || p.type === "floor" ? out.push(...this.pieceBoxes(p)) : p.type === "ramp" && out.push(...this.rampBoxes(p)));
       for (let c of this.near(x, z, rad)) {
         for (let q of c.props) !q.dead && q.type !== "bush" && Math.abs(q.pos[0] - x) < rad && Math.abs(q.pos[2] - z) < rad && out.push({ min: [q.pos[0] - q.r, q.pos[1] - 1, q.pos[2] - q.r], max: [q.pos[0] + q.r, q.pos[1] + q.h, q.pos[2] + q.r], ref: q });
         for (let s of c.statics) !s.dead && s.aabb && s.aabb.min[0] < x + rad && s.aabb.max[0] > x - rad && s.aabb.min[2] < z + rad && s.aabb.max[2] > z - rad && out.push(...s.boxes);
@@ -1726,7 +1756,7 @@ void main(){
   var canvas = document.getElementById("c"), R = new Renderer(canvas), M = buildModels(R), W = new World(R), MAT_STYLE = { wood: 2, stone: 3, metal: 4 }, editCache = /* @__PURE__ */ new Map(), editedMesh = (type, mat, mask) => {
     let k = `${type}_${mat}_${mask}`, m = editCache.get(k);
     return m || (m = editedPiece(R, type, mat, mask), editCache.set(k, m)), m;
-  }, CHARS = SKINS.map((s) => buildCharacter(R, s)), LOBBY_CHAR = buildCharacter(R, SKINS[0], 1.35), $ = (id) => document.getElementById(id), H = { lobby: $("lobby"), hud: $("hud"), hp: $("hp"), sh: $("sh"), mats: $("mats"), bld: $("bld"), ammo: $("ammo"), wname: $("wname"), hotbar: $("hotbar"), info: $("info"), fx: $("fx"), cross: $("cross"), weak: $("weak"), hitm: $("hitm"), prog: $("prog"), flash: $("flash"), scope: $("scope"), pause: $("pause"), comp: $("comp"), fps: $("fps"), mm: $("mm"), stats: $("stats"), feed: $("feed"), banner: $("banner"), elim: $("elim"), bigmap: $("bigmap"), pl: $("pl"), end: $("end"), dbg: $("dbg"), tgt: $("tgt") }, mapCv = document.createElement("canvas");
+  }, CHARS = SKINS.map((s) => buildCharacter(R, s)), LOBBY_CHAR = buildCharacter(R, SKINS[0], 1.35), $ = (id) => document.getElementById(id), H = { fade: $("fade"), lobby: $("lobby"), hud: $("hud"), hp: $("hp"), sh: $("sh"), mats: $("mats"), bld: $("bld"), ammo: $("ammo"), wname: $("wname"), hotbar: $("hotbar"), info: $("info"), fx: $("fx"), cross: $("cross"), weak: $("weak"), hitm: $("hitm"), prog: $("prog"), flash: $("flash"), scope: $("scope"), pause: $("pause"), comp: $("comp"), fps: $("fps"), mm: $("mm"), stats: $("stats"), feed: $("feed"), banner: $("banner"), elim: $("elim"), bigmap: $("bigmap"), pl: $("pl"), end: $("end"), dbg: $("dbg"), tgt: $("tgt") }, mapCv = document.createElement("canvas");
   mapCv.width = mapCv.height = 600;
   W.drawMap(mapCv);
   H.bigmap.querySelector("canvas").getContext("2d").drawImage(mapCv, 0, 0);
@@ -1884,6 +1914,8 @@ void main(){
     emoteT: 0,
     stunT: 0,
     bush: !1,
+    islandT: 0,
+    dyingT: 0,
     editing: null,
     editMask: 0,
     rampRot: 0,
@@ -1894,19 +1926,34 @@ void main(){
     weakT: 0
   }, SDEF = { sensX: 1, sensY: 1, adsSens: 0.7, scopeSens: 0.5, invertY: !1, toggleSprint: !1, turbo: !0, padSens: 1, rumble: !0, master: 0.8, sfx: 0.8, voice: 0.7, music: 0.5, fov: 80, scale: 1, shadows: 2, grass: 1, viewDist: 1, showFps: !0, streamer: !1 }, lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4, S = { ...SDEF, ...lowEnd ? { shadows: 1, grass: 1, scale: 0.8, viewDist: 0 } : {}, ...JSON.parse(localStorage.getItem("fn-settings") || "{}") }, GALLERY = new URLSearchParams(location.search).get("gallery");
   GALLERY && (document.getElementById("lobby").style.display = "none", document.getElementById("lobbybg").style.display = "none");
-  var D = { aimbot: !1, esp: !1, invuln: !1, infMats: !1, infAmmo: !1, fly: !1, lowGrav: !1, pauseBots: !1 }, vbucks = +(localStorage.getItem("fn-vbucks") || 2765), gameMode = 0, GAME_MODES = ["SOLO", "DUOS", "SQUADS"];
+  var D = { aimbot: !1, esp: !1, invuln: !1, infMats: !1, infAmmo: !1, fly: !1, lowGrav: !1, pauseBots: !1 }, lastEmote = 0, PROF_DEF = { name: "Player", xp: 0, vbucks: 2765, wins: 0, matches: 0, kills: 0, dmg: 0, builds: 0, chests: 0, discovered: [], unlocked: [0, 1, 2, 3], claimed: [], emote: 0, mode: 0 }, PR = { ...PROF_DEF, ...JSON.parse(localStorage.getItem("fn-profile") || "{}") }, saveProfile = () => localStorage.setItem("fn-profile", JSON.stringify(PR)), level = () => Math.floor(PR.xp / 1e3) + 1, MODES = [["SOLO", "BATTLE ROYALE"], ["PETERBOT GAUNTLET", "ALL 32 BOTS ARE PETERBOTS"], ["FORTRESS SIEGE", "DEFEND OR RAID A STONE FORT"], ["STORM TRIAL", "FAST STORM \xB7 NO LOOT WASTED"]];
   function updateWallet() {
-    let e = document.getElementById("wallet");
-    e && (e.textContent = "\u24CB " + vbucks.toLocaleString()), localStorage.setItem("fn-vbucks", String(vbucks));
+    $("wallet").textContent = "\u24CB " + PR.vbucks.toLocaleString(), saveProfile();
   }
-  updateWallet();
-  var height = () => P.crouch ? 1.2 : 1.75, eyeH = () => height() - 0.15, fwd = () => [Math.sin(P.yaw), 0, Math.cos(P.yaw)], right = () => [-Math.cos(P.yaw), 0, Math.sin(P.yaw)], look = () => [Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), Math.cos(P.yaw) * Math.cos(P.pitch)], curItem = () => P.slot < 0 ? null : P.inv[P.slot], items = [], bots = [], fx = [], feed = [], chests = [], nades = [], pads = [], drops = [], meteors = [], event = null, eventT = 0, bus = { a: [0, 0, 0], b: [0, 0, 0], t: 0, dur: 55, pos: [0, 0, 0], yaw: 0 }, storm = { c: [0, 0], r: 520, phaseT: 120, phase: 0, shrinking: !1, from: { c: [0, 0], r: 380 }, to: { c: [0, 0], r: 380 }, shrinkT: 0 }, PHASES = [[100, 50, 230], [70, 45, 140], [60, 40, 80], [50, 35, 40], [40, 30, 15], [30, 30, 3]];
+  function refreshLobby() {
+    updateWallet();
+    let lv = level(), into = PR.xp % 1e3;
+    $("lpanel").querySelector(".lvl").textContent = "LEVEL " + lv, $("lpanel").querySelector(".xp i").style.width = into / 10 + "%", $("nametag").querySelector("small").textContent = String(lv), $("nametag").children[1].innerHTML = `${PR.name}<div class="nr">${PR.matches ? PR.wins + " wins \xB7 " + PR.kills + " elims" : "Not Ready"}</div>`;
+    let ms = $("lpanel").querySelectorAll(".mission"), m1 = Math.min(POIS.length, PR.discovered.length), m2 = Math.min(3, PR.kills);
+    ms[0].innerHTML = `Discover Named Locations<div class="bar"><i style="width:${m1 / POIS.length * 100}%"></i><b>${m1} / ${POIS.length}</b></div>`, ms[1].innerHTML = `Eliminate 3 opponents<div class="bar"><i style="width:${m2 / 3 * 100}%"></i><b>${m2} / 3</b></div>`, $("lpanel").querySelector(".sub").textContent = `${Math.floor(PR.matches * 4 / 60)}H ${PR.matches * 4 % 60}M`, $("lpanel").querySelectorAll(".medal").forEach((m, i) => m.classList.toggle("gold", i < Math.min(10, Math.floor(PR.kills / 5)))), document.querySelector("#rpanel .solo").textContent = MODES[PR.mode][0], document.querySelector("#rpanel .br").textContent = MODES[PR.mode][1], $("lbot").firstChild.textContent = "CHAPTER 1 \xB7 SEASON 1";
+  }
+  function toast(msg) {
+    let e = $("toast");
+    e.textContent = msg, e.style.display = "block", clearTimeout(e._t), e._t = setTimeout(() => e.style.display = "none", 2200);
+  }
+  var height = () => P.crouch ? 1.2 : 1.75, eyeH = () => height() - 0.15, fwd = () => [Math.sin(P.yaw), 0, Math.cos(P.yaw)], right = () => [-Math.cos(P.yaw), 0, Math.sin(P.yaw)], look = () => [Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), Math.cos(P.yaw) * Math.cos(P.pitch)], curItem = () => P.slot < 0 ? null : P.inv[P.slot], items = [], bots = [], fx = [], feed = [], chests = [], nades = [], dying = [], pads = [], drops = [], meteors = [], event = null, eventT = 0, bus = { a: [0, 0, 0], b: [0, 0, 0], t: 0, dur: 55, pos: [0, 0, 0], yaw: 0 }, storm = { c: [0, 0], r: 520, phaseT: 120, phase: 0, shrinking: !1, from: { c: [0, 0], r: 380 }, to: { c: [0, 0], r: 380 }, shrinkT: 0 }, PHASES = [[100, 50, 230], [70, 45, 140], [60, 40, 80], [50, 35, 40], [40, 30, 15], [30, 30, 3]];
   function nextStormPhase() {
     for (let b of bots) b.dead || (b.skill = Math.min(1, b.skill + 0.06), b.accuracy = Math.min(0.75, b.accuracy + 0.03), b.reaction = Math.max(0.12, b.reaction - 0.05));
     let ph = PHASES[Math.min(storm.phase, PHASES.length - 1)];
     storm.from = { c: [storm.c[0], storm.c[1]], r: storm.r };
     let a = rand(0, 6.28), d = rand(0, Math.max(0, storm.r - ph[2]) * 0.6);
-    storm.to = { c: [storm.c[0] + Math.cos(a) * d, storm.c[1] + Math.sin(a) * d], r: ph[2] }, storm.shrinking = !0, storm.shrinkT = ph[1], storm.phaseT = ph[1], storm.phase++, banner("STORM EYE SHRINKING", "", 4);
+    storm.to = { c: [storm.c[0] + Math.cos(a) * d, storm.c[1] + Math.sin(a) * d], r: ph[2] };
+    let fast = PR.mode === 3 ? 0.45 : 1;
+    storm.shrinking = !0, storm.shrinkT = ph[1] * fast, storm.phaseT = ph[1] * fast, storm.phase++, banner("STORM EYE SHRINKING", "", 4);
+  }
+  var siegeUp = !1, fadeT = 0, fadeDur = 1;
+  function fade(d) {
+    fadeT = d, fadeDur = d, H.fade.style.opacity = "1";
   }
   var bannerT = 0;
   function banner(h, p, t2) {
@@ -1918,18 +1965,25 @@ void main(){
   }
   var dropItem = (item, pos, spread = 0) => items.push({ item, pos: [pos[0] + rand(-spread, spread), pos[1], pos[2] + rand(-spread, spread)] });
   function startMatch() {
-    P.state = "bus", P.hp = 100, P.shield = 0, P.bush = !1, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.clearPieces(), pads.length = 0, nades.length = 0;
-    let a = rand(0, 6.28);
-    bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420], bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)], bus.t = 0, bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]), P.yaw = bus.yaw, P.pitch = -0.22, storm.c = [rand(-80, 80), rand(-80, 80)], storm.r = 520, storm.phaseT = 120;
+    P.state = "island", P.islandT = 0, P.dyingT = 0, siegeUp = !1, P.hp = 100, P.shield = 0, P.bush = !1, P.kills = 0, P.alive = 1, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.clearPieces(), pads.length = 0, nades.length = 0, dying.length = 0;
+    let a = rand(0, 6.28), off = rand(-160, 160), alt = rand(115, 150), nx = -Math.sin(a), nz = Math.cos(a);
+    bus.a = [Math.cos(a) * 470 + nx * off, alt, Math.sin(a) * 470 + nz * off], bus.b = [-Math.cos(a) * 470 + nx * off, alt, -Math.sin(a) * 470 + nz * off], bus.t = -1e9, bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]), P.pos = [ISLAND[0] + rand(-10, 10), 8, ISLAND[2] + rand(-10, 10)], P.vel = [0, 0, 0], P.yaw = rand(0, 6.28), P.pitch = -0.1, P.mats = { wood: 999, stone: 999, metal: 999 }, P.ammo = { light: 999, medium: 999, heavy: 99, shells: 99 }, P.inv[0] = mkItem("ar", 1, 2), P.inv[1] = mkItem("shotgun", 1, 2), P.slot = -1;
+    for (let i = 0; i < 6; i++) {
+      let aa = i / 6 * 6.283;
+      dropItem(mkItem(["ar", "shotgun", "sniper", "smg", "pistol", "burst"][i], 1, 2), [ISLAND[0] + Math.cos(aa) * 12, 6, ISLAND[2] + Math.sin(aa) * 12]);
+    }
+    storm.c = [rand(-80, 80), rand(-80, 80)], storm.r = 520, storm.phaseT = PR.mode === 3 ? 35 : 120;
     let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "launchpad", "bushItem", "ammo", "ammo"];
     for (let l of W.lootSpots) Math.random() < 0.75 && dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
     for (let c of W.chestSpots) Math.random() < 0.7 && chests.push({ pos: [...c], yaw: rand(0, 6.28), open: !1 });
-    for (let p of POIS) for (let i = 0; i < 3; i++) {
+    for (let p of POIS) for (let i = 0; i < 9; i++) {
       let x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z);
       y > 1 && dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]);
     }
     for (let i = 0; i < 32; i++) {
-      let b = spawnBot(), ab = sub(bus.b, bus.a), k = clamp(((b.land[0] - bus.a[0]) * ab[0] + (b.land[2] - bus.a[2]) * ab[2]) / (ab[0] * ab[0] + ab[2] * ab[2]), 0.08, 0.95);
+      let b = spawnBot(void 0, PR.mode === 1 || i < 15 ? i % 2 ? 4 : 5 : Math.floor(rand(0, 4)));
+      b.joinT = rand(1, 18), b.state = "island", b.pos = [ISLAND[0] + rand(-25, 25), 8, ISLAND[2] + rand(-25, 25)];
+      let ab = sub(bus.b, bus.a), k = clamp(((b.land[0] - bus.a[0]) * ab[0] + (b.land[2] - bus.a[2]) * ab[2]) / (ab[0] * ab[0] + ab[2] * ab[2]), 0.08, 0.95);
       b.dropT = k * bus.dur + rand(-3, 3) - (1 - b.skill) * 4;
     }
     P.nextDrop = 90, drops.length = 0;
@@ -1942,7 +1996,7 @@ void main(){
       canvas.requestPointerLock();
     } catch {
     }
-    addFeed('<span class="me">Player</span> has entered the Battle Bus');
+    fade(1.2), banner("SPAWN ISLAND", "WAITING FOR PLAYERS \xB7 PRACTICE WHILE THE LOBBY FILLS", 5);
   }
   var PROFILES = [
     { name: "cautious beginner", skill: [0.15, 0.35], aggro: [0.1, 0.35], loot: 0.6 },
@@ -1953,11 +2007,11 @@ void main(){
     { name: "tactical skilled", skill: [0.7, 0.95], aggro: [0.45, 0.7], loot: 0.6 }
   ];
   function spawnBot(at, profileIdx = -1) {
-    let p = POIS[Math.floor(rand(0, POIS.length))], land = [p.x + rand(-p.r, p.r) * 0.8, 0, p.z + rand(-p.r, p.r) * 0.8], pr = PROFILES[profileIdx >= 0 ? profileIdx : Math.floor(rand(0, PROFILES.length))], skill = rand(pr.skill[0], pr.skill[1]), aggression = rand(pr.aggro[0], pr.aggro[1]), pos = at ? [...at] : [0, 0, 0], b = { name: botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? "ground" : "bus", dead: !1, anim: 0, weapon: at ? "ar" : null, weapons: at ? ["ar"] : [], heals: at ? 2 : 0, mats: at ? 500 : 60, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: !1, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: "loot", profile: pr.name, skill, aggression, accuracy: 0.22 + skill * 0.45, reaction: lerp(0.85, 0.15, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos], voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-0.5, 0.5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null, nades: at ? 3 : 0, stunT: 0, shots: 0 };
+    let p = POIS[Math.floor(rand(0, POIS.length))], land = [p.x + rand(-p.r, p.r) * 0.8, 0, p.z + rand(-p.r, p.r) * 0.8], pr = PROFILES[profileIdx >= 0 ? profileIdx : Math.floor(rand(0, PROFILES.length))], skill = rand(pr.skill[0], pr.skill[1]), aggression = rand(pr.aggro[0], pr.aggro[1]), pos = at ? [...at] : [0, 0, 0], cracked = profileIdx >= 4 || pr.skill[0] >= 0.7, b = { name: cracked ? "Peterbot" + Math.floor(rand(10, 99)) : botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? "ground" : "bus", dead: !1, anim: 0, weapon: at ? "ar" : null, weapons: at ? ["ar"] : [], heals: at ? 2 : 0, mats: at ? 500 : 0, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: !1, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: "loot", profile: pr.name, skill, aggression, accuracy: cracked ? 0.3 + skill * 0.35 : 0.14 + skill * 0.3, reaction: lerp(0.9, 0.2, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos], voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-0.5, 0.5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null, nades: at ? 3 : 0, stunT: 0, shots: 0, cracked: profileIdx >= 4 || pr.skill[0] >= 0.7, ammo: { light: at ? 90 : 0, medium: at ? 90 : 0, heavy: at ? 10 : 0, shells: at ? 20 : 0 }, farmT: 0, farmRef: null, ignore: /* @__PURE__ */ new Set(), tryRef: null, tryT: 0, joinT: 0 };
     return bots.push(b), b;
   }
   function toLobby() {
-    P.state = "lobby", H.end.style.display = "none", P.over = !1, H.lobby.style.display = "block", H.hud.style.display = "none", document.exitPointerLock();
+    refreshLobby(), P.state = "lobby", H.end.style.display = "none", P.over = !1, H.lobby.style.display = "block", H.hud.style.display = "none", document.exitPointerLock();
   }
   var keys = /* @__PURE__ */ new Set(), mouse = { l: !1, r: !1, dx: 0, dy: 0 }, pressed = /* @__PURE__ */ new Set(), gpIndex = null, gpPrev = /* @__PURE__ */ new Set();
   function rumble(duration, weak = 0.5, strong = 0.5) {
@@ -2014,37 +2068,64 @@ void main(){
     AC ?? (AC = new AudioContext()), startMatch();
   };
   $("btnSkin").onclick = () => {
-    gameMode = (gameMode + 1) % GAME_MODES.length;
-    let e = document.querySelector("#rpanel .solo");
-    e && (e.textContent = GAME_MODES[gameMode]);
+    PR.mode = (PR.mode + 1) % MODES.length, refreshLobby();
   };
-  var menuPage = $("menuPage"), menuTitle = menuPage.querySelector("h1"), menuCards = menuPage.querySelector(".cards"), PAGE_DATA = {
-    "BATTLE PASS": ["LEVEL 29|Complete matches to earn season rewards.", "MEDAL PUNCHCARD|Two medals ready to upgrade.", "BONUS REWARD|Reach level 35 to unlock Arctic Ace."],
-    CHALLENGES: ["NEW WORLD|Discover every named location.", "SHARPSHOOTER|Deal 1,000 rifle damage.", "MASTER BUILDER|Place 250 structures."],
-    COMPETE: ["SOLO OPEN|Practice against the advanced bot roster.", "FORTRESS CUP|Use F8 to launch Fortress Siege.", "STORM TRIAL|Survive five storm phases."],
-    LOCKER: SKINS.map((s, i) => `${s.name}|${i === P.skin ? "EQUIPPED" : "Click CHANGE on the Play screen to equip."}`),
-    "ITEM SHOP": ["FEATURED|Wildcat and Neon Striker are now available.", "DAILY|Arctic Ace rotates into the locker today.", "OWNED|All items are available in this local build."],
-    CAREER: ["PROFILE|Level 29 \xB7 Solo player", "COLLECTION|10 locations discovered", "REPLAYS|Local matches are not uploaded."],
-    STORE: ["V-BUCKS|2,765 available locally.", "BATTLE PASS|Season 1 pass active."]
-  };
-  document.querySelectorAll("#lnav .tab").forEach((el) => el.onclick = () => {
-    if (document.querySelectorAll("#lnav .tab").forEach((x) => x.classList.remove("on")), el.classList.add("on"), el.textContent === "PLAY") {
+  var menuPage = $("menuPage"), menuTitle = menuPage.querySelector("h1"), menuCards = menuPage.querySelector(".cards"), SHOP = [4, 5, 6, 7, 8, 9, 10, 11].map((i, k) => ({ skin: i, price: [800, 1200, 1500, 2e3][k % 4] })), PASS = Array.from({ length: 20 }, (_, i) => ({ tier: i + 1, reward: i % 5 === 4 ? { skin: 12 + Math.floor(i / 5) } : { vbucks: 100 + i % 5 * 50 } })), CHALLENGES = [["Eliminate 10 opponents", () => PR.kills, 10, 500], ["Deal 2,500 damage", () => Math.round(PR.dmg), 2500, 500], ["Place 250 structures", () => PR.builds, 250, 400], ["Open 25 chests", () => PR.chests, 25, 300], ["Discover every named location", () => PR.discovered.length, POIS.length, 800], ["Win a Victory Royale", () => PR.wins, 1, 1500], ["Play 10 matches", () => PR.matches, 10, 300]], skinTile = (i, sub3, cls = "") => `<div class="tile skin ${cls}" data-skin="${i}"><canvas width="64" height="64"></canvas><b>${SKINS[i].name}</b>${sub3}</div>`;
+  function paintSkins() {
+    menuCards.querySelectorAll(".tile.skin canvas").forEach((cv) => {
+      let sk = SKINS[+cv.parentElement.dataset.skin], c = cv.getContext("2d"), col = (v) => `rgb(${v.map((x) => x * 255 | 0).join(",")})`;
+      c.fillStyle = col(sk.top), c.fillRect(12, 34, 40, 30), c.fillStyle = col(sk.pants), c.fillRect(16, 56, 32, 8), c.fillStyle = col(sk.skin), c.fillRect(18, 10, 28, 26), c.fillStyle = col(sk.hair), c.fillRect(16, 4, 32, 10), c.fillStyle = "#000", c.fillRect(24, 20, 4, 4), c.fillRect(36, 20, 4, 4);
+    });
+  }
+  function openPage(name) {
+    if (document.querySelectorAll("#lnav .tab").forEach((x) => x.classList.toggle("on", x.textContent === name)), name === "PLAY") {
       menuPage.style.display = "none";
       return;
     }
-    let rows = PAGE_DATA[el.textContent || ""] || [];
-    menuTitle.textContent = el.textContent || "", menuCards.innerHTML = rows.map((x, i) => {
-      let [a, b] = x.split("|");
-      return `<div class="tile" ${el.textContent === "LOCKER" ? `data-skin="${i}" style="cursor:pointer"` : ""}><b>${a}</b>${b}</div>`;
-    }).join(""), el.textContent === "LOCKER" && menuCards.querySelectorAll("[data-skin]").forEach((card) => card.onclick = () => {
-      P.skin = +card.dataset.skin, menuCards.querySelectorAll(".tile").forEach((x, i) => {
-        let n = x.querySelector("b");
-        x.innerHTML = `<b>${n?.textContent || SKINS[i].name}</b>${i === P.skin ? "EQUIPPED" : "Click to equip."}`;
-      });
-    }), menuPage.style.display = "block";
-  });
-  $("menuClose").onclick = () => {
-    menuPage.style.display = "none", document.querySelectorAll("#lnav .tab").forEach((x) => x.classList.toggle("on", x.textContent === "PLAY"));
+    menuTitle.textContent = name;
+    let html = "";
+    if (name === "BATTLE PASS") {
+      let lv = level();
+      html = `<div class="tile"><b>LEVEL ${lv}</b>${PR.xp % 1e3} / 1000 XP to next level \xB7 earn XP from eliminations, damage and survival</div>` + PASS.map((t2) => {
+        let ok = lv >= t2.tier, done = PR.claimed.includes(t2.tier), r = "skin" in t2.reward ? SKINS[t2.reward.skin].name : `\u24CB ${t2.reward.vbucks}`;
+        return `<div class="tile ${ok ? "" : "locked"}"><b>TIER ${t2.tier}</b>${r}<br>${done ? "\u2714 CLAIMED" : ok ? `<button data-claim="${t2.tier}">CLAIM</button>` : `Reach level ${t2.tier}`}</div>`;
+      }).join("");
+    } else name === "CHALLENGES" ? html = CHALLENGES.map(([n, f, goal, xp], i) => {
+      let v = Math.min(goal, f()), done = v >= goal;
+      return `<div class="tile"><b>${n}</b><div class="bar"><i style="width:${v / goal * 100}%"></i><b>${v} / ${goal}</b></div>${done ? "\u2714 +" + xp + " XP" : "+" + xp + " XP"}</div>`;
+    }).join("") : name === "COMPETE" ? html = MODES.map((m, i) => `<div class="tile"><b>${m[0]}</b>${m[1]}<br><button data-mode="${i}">LAUNCH</button></div>`).join("") + '<div class="tile"><b>SPAWN BOT LOBBY</b>Practice on the spawn island with the whole lobby before the bus leaves.<br><button data-mode="0">PLAY</button></div>' : name === "LOCKER" ? html = `<div class="tile" style="grid-column:1/-1"><b>EMOTE (B)</b>${EMOTES.map((e, i) => `<button data-emote="${i}" ${PR.emote === i ? 'style="background:#ffe22e;color:#12305a"' : ""}>${e}</button>`).join(" ")}</div>` + SKINS.map((sk, i) => skinTile(i, PR.unlocked.includes(i) ? i === P.skin ? "EQUIPPED" : "Click to equip" : "\u{1F512} Item Shop / Battle Pass", i === P.skin ? "on" : PR.unlocked.includes(i) ? "" : "locked")).join("") : name === "ITEM SHOP" ? html = SHOP.map((o) => skinTile(o.skin, PR.unlocked.includes(o.skin) ? "OWNED" : `\u24CB ${o.price} <button data-buy="${o.skin}" data-price="${o.price}">BUY</button>`)).join("") : name === "CAREER" ? html = `<div class="tile"><b>${PR.name}</b>Level ${level()} \xB7 ${PR.xp.toLocaleString()} XP</div><div class="tile"><b>${PR.matches}</b>MATCHES</div><div class="tile"><b>${PR.wins}</b>VICTORY ROYALES</div><div class="tile"><b>${PR.kills}</b>ELIMINATIONS</div><div class="tile"><b>${Math.round(PR.dmg).toLocaleString()}</b>DAMAGE</div><div class="tile"><b>${PR.builds}</b>STRUCTURES</div><div class="tile"><b>${PR.chests}</b>CHESTS</div><div class="tile"><b>${PR.discovered.length} / ${POIS.length}</b>LOCATIONS<br>${PR.discovered.join(", ") || "\u2014"}</div><div class="tile"><b>RESET</b><button data-act="reset">Wipe local profile</button></div>` : name === "STORE" ? html = [1e3, 2800, 5e3, 13500].map((v) => `<div class="tile"><b>\u24CB ${v.toLocaleString()}</b>Free in this local build<br><button data-vb="${v}">GET</button></div>`).join("") : name === "PARTY" && (html = `<div class="tile"><b>${PR.name} (you)</b>Level ${level()} \xB7 ${MODES[PR.mode][0]}</div><div class="tile"><b>INVITE</b>This build is local only \u2014 no online party. The lobby fills with 32 bots when you press PLAY.</div>`);
+    menuCards.innerHTML = html, paintSkins(), menuPage.style.display = "block", menuCards.querySelectorAll(".tile.skin").forEach((card) => card.onclick = () => {
+      let i = +card.dataset.skin;
+      name === "LOCKER" && PR.unlocked.includes(i) && (P.skin = i, PR.mode = PR.mode, saveProfile(), openPage(name));
+    }), menuCards.querySelectorAll("[data-buy]").forEach((b) => b.onclick = (e) => {
+      e.stopPropagation();
+      let i = +b.dataset.buy, pr = +b.dataset.price;
+      if (PR.vbucks < pr) return toast("Not enough V-Bucks");
+      PR.vbucks -= pr, PR.unlocked.push(i), updateWallet(), toast("Purchased " + SKINS[i].name), openPage(name);
+    }), menuCards.querySelectorAll("[data-claim]").forEach((b) => b.onclick = () => {
+      let t2 = PASS[+b.dataset.claim - 1];
+      PR.claimed.push(t2.tier), "skin" in t2.reward ? (PR.unlocked.push(t2.reward.skin), toast("Unlocked " + SKINS[t2.reward.skin].name)) : (PR.vbucks += t2.reward.vbucks, toast("+" + t2.reward.vbucks + " V-Bucks")), updateWallet(), openPage(name);
+    }), menuCards.querySelectorAll("[data-vb]").forEach((b) => b.onclick = () => {
+      PR.vbucks += +b.dataset.vb, updateWallet(), toast("+" + b.dataset.vb + " V-Bucks");
+    }), menuCards.querySelectorAll("[data-mode]").forEach((b) => b.onclick = () => {
+      PR.mode = +b.dataset.mode, refreshLobby(), menuPage.style.display = "none", $("btnPlay").click();
+    }), menuCards.querySelectorAll("[data-emote]").forEach((b) => b.onclick = () => {
+      PR.emote = +b.dataset.emote, lastEmote = PR.emote, saveProfile(), openPage(name);
+    }), menuCards.querySelectorAll("[data-act=reset]").forEach((b) => b.onclick = () => {
+      confirm("Wipe the local profile?") && (localStorage.removeItem("fn-profile"), location.reload());
+    });
+  }
+  document.querySelectorAll("#lnav .tab").forEach((el) => el.onclick = () => openPage(el.textContent || ""));
+  $("menuClose").onclick = () => openPage("PLAY");
+  document.querySelector("#lnav .box").onclick = () => openPage("PARTY");
+  document.querySelectorAll("#lobby .plus").forEach((el) => el.onclick = () => openPage("PARTY"));
+  $("local").onclick = () => toast("LOCAL: everything runs in this browser. No account, no servers.");
+  $("nametag").onclick = () => {
+    let n = prompt("Display name", PR.name);
+    n && n.trim() && (PR.name = n.trim().slice(0, 16), saveProfile(), refreshLobby());
+  };
+  $("lbot").querySelector("span").onclick = (e) => {
+    (e.target.textContent || "").includes("Controls") ? (settingsOpen(!0), SET.querySelector("[data-p=keys]").click()) : openPage("LOCKER");
   };
   H.pause.onclick = () => canvas.requestPointerLock();
   document.addEventListener("pointerlockchange", () => {
@@ -2059,15 +2140,15 @@ void main(){
     return b;
   }
   function damage(n, by = "the storm") {
-    if (D.invuln || P.dead || P.over) return;
+    if (D.invuln || P.dead || P.over || P.state === "island") return;
     rumble(Math.min(400, n * 8 + 120), 0.7, 0.95), P.bush = !1;
     let s = Math.min(P.shield, n);
-    P.shield -= s, P.hp -= n - s, H.flash.style.opacity = "0.3", setTimeout(() => H.flash.style.opacity = "0", 80), beep(120, 0.2, "sawtooth", 0.1, -60), P.hp <= 0 && (P.hp = 0, P.dead = !0, addFeed(`${by} eliminated <span class="me">Player</span>`), banner("YOU WERE ELIMINATED", "BY " + by.toUpperCase(), 4), setTimeout(() => endScreen(!1, by), 4e3));
+    P.shield -= s, P.hp -= n - s, H.flash.style.opacity = "0.3", setTimeout(() => H.flash.style.opacity = "0", 80), beep(120, 0.2, "sawtooth", 0.1, -60), P.hp <= 0 && (P.hp = 0, P.dead = !0, P.dyingT = 1.5, addFeed(`${by} eliminated <span class="me">Player</span>`), banner("YOU WERE ELIMINATED", "BY " + by.toUpperCase(), 4), setTimeout(() => endScreen(!1, by), 4e3));
   }
   function endScreen(win, by = "") {
-    P.over = !0, document.exitPointerLock(), win ? (vbucks += 250, updateWallet(), rumble(500, 1, 1)) : rumble(300, 0.6, 0.8);
-    let xp = P.kills * 300 + Math.round(P.dmg * 2) + Math.round(P.matchT * 5);
-    if (H.end.className = win ? "win" : "lose", H.end.querySelector(".title").innerHTML = win ? '<span class="n1">#1</span><span>VICTORY<br>ROYALE</span>' : `<span class="n1">#${P.alive}</span><span>ELIMINATED<br><small>by ${by}</small></span>`, H.end.querySelector(".st").innerHTML = `<div><b>${P.kills}</b>ELIMINATIONS</div><div><b>${Math.round(P.dmg)}</b>DAMAGE</div><div><b>${xp}</b>MATCH XP</div>`, H.end.style.display = "flex", win) {
+    P.over = !0, document.exitPointerLock();
+    let xp = P.kills * 300 + Math.round(P.dmg * 2) + Math.round(P.matchT * 5) + (win ? 1500 : 0);
+    if (PR.xp += xp, PR.matches++, PR.kills += P.kills, PR.dmg += P.dmg, win ? (PR.vbucks += 250, PR.wins++, rumble(500, 1, 1)) : rumble(300, 0.6, 0.8), saveProfile(), H.end.className = win ? "win" : "lose", H.end.querySelector(".title").innerHTML = win ? '<span class="n1">#1</span><span>VICTORY<br>ROYALE</span>' : `<span class="n1">#${P.alive}</span><span>ELIMINATED<br><small>by ${by}</small></span>`, H.end.querySelector(".st").innerHTML = `<div><b>${P.kills}</b>ELIMINATIONS</div><div><b>${Math.round(P.dmg)}</b>DAMAGE</div><div><b>${xp}</b>MATCH XP</div>`, H.end.style.display = "flex", win) {
       let c = H.end.querySelector(".confetti");
       c.innerHTML = "";
       for (let i = 0; i < 80; i++) c.innerHTML += `<i style="left:${rand(0, 100)}%;animation-delay:${rand(0, 4)}s;background:${["#ff5ab3", "#5ee0ff", "#ffe22e", "#9dff5a"][i % 4]};transform:rotate(${rand(0, 90)}deg)"></i>`;
@@ -2086,15 +2167,15 @@ void main(){
     return VP[3] * p[0] + VP[7] * p[1] + VP[11] * p[2] + VP[15] < 0.1 || Math.abs(c[0]) > 1.2 || Math.abs(c[1]) > 1.2 ? null : [(c[0] * 0.5 + 0.5) * innerWidth, (0.5 - c[1] * 0.5) * innerHeight];
   }
   function buildTarget() {
-    let dir = (Math.round(P.yaw / (Math.PI / 2)) % 4 + 4) % 4, a = dir * Math.PI / 2, f = [Math.sin(a), 0, Math.cos(a)], level = Math.floor((P.pos[1] + 1) / 4) * 4;
-    P.pitch > 0.45 && (level += 4);
+    let dir = (Math.round(P.yaw / (Math.PI / 2)) % 4 + 4) % 4, a = dir * Math.PI / 2, f = [Math.sin(a), 0, Math.cos(a)], level2 = Math.floor((P.pos[1] + 1) / 4) * 4;
+    P.pitch > 0.45 && (level2 += 4);
     let t2 = add(P.pos, scale(f, P.piece === "wall" ? 2.6 : 3.2));
     P.pitch < -0.7 && P.piece !== "wall" && (t2 = P.pos);
     let cx = Math.floor(t2[0] / 4) * 4 + 2, cz = Math.floor(t2[2] / 4) * 4 + 2;
-    return P.piece === "wall" ? { type: "wall", pos: [cx + f[0] * 2, level, cz + f[2] * 2], dir } : { type: P.piece, pos: [cx, level, cz], dir: P.piece === "ramp" ? (dir + P.rampRot) % 4 : dir };
+    return P.piece === "wall" ? { type: "wall", pos: [cx + f[0] * 2, level2, cz + f[2] * 2], dir } : { type: P.piece, pos: [cx, level2, cz], dir: P.piece === "ramp" ? (dir + P.rampRot) % 4 : dir };
   }
   function botDamage(dm, n, by, how = "with a weapon") {
-    if (dm.dead) return;
+    if (dm.dead || dm.state === "island") return;
     let sh = Math.min(dm.shield, n);
     dm.shield -= sh, dm.hp -= n - sh, dm.lastHit = t;
     let att = by === "Player" ? P.pos : bots.find((x) => x.name === by)?.pos;
@@ -2102,7 +2183,7 @@ void main(){
       Math.random() < 0.22 && botVoice(dm);
       return;
     }
-    if (dm.dead = !0, P.alive--, Math.random() < 0.35) {
+    if (dm.dead = !0, P.alive--, dying.push({ skin: dm.skin, pos: [...dm.pos], yaw: dm.yaw, t: 1.4 }), fx.push({ kind: "puff", t: 0.4, pos: add(dm.pos, [0, 1, 0]), col: [0.4, 0.8, 1] }), Math.random() < 0.35) {
       let killer = bots.find((x) => x.name === by);
       killer && !killer.dead && (killer.emoteT = 3, killer.emote = Math.floor(rand(0, 4)));
     }
@@ -2197,7 +2278,15 @@ void main(){
   }
   function landed() {
     if (P.state === "glide" || P.state === "sky") {
-      P.state = "play";
+      if (P.state = "play", PR.mode === 2 && !siegeUp) {
+        siegeUp = !0;
+        let c = fortAt([storm.c[0], terrainH(storm.c[0], storm.c[1]), storm.c[1]], "stone", 3);
+        for (let i = 0; i < 6; i++) {
+          let b = spawnBot([c[0] + rand(-3, 3), c[1] + 4.5, c[2] + rand(-3, 3)], 5);
+          b.name = "Defender" + (i + 1), b.weapon = i % 2 ? "ar" : "shotgun", b.weapons = [b.weapon], b.ammo = { light: 90, medium: 120, heavy: 10, shells: 30 }, b.mats = 400;
+        }
+        banner("FORTRESS SIEGE", "A STONE FORT HOLDS THE CIRCLE CENTRE \xB7 TAKE IT", 5);
+      }
       return;
     }
     if (P.vel[1] < -22) {
@@ -2215,7 +2304,7 @@ void main(){
     let heavy = ++hudN % 3 === 0;
     H.hp.querySelector("i").style.width = P.hp + "%", H.hp.nextElementSibling.textContent = String(Math.ceil(P.hp)), H.sh.querySelector("i").style.width = P.shield + "%", H.sh.nextElementSibling.textContent = String(Math.ceil(P.shield)), H.pl.querySelector(".b i").style.width = P.hp + "%", heavy && (H.mats.innerHTML = ["wood", "stone", "metal"].map((m) => `<div class="${P.mat === m && P.build ? "sel" : ""}">${m === "wood" ? '<svg viewBox="0 0 40 40"><path d="M6 30 L26 8 L34 14 L14 36 Z" fill="#e6c48a" stroke="#8a6a3a" stroke-width="1.5"/></svg>' : m === "stone" ? '<svg viewBox="0 0 40 40"><path d="M4 22 L20 12 L36 20 L20 30 Z" fill="#c9c9c9" stroke="#666" stroke-width="1.5"/><path d="M4 22 L20 30 L20 36 L4 28 Z" fill="#a0a0a0" stroke="#666" stroke-width="1.5"/><path d="M36 20 L20 30 L20 36 L36 26 Z" fill="#8a8a8a" stroke="#666" stroke-width="1.5"/></svg>' : '<svg viewBox="0 0 40 40"><path d="M8 8 L30 8 L30 14 L18 14 L32 32 L10 32 L10 26 L22 26 Z" fill="#dfe6ee" stroke="#556" stroke-width="1.5"/></svg>'}${P.mats[m]}</div>`).join("")), heavy && (H.bld.innerHTML = [["wall", "Q", '<rect x="10" y="10" width="24" height="24" transform="skewY(-10)"/>'], ["floor", "G", '<path d="M22 12 L38 22 L22 32 L6 22 Z"/>'], ["ramp", "F", '<path d="M8 36 L8 30 L14 30 L14 24 L20 24 L20 18 L26 18 L26 12 L32 12 L32 8 L38 8 L38 36 Z"/>'], ["pyramid", "Alt", '<path d="M22 8 L40 26 L22 36 L4 26 Z"/><path d="M22 8 L22 36"/>']].map(([t2, k, s]) => `<div class="${P.build && P.piece === t2 ? "on" : ""}"><kbd>${k}</kbd><svg viewBox="0 0 44 44">${s}</svg></div>`).join(""));
     let it = curItem(), slots = [`<div class="slot ${P.slot < 0 ? "sel" : ""}">${ICON.pickaxe}<span class="k">BACKQUOTE</span></div>`].concat(P.inv.map((s, i) => `<div class="slot ${s ? RARITIES[s.rar] : ""} ${P.slot === i ? "sel " + (s && isWeapon(s.kind) ? "w" : "") : ""}">${s ? ICON[s.kind] + `<span class="cnt">${isWeapon(s.kind) ? s.mag : s.count}</span>` : ""}<span class="k">${["1", "2", "3", "MOUSE4", "MOUSE3"][i]}</span></div>`));
-    heavy && (H.hotbar.innerHTML = slots.join("")), H.wname.textContent = P.swim ? "Swimming" : P.editing ? "Editing" : it ? isWeapon(it.kind) ? WEAPONS[it.kind].name : CONS[it.kind].name : P.slot < 0 ? "Pickaxe" : "", H.ammo.innerHTML = it && isWeapon(it.kind) ? `${P.reload > 0 ? "<small>RELOADING</small>" : it.mag} <small>/ ${P.ammo[WEAPONS[it.kind].ammo]}</small><span class="mg"></span>` : "", H.cross.className = P.build ? "build" : "", H.cross.style.display = P.state === "play" && !P.scoped ? "block" : "none", H.scope.style.display = P.scoped && !P.over ? "block" : "none", H.hud.style.opacity = P.over ? "0" : "1", H.prog.style.display = P.useT > 0 ? "block" : "none", P.useT > 0 && (H.prog.querySelector("i").style.width = 100 - P.useT / P.useDur * 100 + "%");
+    heavy && (H.hotbar.innerHTML = slots.join("")), H.wname.textContent = P.swim ? "Swimming" : P.editing ? "Editing" : it ? isWeapon(it.kind) ? WEAPONS[it.kind].name : CONS[it.kind].name : P.slot < 0 ? "Pickaxe" : "", H.ammo.innerHTML = it && isWeapon(it.kind) ? `${P.reload > 0 ? "<small>RELOADING</small>" : it.mag} <small>/ ${P.ammo[WEAPONS[it.kind].ammo]}</small><span class="mg"></span>` : "", H.cross.className = P.build ? "build" : "", H.cross.style.display = (P.state === "play" || P.state === "island") && !P.scoped ? "block" : "none", H.scope.style.display = P.scoped && !P.over ? "block" : "none", H.hud.style.opacity = P.over ? "0" : "1", H.prog.style.display = P.useT > 0 ? "block" : "none", P.useT > 0 && (H.prog.querySelector("i").style.width = 100 - P.useT / P.useDur * 100 + "%");
     let deg = ((-(P.yaw * 180 / Math.PI) + 180) % 360 + 360) % 360, ch = `<div class="hd">${Math.round(deg)}</div>`;
     for (let d = -90; d <= 90; d += 15) {
       let a = ((Math.round(deg / 15) * 15 + d) % 360 + 360) % 360, x = 410 + (a - deg + 540) % 360 - 180, px = 410 + ((a - deg + 540) % 360 - 180) * 4.2;
@@ -2226,13 +2315,13 @@ void main(){
     heavy && (H.comp.innerHTML = ch);
     let zoom = P.state === "play" ? 1.7 : 0.5, sx = (P.pos[0] + SIZE / 2) / SIZE * 600, sz = (P.pos[2] + SIZE / 2) / SIZE * 600, vw = 300 / zoom;
     if (heavy || hudN % 3 === 1) {
-      mmBg.clearRect(0, 0, 300, 300), mmBg.fillStyle = "#7bbde9", mmBg.fillRect(0, 0, 300, 300), mmBg.drawImage(mapCv, sx - vw / 2, sz - vw / 2, vw, vw, 0, 0, 300, 300);
+      mmBg.clearRect(0, 0, 300, 300), mmBg.fillStyle = "#7bbde9", mmBg.fillRect(0, 0, 300, 300), P.state === "island" ? (mmBg.fillStyle = "#8fd44e", mmBg.beginPath(), mmBg.arc(150 + (ISLAND[0] - P.pos[0]) * zoom * 600 / SIZE, 150 + (ISLAND[2] - P.pos[2]) * zoom * 600 / SIZE, 62 * zoom * 600 / SIZE, 0, 6.28), mmBg.fill()) : mmBg.drawImage(mapCv, sx - vw / 2, sz - vw / 2, vw, vw, 0, 0, 300, 300);
       let g = mmCtx;
       g.clearRect(0, 0, 300, 300);
       let toMM = (x, z) => [150 + ((x + SIZE / 2) / SIZE * 600 - sx) * zoom, 150 + ((z + SIZE / 2) / SIZE * 600 - sz) * zoom];
       g.setLineDash([6, 6]), g.strokeStyle = "#fff", g.lineWidth = 2, g.beginPath(), g.moveTo(...toMM(bus.a[0], bus.a[2])), g.lineTo(...toMM(bus.b[0], bus.b[2])), g.stroke(), g.setLineDash([]);
       let sc = toMM(storm.c[0], storm.c[1]), sr = storm.r / SIZE * 600 * zoom;
-      if (g.fillStyle = "rgba(150,80,200,0.45)", g.fillRect(0, 0, 300, 300), g.globalCompositeOperation = "destination-out", g.beginPath(), g.arc(sc[0], sc[1], sr, 0, 6.28), g.fill(), g.globalCompositeOperation = "source-over", g.strokeStyle = "#fff", g.lineWidth = 3, g.beginPath(), g.arc(sc[0], sc[1], sr, 0, 6.28), g.stroke(), P.state === "bus") {
+      if (P.state !== "island" && (g.fillStyle = "rgba(150,80,200,0.45)", g.fillRect(0, 0, 300, 300), g.globalCompositeOperation = "destination-out", g.beginPath(), g.arc(sc[0], sc[1], sr, 0, 6.28), g.fill(), g.globalCompositeOperation = "source-over", g.strokeStyle = "#fff", g.lineWidth = 3, g.beginPath(), g.arc(sc[0], sc[1], sr, 0, 6.28), g.stroke()), P.state === "bus") {
         let [bx, bz] = toMM(bus.pos[0], bus.pos[2]);
         g.fillStyle = "#4fa8ff", g.strokeStyle = "#fff", g.beginPath(), g.rect(bx - 9, bz - 6, 18, 12), g.fill(), g.stroke();
       }
@@ -2240,7 +2329,7 @@ void main(){
     }
     let poi = "";
     for (let p of POIS) Math.hypot(P.pos[0] - p.x, P.pos[2] - p.z) < p.r + 20 && (poi = p.name);
-    H.mm.querySelector(".poi").textContent = poi, H.stats.innerHTML = `<span>\u{1F552} ${fmt(storm.phaseT)}</span><span>\u{1F464} ${P.alive}</span><span>\u2694 ${P.kills}</span>`, heavy && (H.feed.innerHTML = feed.map((f) => `<div style="opacity:${Math.min(1, f.t)}">${f.html}</div>`).join("")), P.state === "bus" && bus.t > 4 && banner("SPACE TO JUMP", `EVERYBODY OFF. LAST STOP IN ${Math.ceil(bus.dur - bus.t)}s`, 0.2), H.fps.textContent = S.showFps ? fpsV + " FPS" : "";
+    H.mm.querySelector(".poi").textContent = poi, poi && P.state === "play" && !PR.discovered.includes(poi) && (PR.discovered.push(poi), banner(poi, "DISCOVERED \xB7 +100 XP", 3), PR.xp += 100, saveProfile()), H.stats.innerHTML = `<span>\u{1F552} ${fmt(storm.phaseT)}</span><span>\u{1F464} ${P.alive}</span><span>\u2694 ${P.kills}</span>`, heavy && (H.feed.innerHTML = feed.map((f) => `<div style="opacity:${Math.min(1, f.t)}">${f.html}</div>`).join("")), P.state === "bus" && bus.t > 4 && banner("SPACE TO JUMP", `EVERYBODY OFF. LAST STOP IN ${Math.ceil(bus.dur - bus.t)}s`, 0.2), H.fps.textContent = S.showFps ? fpsV + " FPS" : "";
     let html = "";
     if (D.esp && !S.streamer) {
       for (let d of bots) if (!d.dead && d.state !== "bus") {
@@ -2359,7 +2448,10 @@ void main(){
   }
   addEventListener("resize", fitLobby);
   fitLobby();
-  var lastEmote = 0, EW = $("emoteWheel");
+  refreshLobby();
+  lastEmote = PR.emote;
+  PR.unlocked.includes(P.skin) || (P.skin = 0);
+  var EMOTES = ["Dance", "Wave", "Floss", "Take the L"], EW = $("emoteWheel");
   EW.querySelectorAll("[data-e]").forEach((el) => el.onclick = () => {
     startEmote(+el.dataset.e), EW.style.display = "none", canvas.requestPointerLock();
   });
@@ -2415,7 +2507,7 @@ void main(){
         break;
       }
       case "bus":
-        startMatch(), toggleDbg(!1);
+        startMatch(), P.islandT = 27.9, toggleDbg(!1);
         return;
       case "storm":
         storm.shrinking = !1, nextStormPhase();
@@ -2427,7 +2519,7 @@ void main(){
       }
       case "peter": {
         let b = spawnBot(ahead, 4);
-        b.name = "Peter", b.hp = 400, b.shield = 100, b.weapon = "shotgun", b.weapons = ["shotgun", "ar", "sniper"], b.heals = 5, b.mats = 999, b.enemy = "player", b.skill = 1, b.aggression = 1, b.accuracy = 0.7, b.reaction = 0.12, b.seenAt = t - 1, b.mode = "fight";
+        b.name = "Peterbot1", b.hp = 400, b.ammo = { light: 999, medium: 999, heavy: 99, shells: 99 }, b.shield = 100, b.weapon = "shotgun", b.weapons = ["shotgun", "ar", "sniper"], b.heals = 5, b.mats = 999, b.enemy = "player", b.skill = 1, b.aggression = 1, b.accuracy = 0.7, b.reaction = 0.12, b.seenAt = t - 1, b.mode = "fight";
         break;
       }
       case "alive":
@@ -2569,9 +2661,10 @@ void main(){
     return p && (b.mats -= 10, b.buildCd = lerp(0.42, 0.09, b.skill), Math.random() < 0.1 && botHear(pos, 40, b)), p;
   }
   function bestWeaponFor(b, dist) {
-    if (!b.weapons.length) return null;
-    let best = b.weapons[0], bs = 1e9;
-    for (let w of b.weapons) {
+    let usable = b.weapons.filter((w) => b.ammo[WEAPONS[w].ammo] > 0);
+    if (!usable.length) return null;
+    let best = usable[0], bs = 1e9;
+    for (let w of usable) {
       let pref = BOT_W[w]?.[3] ?? 20, score = Math.abs(dist - pref) / pref;
       score < bs && (bs = score, best = w);
     }
@@ -2586,7 +2679,30 @@ void main(){
       b.stunT -= dt, b.emoteT = Math.max(b.emoteT, 0.1), b.vel[0] *= 0.8, b.vel[2] *= 0.8, b.vel[1] -= 26 * dt, b.grounded = !1, moveEntity(b, 1.75, dt);
       return;
     }
-    if (b.emoteT > 0 && (b.emoteT -= dt, b.vel[0] *= 0.8, b.vel[2] *= 0.8, (b.enemy || t - b.lastHit < 2) && (b.emoteT = 0)), b.state === "bus") {
+    if (b.emoteT > 0 && (b.emoteT -= dt, b.vel[0] *= 0.8, b.vel[2] *= 0.8, (b.enemy || t - b.lastHit < 2) && (b.emoteT = 0)), b.state === "island") {
+      if (P.islandT < b.joinT) {
+        b.pos[1] = -50;
+        return;
+      }
+      if (b.vel[1] -= 26 * dt, b.wanderT -= dt, !b.target || b.wanderT <= 0 || len(sub(b.target, b.pos)) < 2) {
+        b.wanderT = rand(3, 8);
+        let a = rand(0, 6.28), rr = rand(5, 35);
+        b.target = [ISLAND[0] + Math.cos(a) * rr, 0, ISLAND[2] + Math.sin(a) * rr], Math.random() < 0.25 && (b.emoteT = rand(3, 6), b.emote = Math.floor(rand(0, 4)));
+      }
+      if (b.emoteT > 0)
+        b.emoteT -= dt, b.vel[0] *= 0.8, b.vel[2] *= 0.8;
+      else {
+        let dx = b.target[0] - b.pos[0], dz = b.target[2] - b.pos[2], L = Math.hypot(dx, dz);
+        L > 0.5 && (b.yaw = Math.atan2(dx, dz), b.vel[0] = lerp(b.vel[0], dx / L * 5, 0.1), b.vel[2] = lerp(b.vel[2], dz / L * 5, 0.1)), b.grounded && Math.random() < dt * 0.3 && (b.vel[1] = 9);
+      }
+      if (b.weapon || (b.weapon = "ar", b.weapons = ["ar"]), Math.random() < dt * 0.4 && len(sub(b.pos, P.pos)) < 60) {
+        let o = bots[Math.floor(rand(0, bots.length))];
+        o !== b && o.state === "island" && P.islandT >= o.joinT && (fx.push({ kind: "tracer", t: 0.06, pos: add(b.pos, [0, 1.5, 0]), to: add(o.pos, [0, 1.2, 0]) }), beep(200, 0.08, "sawtooth", 0.02, -60));
+      }
+      b.grounded = !1, moveEntity(b, 1.75, dt);
+      return;
+    }
+    if (b.state === "bus") {
       b.pos = [...bus.pos], (bus.t > b.dropT || bus.t >= bus.dur) && (b.state = "sky", b.vel = [Math.sin(bus.yaw) * 8, -10, Math.cos(bus.yaw) * 8]);
       return;
     }
@@ -2645,10 +2761,12 @@ void main(){
           let away = norm(sub(b.pos, ep));
           b.target = add(b.pos, scale(away, 40));
         }
-        let wantsCrank = b.skill > 0.55 && L < 46 && (b.aggression > 0.6 || higher) && (b.mats >= 60 || D.infMats);
-        b.mode === "fight" && wantsCrank && Math.random() < dt * (0.6 + b.aggression) ? (b.mode = "crank", b.crank = { c: cellOf(b.pos[0], b.pos[2]), L: Math.floor((b.pos[1] + 1) / 4) * 4, d: yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), t: 0, steps: 0 }) : b.mode === "fight" && underFire && b.skill > 0.3 && b.mats >= 30 && Math.random() < dt * 2.5 ? b.mode = "box" : b.mode === "fight" && b.aggression > 0.7 && b.skill > 0.45 && L < 30 && !higher && Math.random() < dt * 0.4 && b.mats >= 40 && (b.mode = "rush");
+        let wantsCrank = b.cracked && b.skill > 0.55 && L < 46 && (b.aggression > 0.6 || higher) && (b.mats >= 60 || D.infMats);
+        b.mode === "fight" && wantsCrank && Math.random() < dt * (0.6 + b.aggression) ? (b.mode = "crank", b.crank = { c: cellOf(b.pos[0], b.pos[2]), L: Math.floor((b.pos[1] + 1) / 4) * 4, d: yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), t: 0, steps: 0 }) : b.mode === "fight" && underFire && b.skill > 0.35 && b.mats >= 50 && Math.random() < dt * (b.cracked ? 2.5 : 0.6) ? b.mode = "box" : b.cracked && b.mode === "fight" && b.aggression > 0.7 && b.skill > 0.45 && L < 30 && !higher && Math.random() < dt * 0.4 && b.mats >= 40 && (b.mode = "rush");
       }
-      if (!ep && (b.mode === "fight" || b.mode === "crank" || b.mode === "rush") && (b.mode = b.memory ? "hunt" : "loot", b.crank = null), ep && !b.weapon) {
+      !ep && (b.mode === "fight" || b.mode === "crank" || b.mode === "rush") && (b.mode = b.memory ? "hunt" : "loot", b.crank = null);
+      let enemyArmed = b.enemy === "player" ? P.slot >= 0 && !!P.inv[P.slot] && isWeapon(P.inv[P.slot].kind) : !!(b.enemy && b.enemy.weapon), fleeing = !!(ep && !b.weapon && enemyArmed && len(sub(ep, b.pos)) < 25);
+      if (fleeing) {
         let away = norm(sub(b.pos, ep));
         toward(add(b.pos, scale(away, 20)), 7.5), b.mode = "loot";
       } else if (ep && hpTotal < 30 && b.heals <= 0 && b.mode !== "box" && b.aggression < 0.85) {
@@ -2663,19 +2781,23 @@ void main(){
         let d = sub(ep, b.pos), desiredYaw = Math.atan2(d[0], d[2]), desiredPitch = Math.atan2(d[1], Math.hypot(d[0], d[2])), yawErr = Math.atan2(Math.sin(desiredYaw - b.yaw), Math.cos(desiredYaw - b.yaw)), turnRate = lerp(2.4, 7, b.skill);
         b.yaw += clamp(yawErr, -turnRate * dt, turnRate * dt), b.pitch = lerp(b.pitch, desiredPitch, 1 - Math.exp(-lerp(4, 12, b.skill) * dt));
         let want = bestWeaponFor(b, L);
-        if (want && want !== b.weapon && b.fireCd <= 0.1 && (b.weapon = want, b.fireCd = 0.5, b.shots = 0), t - b.seenAt < b.reaction || b.fireCd > 0 || L > rng * 1.6 || Math.abs(yawErr) > lerp(0.22, 0.05, b.skill)) return;
-        b.fireCd = cd * rand(0.9, 1.5) * (b.enemy === "player" ? 1 : 1.4), ++b.shots >= (WEAPONS[b.weapon]?.mag ?? 30) && (b.shots = 0, b.fireCd = (WEAPONS[b.weapon]?.reload ?? 2.5) * lerp(1.2, 0.8, b.skill), b.skill > 0.5 && b.mats >= 10 && b.mode === "fight" && (b.mode = "box"));
-        let acc = clamp(b.accuracy - L / (rng * 3.4) - (Math.hypot(b.vel[0], b.vel[2]) > 4 ? 0.08 : 0), 0.06, 0.7) * (b.weapon === "sniper" ? 0.8 : 1) * (b.enemy === "player" ? 1 : 0.55);
+        if (want && want !== b.weapon && b.fireCd <= 0.1 && (b.weapon = want, b.fireCd = 0.5, b.shots = 0), !b.weapon || b.ammo[WEAPONS[b.weapon].ammo] <= 0) {
+          want || (b.mode = "loot", b.lootT = 0);
+          return;
+        }
+        if (t - b.seenAt < b.reaction || b.fireCd > 0 || L > rng * 1.6 || Math.abs(yawErr) > lerp(0.22, 0.05, b.skill) || !los(add(b.pos, [0, 1.5, 0]), add(ep, [0, 1.2, 0])) && !los(add(b.pos, [0, 1.5, 0]), add(ep, [0, 0.5, 0]))) return;
+        b.fireCd = cd * rand(0.9, 1.5) * (b.enemy === "player" ? 1 : 1.4), b.ammo[WEAPONS[b.weapon].ammo]--, ++b.shots >= (WEAPONS[b.weapon]?.mag ?? 30) && (b.shots = 0, b.fireCd = (WEAPONS[b.weapon]?.reload ?? 2.5) * lerp(1.2, 0.8, b.skill), b.skill > 0.5 && b.mats >= 10 && b.mode === "fight" && (b.mode = "box"));
+        let acc = clamp(b.accuracy - L / (rng * 3.4) - (Math.hypot(b.vel[0], b.vel[2]) > 4 ? 0.08 : 0), 0.06, 0.7) * (b.weapon === "sniper" ? 0.8 : 1) * (b.enemy === "player" ? 0.85 : 0.55);
         Math.random() < 0.2 && (b.aimDrift = [rand(-1.5, 1.5), rand(-0.75, 0.75), rand(-1.5, 1.5)]);
         let from = add(b.pos, [0, 1.5, 0]), to = add(add(ep, [0, 1.2 + rand(-0.45, 0.45), 0]), scale(b.aimDrift, clamp(L / 45, 0.15, 1)));
-        if (L < 10 && b.skill > 0.4 && !los(from, to)) {
+        if (L < 10 && b.cracked && !los(from, to)) {
           let h = W.raycast(from, norm(sub(to, from)), L);
           if (h && h.kind === "piece") {
             W.damagePiece(h.ref, dmg * 2), fx.push({ kind: "tracer", t: 0.06, pos: from, to: h.p }), fx.push({ kind: "puff", t: 0.22, pos: h.p, col: [0.9, 0.85, 0.7] }), botHear(b.pos, 60, b);
             return;
           }
         }
-        if (ep[1] > b.pos[1] + 3 && L < 22 && b.skill > 0.45 && Math.random() < 0.35) {
+        if (ep[1] > b.pos[1] + 3 && L < 22 && b.cracked && Math.random() < 0.35) {
           let low = null;
           for (let p of W.pieces.values()) (p.type === "ramp" || p.type === "floor") && len(sub(p.pos, ep)) < 4.5 && (!low || p.pos[1] < low.pos[1]) && (low = p);
           if (low) {
@@ -2701,7 +2823,7 @@ void main(){
         }
         botHear(b.pos, 60, b), len(sub(b.pos, P.pos)) < 90 && beep(200, 0.08, "sawtooth", 0.03, -60);
       };
-      if (!(ep && (!b.weapon || hpTotal < 30 && b.heals <= 0 && b.mode !== "box" && b.aggression < 0.85)))
+      if (!(fleeing || ep && hpTotal < 30 && b.heals <= 0 && b.mode !== "box" && b.aggression < 0.85))
         if (b.mode === "fight" && ep) {
           let L = len(sub(ep, b.pos)), pref = BOT_W[b.weapon ?? "ar"]?.[3] ?? 20;
           aimAndShoot(L);
@@ -2711,9 +2833,9 @@ void main(){
             let to = sub(ep, b.pos), tl = len(to);
             nades.push({ pos: add(b.pos, [0, 1.6, 0]), vel: add(scale(norm(to), Math.min(20, tl * 0.9)), [0, 6 + tl * 0.15, 0]), t: 2.5, by: b.name });
           }
-          if (underFire && b.buildCd <= 0 && b.skill > 0.25 && Math.random() < dt * 4) {
+          if (underFire && b.buildCd <= 0 && b.skill > 0.3 && b.mats >= 10 && Math.random() < dt * (b.cracked ? 4 : 0.8)) {
             let d = yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), f = dirVec(d), c = cellOf(b.pos[0], b.pos[2]), L0 = Math.floor((b.pos[1] + 1) / 4) * 4;
-            botPlace(b, "wall", [c[0] + f[0] * 2, L0, c[2] + f[2] * 2], d), b.skill > 0.5 && botPlace(b, "ramp", [c[0], L0, c[2]], d);
+            botPlace(b, "wall", [c[0] + f[0] * 2, L0, c[2] + f[2] * 2], d), b.cracked && botPlace(b, "ramp", [c[0], L0, c[2]], d);
           }
         } else if (b.mode === "crank" && ep && b.crank) {
           let k = b.crank, f = dirVec(k.d), r = dirVec((k.d + 1) % 4), rc = [k.c[0] + f[0] * 4, k.L, k.c[2] + f[2] * 4];
@@ -2738,7 +2860,7 @@ void main(){
             b.healT += dt, b.yaw += dt * 0.6, b.healT > 4 && (b.healT = 0, b.heals--, b.shield < 100 && Math.random() < 0.5 ? b.shield = Math.min(100, b.shield + 50) : b.hp = Math.min(100, b.hp + 50), (hpTotal + 50 >= 90 || b.heals <= 0) && (b.mode = ep ? "fight" : "loot"));
           else if (ep) {
             let L = len(sub(ep, b.pos)), d = yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), f = dirVec(d), wall = W.pieces.get(World.key("wall", [c[0] + f[0] * 2, L0, c[2] + f[2] * 2], d)) ?? null;
-            if (wall && b.peekT <= 0) {
+            if (wall && b.cracked && b.peekT <= 0) {
               let open = wall.edit === 0;
               wall.edit = open ? 16 : 0, b.peekWall = wall, b.peekT = open ? lerp(1.2, 0.7, b.skill) : lerp(1.4, 0.5, b.skill), open && b.skill > 0.7 && Math.random() < 0.3 && (wall.edit = 2);
             }
@@ -2747,14 +2869,17 @@ void main(){
         } else {
           b.pitch = lerp(b.pitch, 0, 0.1);
           let sc = storm.shrinking ? storm.to.c : storm.c, srad = storm.shrinking ? storm.to.r : storm.r, out = Math.hypot(b.pos[0] - sc[0], b.pos[2] - sc[1]) > srad * (storm.shrinking ? 0.85 : 0.9), chest = null, cdist = b.weapon ? 30 : 120;
-          for (let c of chests) if (!c.open) {
+          for (let c of chests) if (!c.open && !b.ignore.has(c)) {
             let d = len(sub(c.pos, b.pos));
             d < cdist && (cdist = d, chest = c);
           }
+          let tgt = chest ?? null;
+          tgt && tgt === b.tryRef ? (len(sub(tgt.pos, b.pos)) < 14 && (b.tryT += dt), b.tryT > 8 && (b.ignore.add(tgt), b.tryRef = null, b.tryT = 0, chest = null)) : (b.tryRef = tgt, b.tryT = 0);
           let item = null, idist = b.weapon ? 40 : 140;
           for (let g of items) {
+            if (b.ignore.has(g)) continue;
             let k = g.item.kind;
-            if (!(isWeapon(k) ? !b.weapon || b.weapons.length < 3 && !b.weapons.includes(k) || b.weapon === "smg" && k !== "smg" : k === "ammo" || k === "boogie" || k === "impulse" || k === "launchpad" || k === "bushItem" ? !1 : k === "grenade" ? b.nades < 3 : b.heals < 3)) continue;
+            if (!(isWeapon(k) ? !b.weapon || b.weapons.length < 3 && !b.weapons.includes(k) || b.weapon === "smg" && k !== "smg" : k === "ammo" ? b.weapon !== null && Object.values(b.ammo).reduce((a, v) => a + v, 0) < 60 : k === "boogie" || k === "impulse" || k === "launchpad" || k === "bushItem" ? !1 : k === "grenade" ? b.nades < 3 : b.heals < 3)) continue;
             let d = len(sub(g.pos, b.pos));
             d < idist && (idist = d, item = g);
           }
@@ -2768,7 +2893,7 @@ void main(){
             let L = toward(b.memory, 6.5);
             if (L < 3)
               b.memory = null, b.mode = "loot";
-            else if (L < 40 && b.skill > 0.6 && b.buildCd <= 0 && b.mats >= 30 && Math.random() < dt * 0.5) {
+            else if (L < 40 && b.cracked && b.buildCd <= 0 && b.mats >= 30 && Math.random() < dt * 0.5) {
               let d = yawToDir(b.yaw), f = dirVec(d), c = cellOf(b.pos[0] + f[0] * 2.5, b.pos[2] + f[2] * 2.5), L0 = Math.floor((b.pos[1] + 1) / 4) * 4;
               botPlace(b, "ramp", [c[0], L0, c[2]], d), botPlace(b, "wall", [c[0] + f[0] * 2, L0 + 4, c[2] + f[2] * 2], d), b.vel[1] = Math.max(b.vel[1], 7);
             }
@@ -2777,14 +2902,42 @@ void main(){
               if (b.vel[0] *= 0.6, b.vel[2] *= 0.6, b.interactRef !== chest ? (b.interactRef = chest, b.interactT = 1.2) : b.interactT -= dt, b.interactT <= 0) {
                 chest.open = !0;
                 let pool = ["ar", "burst", "smg", "shotgun", "sniper", "tac", "hunting", "scar", "pistol"], k = pool[Math.floor(rand(0, pool.length))];
-                !b.weapons.includes(k) && b.weapons.length < 3 && b.weapons.push(k), b.weapon = b.weapon ?? k, b.heals = Math.min(4, b.heals + 1), b.shield = Math.min(100, b.shield + 25), b.mats = Math.min(700, b.mats + 90), b.interactRef = null;
+                !b.weapons.includes(k) && b.weapons.length < 3 && b.weapons.push(k), b.weapon = b.weapon ?? k, b.heals = Math.min(4, b.heals + 1), b.shield = Math.min(100, b.shield + 25), b.mats = Math.min(999, b.mats + 30), b.ammo.medium += 30, b.ammo.light += 30, b.ammo.shells += 5, b.ammo.heavy += 3, b.interactRef = null;
               }
             } else
               b.interactRef = null;
-          else if (item) {
-            if (toward(item.pos, 5.8) < 1.6) {
+          else if (!b.weapon && b.lootT <= 0) {
+            let spot = null, sd = 120;
+            for (let l of W.lootSpots) {
+              let d = len(sub(l, b.pos));
+              d < sd && (sd = d, spot = l);
+            }
+            if (spot && toward(spot, 5.8) < 7 && (b.vel[0] *= 0.6, b.vel[2] *= 0.6, b.interactT += dt, b.interactT > 4)) {
+              b.interactT = 0, b.lootT = 20;
+              let pool = ["pistol", "smg", "ar", "burst", "shotgun", "tac", "revolver"], k = pool[Math.floor(rand(0, pool.length))];
+              b.weapons.push(k), b.weapon = k;
+              let a = WEAPONS[k].ammo;
+              b.ammo[a] += a === "heavy" ? 5 : a === "shells" ? 12 : 40, b.heals++;
+            }
+          } else if (b.mats < 200 && !b.farmRef && b.weapon) {
+            let best = null, bd = 90;
+            for (let c of W.props) if (!c.dead && c.type !== "bush") {
+              let d = len(sub(c.pos, b.pos));
+              d < bd && (bd = d, best = c);
+            }
+            best ? b.farmRef = best : b.mode = "rotate";
+          } else if (b.farmRef) {
+            let q = b.farmRef;
+            q.dead || b.mats >= 400 ? b.farmRef = null : toward(q.pos, 5.5) < q.r + 2.2 && (b.vel[0] *= 0.6, b.vel[2] *= 0.6, b.farmT -= dt, b.farmT <= 0 && (b.farmT = 0.5, b.mats = Math.min(999, b.mats + 10), q.hp -= 50, len(sub(q.pos, P.pos)) < 40 && beep(300, 0.08, "triangle", 0.03), q.hp <= 0 && (q.dead = 30, dirtyProp(q), b.farmRef = null)));
+          } else if (item) {
+            if (item === b.tryRef ? (len(sub(item.pos, b.pos)) < 14 && (b.tryT += dt), b.tryT > 8 && (b.ignore.add(item), b.tryRef = null, b.tryT = 0)) : (b.tryRef = item, b.tryT = 0), toward(item.pos, 5.8) < 1.6) {
               let k = item.item.kind;
-              isWeapon(k) ? (b.weapons.includes(k) || (b.weapons.length >= 3 && b.weapons.shift(), b.weapons.push(k)), b.weapon = k) : k !== "grenade" && b.heals++, k === "grenade" && (b.nades += 3), items.splice(items.indexOf(item), 1), b.mats += 40;
+              if (isWeapon(k)) {
+                b.weapons.includes(k) || (b.weapons.length >= 3 && b.weapons.shift(), b.weapons.push(k)), b.weapon = k;
+                let a = WEAPONS[k].ammo;
+                b.ammo[a] += a === "heavy" ? 5 : a === "shells" ? 10 : 30;
+              } else k === "ammo" ? (b.ammo.light += 18, b.ammo.medium += 12, b.ammo.shells += 4, b.ammo.heavy += 2) : k !== "grenade" && b.heals++;
+              k === "grenade" && (b.nades += 3), items.splice(items.indexOf(item), 1), b.mats += 40;
             }
           } else {
             if (b.mode = "rotate", b.wanderT -= dt, !b.target || b.wanderT <= 0 || len(sub(b.target, b.pos)) < 3)
@@ -2797,14 +2950,14 @@ void main(){
               }
             b.emoteT <= 0 && Math.random() < dt * 0.012 && (b.emoteT = rand(3, 5), b.emote = Math.floor(rand(0, 4)), len(sub(b.pos, P.pos)) < 40 && emoteJingle(b.emote)), b.emoteT <= 0 && toward(b.target, 5.2);
           }
-          b.mats = Math.min(700, b.mats + dt * (b.weapon ? 6 : 10)), b.heals <= 0 && Math.random() < dt * 0.02 && (b.heals = 1);
+          b.heals <= 0 && Math.random() < dt * 0.02 && (b.heals = 1);
         }
       for (let n of nades) if (!n.rocket && n.t < 2 && len(sub(n.pos, b.pos)) < 6 && b.skill > 0.3) {
         let away = norm(sub(b.pos, n.pos));
         b.vel[0] = away[0] * 8, b.vel[2] = away[2] * 8, b.grounded && (b.vel[1] = 8);
         break;
       }
-      if (Math.hypot(b.vel[0], b.vel[2]) > 1.5 && len(sub(b.pos, b.lastPos)) < 0.05 * 1 ? b.stuckT += dt : b.stuckT = 0, b.stuckT > 0.6 && b.grounded && (b.vel[1] = 9, b.stuckT > 2 && (b.target = null, b.stuckT = 0, b.skill > 0.4 && b.buildCd <= 0))) {
+      if (Math.hypot(b.vel[0], b.vel[2]) > 1.5 && len(sub(b.pos, b.lastPos)) < 0.05 * 1 ? b.stuckT += dt : b.stuckT = 0, b.stuckT > 0.6 && b.grounded && (b.vel[1] = 9, b.stuckT > 2 && (b.target = null, b.stuckT = 0, b.cracked && b.buildCd <= 0 && b.mats >= 10))) {
         let d = yawToDir(b.yaw), f = dirVec(d), c = cellOf(b.pos[0] + f[0] * 2.5, b.pos[2] + f[2] * 2.5);
         botPlace(b, "ramp", [c[0], Math.floor((b.pos[1] + 1) / 4) * 4, c[2]], d);
       }
@@ -2883,9 +3036,24 @@ void main(){
     }
     if (key("KeyM") && (H.bigmap.style.display = H.bigmap.style.display === "flex" ? "none" : "flex"), key("KeyB") && P.state === "play" && !P.dead && (EW.style.display === "flex" ? (EW.style.display = "none", startEmote(lastEmote)) : (EW.style.display = "flex", document.exitPointerLock())), P.stunT > 0 && (P.stunT -= dt, P.emoteT = Math.max(P.emoteT, 0.1), keys.delete("KeyW"), keys.delete("KeyA"), keys.delete("KeyS"), keys.delete("KeyD"), mouse.l = !1), P.emoteT > 0 && (P.emoteT -= dt, P.stunT <= 0 && (Math.hypot(P.vel[0], P.vel[2]) > 1 || mouse.l) && (P.emoteT = 0)), key("KeyT") && (P.thirdPerson = !P.thirdPerson), P.matchT += dt, storm.phaseT = Math.max(0, storm.phaseT - dt), storm.shrinking) {
       let k = 1 - storm.phaseT / storm.shrinkT;
-      storm.r = lerp(storm.from.r, storm.to.r, k), storm.c = [lerp(storm.from.c[0], storm.to.c[0], k), lerp(storm.from.c[1], storm.to.c[1], k)], storm.phaseT <= 0 && (storm.shrinking = !1, storm.phaseT = PHASES[Math.min(storm.phase, PHASES.length - 1)][0]);
+      storm.r = lerp(storm.from.r, storm.to.r, k), storm.c = [lerp(storm.from.c[0], storm.to.c[0], k), lerp(storm.from.c[1], storm.to.c[1], k)], storm.phaseT <= 0 && (storm.shrinking = !1, storm.phaseT = PHASES[Math.min(storm.phase, PHASES.length - 1)][0] * (PR.mode === 3 ? 0.45 : 1));
     } else storm.phaseT <= 0 && nextStormPhase();
-    if (bannerT > 0 && (bannerT -= dt, bannerT <= 0 && (H.banner.style.display = "none")), P.matchT > 20 && Math.random() < dt * 0.12 && P.alive > bots.filter((b) => !b.dead).length + 1 && (P.alive--, addFeed(`${botName()} eliminated <span class="v">${botName()}</span>`)), bus.t < bus.dur) {
+    if (bannerT > 0 && (bannerT -= dt, bannerT <= 0 && (H.banner.style.display = "none")), fadeT > 0 && (fadeT -= dt, H.fade.style.opacity = String(clamp(fadeT / fadeDur * 1.6, 0, 1)), fadeT <= 0 && (H.fade.style.opacity = "0")), P.matchT > 20 && Math.random() < dt * 0.12 && P.alive > bots.filter((b) => !b.dead).length + 1 && (P.alive--, addFeed(`${botName()} eliminated <span class="v">${botName()}</span>`)), P.state === "island") {
+      P.islandT += dt, P.hp = 100, P.shield = 100, P.mats = { wood: 999, stone: 999, metal: 999 };
+      let joined = 1;
+      for (let b of bots)
+        P.islandT >= b.joinT && !b.joinedFeed && (b.joinedFeed = !0, addFeed(`${b.name} has joined`)), P.islandT >= b.joinT && joined++;
+      P.alive = Math.min(100, joined + Math.floor(Math.min(1, P.islandT / 18) * 68));
+      let left = 28 - P.islandT;
+      if (left <= 10 && left > 0 && banner("BATTLE BUS LAUNCHING", `IN ${Math.ceil(left)}s`, 0.2), left <= 0) {
+        fade(1), P.state = "bus", bus.t = 0, P.alive = 100, P.inv.fill(null), P.slot = -1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, P.shield = 0, W.clearPieces();
+        for (let i = items.length - 1; i >= 0; i--) items[i].pos[2] < -700 && items.splice(i, 1);
+        for (let b of bots)
+          b.state = "bus", b.pos = [...bus.a], b.hp = 100, b.shield = 0;
+        P.yaw = bus.yaw, P.pitch = -0.22, addFeed(`<span class="me">${PR.name}</span> has entered the Battle Bus`);
+      }
+    }
+    if (bus.t < bus.dur) {
       bus.t = Math.min(bus.dur, bus.t + dt);
       let k = bus.t / bus.dur;
       bus.pos = add(bus.a, scale(sub(bus.b, bus.a), k));
@@ -2898,7 +3066,7 @@ void main(){
       (key("Space") && bus.t > 4 || bus.t >= bus.dur) && (P.state = "sky", P.vel = [Math.sin(bus.yaw) * 8, -5, Math.cos(bus.yaw) * 8], P.pos = [bus.pos[0], bus.pos[1] - 1, bus.pos[2]], beep(300, 0.3, "sine", 0.05, -200));
     } else {
       let wish = [0, 0, 0];
-      keys.has("KeyW") && (wish = add(wish, fwd())), keys.has("KeyS") && (wish = sub(wish, fwd())), keys.has("KeyD") && (wish = add(wish, right())), keys.has("KeyA") && (wish = sub(wish, right())), len(gpWish) > 0 && (wish = add(wish, gpWish)), len(wish) > 0 && (wish = norm(wish)), P.crouch = P.state === "play" && keys.has("ControlLeft"), P.sprint = keys.has("ShiftLeft") && !P.crouch;
+      keys.has("KeyW") && (wish = add(wish, fwd())), keys.has("KeyS") && (wish = sub(wish, fwd())), keys.has("KeyD") && (wish = add(wish, right())), keys.has("KeyA") && (wish = sub(wish, right())), len(gpWish) > 0 && (wish = add(wish, gpWish)), len(wish) > 0 && (wish = norm(wish)), P.crouch = (P.state === "play" || P.state === "island") && keys.has("ControlLeft"), P.sprint = keys.has("ShiftLeft") && !P.crouch;
       let gAbove = P.pos[1] - W.groundH(P.pos[0], P.pos[2], P.pos[1]);
       if (P.state === "sky")
         P.vel[1] = Math.max(P.vel[1] - 30 * dt, keys.has("KeyW") ? -55 : -35), P.vel[0] = lerp(P.vel[0], wish[0] * 18, 0.03), P.vel[2] = lerp(P.vel[2], wish[2] * 18, 0.03), (gAbove < 55 || key("Space")) && (P.state = "glide", beep(800, 0.2, "sine", 0.06, -300));
@@ -2913,9 +3081,9 @@ void main(){
         let spd = D.fly ? 22 : P.crouch ? 3 : P.sprint ? 8.5 : 5.5, accel = P.grounded || D.fly ? 14 : 4;
         P.vel[0] = lerp(P.vel[0], wish[0] * spd, 1 - Math.exp(-accel * dt)), P.vel[2] = lerp(P.vel[2], wish[2] * spd, 1 - Math.exp(-accel * dt)), D.fly ? P.vel[1] = lerp(P.vel[1], (keys.has("Space") ? 14 : 0) - (keys.has("ControlLeft") ? 14 : 0), 0.2) : (P.vel[1] -= (D.lowGrav ? 8 : 26) * dt, key("Space") && P.grounded && (P.vel[1] = D.lowGrav ? 7 : 9.5, P.grounded = !1));
       }
-      P.grounded = !1, moveAndCollide(dt), P.swim = P.state === "play" && terrainH(P.pos[0], P.pos[2]) < -1.5 && P.pos[1] < -0.9, P.anim += dt * (len([P.vel[0], 0, P.vel[2]]) > 0.5 && P.grounded ? Math.hypot(P.vel[0], P.vel[2]) * 1.6 : 0), P.hurtCd -= dt, Math.hypot(P.pos[0] - storm.c[0], P.pos[2] - storm.c[1]) > storm.r && P.hurtCd <= 0 && (damage(storm.phase > 3 ? 5 : storm.phase > 1 ? 2 : 1, "The storm"), P.hurtCd = 1);
+      P.grounded = !1, moveAndCollide(dt), P.swim = (P.state === "play" || P.state === "island") && terrainH(P.pos[0], P.pos[2]) < -1.5 && P.pos[1] < -0.9, P.anim += dt * (len([P.vel[0], 0, P.vel[2]]) > 0.5 && P.grounded ? Math.hypot(P.vel[0], P.vel[2]) * 1.6 : 0), P.hurtCd -= dt, P.state === "play" && Math.hypot(P.pos[0] - storm.c[0], P.pos[2] - storm.c[1]) > storm.r && P.hurtCd <= 0 && (damage(storm.phase > 3 ? 5 : storm.phase > 1 ? 2 : 1, "The storm"), P.hurtCd = 1);
     }
-    if (P.dead) {
+    if (P.dyingT > 0 && (P.dyingT -= dt), P.dead && P.dyingT <= 0) {
       let best = null, bd = 1e9;
       for (let b of bots) if (!b.dead && b.state === "ground") {
         let d = len(sub(b.pos, P.pos));
@@ -2935,7 +3103,7 @@ void main(){
       camPos[0] = head[0], camPos[1] = head[1], camPos[2] = head[2];
     VP = mul(perspective(fov, aspect, 0.1, 1500), lookAt(camPos, add(camPos, camFwd)));
     let it = curItem();
-    if (P.state === "play" && !P.over && !P.dead && !dbgOpen()) {
+    if ((P.state === "play" || P.state === "island") && !P.over && !P.dead && !dbgOpen()) {
       key("KeyZ") && (P.build = !P.build);
       for (let [k, p] of [["KeyQ", "wall"], ["KeyG", "floor"], ["KeyF", "ramp"], ["AltLeft", "pyramid"]]) key(k) && (P.piece = p, P.build = !0);
       key("Backquote") && (P.slot = -1, P.build = !1);
@@ -2968,7 +3136,7 @@ void main(){
         if (!P.swim)
           if (P.build) {
             let bt = buildTarget();
-            mouse.l && P.fireCd <= 0 && (P.mats[P.mat] >= 10 || D.infMats) && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir)) && (W.place(bt.type, P.mat, bt.pos, bt.dir), D.infMats || (P.mats[P.mat] -= 10), P.fireCd = 0.12, beep(700, 0.05, "square", 0.04), Math.random() < 0.15 && botHear(bt.pos, 40, "player"));
+            mouse.l && P.fireCd <= 0 && (P.mats[P.mat] >= 10 || D.infMats) && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir)) && (W.place(bt.type, P.mat, bt.pos, bt.dir), PR.builds++, D.infMats || (P.mats[P.mat] -= 10), P.fireCd = 0.12, beep(700, 0.05, "square", 0.04), Math.random() < 0.15 && botHear(bt.pos, 40, "player"));
           } else if (P.slot < 0 || !it)
             mouse.l && P.swing <= 0.05 && P.fireCd <= 0 && (swingPickaxe(), P.fireCd = 0.45);
           else if (isWeapon(it.kind)) {
@@ -3003,7 +3171,7 @@ void main(){
       for (let c of chests) !c.open && len(sub(c.pos, P.pos)) < 2.8 && (nearChest = c);
       if (near ? (H.info.textContent = `[E] ${isWeapon(near.item.kind) ? WEAPONS[near.item.kind].name : CONS[near.item.kind].name}`, H.info.style.display = "block", infoT = Math.max(infoT, 0.05)) : nearChest && (H.info.textContent = "[E] Open chest", H.info.style.display = "block", infoT = Math.max(infoT, 0.05)), key("KeyE")) {
         if (nearChest) {
-          nearChest.open = !0, beep(400, 0.4, "triangle", 0.08, 500);
+          nearChest.open = !0, PR.chests++, beep(400, 0.4, "triangle", 0.08, 500);
           let pool = ["ar", "burst", "smg", "shotgun", "sniper", "tac", "hunting", "scar", "pistol", "revolver", "silenced"];
           dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1), nearChest.drop && (dropItem(mkItem("rpg", 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.8), dropItem(mkItem("rod"), add(nearChest.pos, [0, 0.3, 0]), 1.4), dropItem(mkItem("sniper", 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6)), dropItem(mkItem(["shieldPot", "bandage", "miniShield", "chug", "grenade", "boogie", "impulse"][Math.floor(rand(0, 7))], 3), add(nearChest.pos, [0, 0.3, 0]), 1.2), P.ammo.medium += 30, P.ammo.light += 30, P.ammo.shells += 5, P.ammo.heavy += 3, P.mats.wood += 30, info("+ ammo, +30 wood");
         } else if (near) {
@@ -3045,7 +3213,7 @@ void main(){
       let cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1;
       for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, !1, !0);
     }
-    R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, !1), R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
+    R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, !1), P.state === "island" && R.draw(W.island, trs([0, 0, 0]), [1, 1, 1], 1, 5), R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
     let cull = P.state === "play" ? [130, 190, 320][S.viewDist] : 900, vis = (p) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && (p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18;
     {
       let r = Math.ceil((cull + PC) / PC), kx = Math.floor(camPos[0] / PC), kz = Math.floor(camPos[2] / PC);
@@ -3092,7 +3260,16 @@ void main(){
       let d = sub(f.to, f.pos), L = len(d);
       R.draw(M.tracer, trs(f.pos, Math.atan2(d[0], d[2]), -Math.asin(clamp(d[1] / L, -1, 1)), [1, 1, L]), [1, 1, 1], 1, 0, !1);
     }
-    for (let d of bots) !d.dead && d.state !== "bus" && Math.abs(d.pos[0] - camPos[0]) < cull && Math.abs(d.pos[2] - camPos[2]) < cull && drawChar(CHARS[d.skin], trs(d.pos, d.yaw), { anim: d.anim, speed: Math.hypot(d.vel[0], d.vel[2]), grounded: d.grounded || d.state !== "ground", pitch: d.pitch, pose: d.emoteT > 0 ? "emote" : d.state === "sky" ? "sky" : d.state === "glide" ? "glide" : d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? "build" : d.weapon && d.enemy ? "aim" : "idle", held: d.state !== "ground" || d.emoteT > 0 || d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? void 0 : d.weapon ?? "pickaxe", emote: d.emote });
+    for (let i = dying.length - 1; i >= 0; i--) {
+      let d = dying[i];
+      if (d.t -= dt, d.t <= 0) {
+        dying.splice(i, 1);
+        continue;
+      }
+      let k = clamp((1.4 - d.t) / 0.5, 0, 1);
+      drawChar(CHARS[d.skin], mul(trs(d.pos, d.yaw), mul(translate(0, 0, -0.3 * k), rotX(-1.45 * k * k))), { anim: 0, speed: 0, grounded: !0, pitch: 0, pose: "idle" });
+    }
+    for (let d of bots) !d.dead && d.state !== "bus" && Math.abs(d.pos[0] - camPos[0]) < cull && Math.abs(d.pos[2] - camPos[2]) < cull && drawChar(CHARS[d.skin], trs(d.pos, d.yaw), { anim: d.anim, speed: Math.hypot(d.vel[0], d.vel[2]), grounded: d.grounded || d.state !== "ground", pitch: d.pitch, pose: d.emoteT > 0 ? "emote" : d.state === "sky" ? "sky" : d.state === "glide" ? "glide" : d.state === "island" ? "aim" : d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? "build" : d.weapon && d.enemy ? "aim" : "idle", held: d.state !== "ground" && d.state !== "island" || d.emoteT > 0 || d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? void 0 : d.weapon ?? "pickaxe", emote: d.emote });
     if (P.build) {
       let bt = buildTarget(), ok = P.mats[P.mat] >= 10 && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir));
       R.draw(M[`${bt.type}_${P.mat}`], trs(bt.pos, bt.dir * Math.PI / 2), ok ? [0.5, 1.2, 0.6] : [1.4, 0.5, 0.5], 0.45, MAT_STYLE[P.mat], !1);
@@ -3108,7 +3285,11 @@ void main(){
       n.rocket ? R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))) : R.draw(M[n.kind ?? "grenade"], trs(n.pos, n.t * 4, n.t * 3));
     for (let m of meteors) R.draw(M.rock, trs(m.pos, t * 3, t * 2, 1.2), [1, 0.5, 0.3]);
     R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [1, 1, 1], 0.5, 9, !1);
-    let pose = P.emoteT > 0 ? "emote" : P.state === "sky" ? "sky" : P.state === "glide" ? "glide" : P.swim ? "sky" : P.crouch ? "crouch" : P.build || P.editing ? "build" : P.slot >= 0 && it && it.kind !== "ammo" ? "aim" : "pick", held = P.state !== "play" || P.build || P.editing || P.swim || P.emoteT > 0 ? void 0 : it ? it.kind : "pickaxe";
+    let pose = P.dyingT > 0 ? "idle" : P.emoteT > 0 ? "emote" : P.state === "sky" ? "sky" : P.state === "glide" ? "glide" : P.swim ? "sky" : P.crouch ? "crouch" : P.build || P.editing ? "build" : P.slot >= 0 && it && it.kind !== "ammo" ? "aim" : "pick", held = P.state !== "play" && P.state !== "island" || P.build || P.editing || P.swim || P.emoteT > 0 ? void 0 : it ? it.kind : "pickaxe";
+    if (P.dead && P.dyingT > 0) {
+      let k = clamp((1.5 - P.dyingT) / 0.5, 0, 1);
+      drawChar(CHARS[P.skin], mul(trs(P.pos, P.yaw), mul(translate(0, 0, -0.3 * k), rotX(-1.45 * k * k))), { anim: 0, speed: 0, grounded: !0, pitch: 0, pose: "idle" });
+    }
     if (P.state !== "bus" && !P.dead) {
       let gY = W.groundH(P.pos[0], P.pos[2], P.pos[1]);
       if (R.draw(M.shadow, trs([P.pos[0], gY + 0.03, P.pos[2]]), [1, 1, 1], 0.3, 0, !1), P.bush && P.state === "play" && R.draw(M.bush, trs([P.pos[0], P.pos[1] - 0.1, P.pos[2]], t * 0.2, 0, 1.6)), (P.thirdPerson || P.state !== "play") && !P.scoped)
@@ -3127,5 +3308,5 @@ void main(){
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  window.G = { PROF, nades, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+  window.G = { PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
 })();
