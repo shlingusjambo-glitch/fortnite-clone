@@ -562,6 +562,15 @@ void main(){
     }), M2.grenade = mk((b) => {
       b.sphere([0, 0.15, 0], 0.14, rgb(4876858), 10, 1.2, !0), b.cyl([0, 0.3, 0], 0.05, 0.05, 0.08, rgb(8947848), 8, !0, !0), b.box([0.06, 0.34, 0], [0.12, 0.02, 0.03], rgb(13421772));
       for (let k = 0; k < 3; k++) b.torus([0, 0.08 + k * 0.07, 0], 0.14, 8e-3, rgb(3033638), 10, 4);
+    }), M2.launchpad = mk((b) => {
+      b.cyl([0, 0, 0], 1.5, 1.4, 0.25, rgb(2899546), 16, !0, !0), b.cyl([0, 0.25, 0], 1, 1, 0.08, C.blue, 16, !0, !0);
+      for (let k = 0; k < 4; k++)
+        b.push(rotY(k * 1.57)), b.box([0.5, 0.4, 0], [0.7, 0.06, 0.16], C.holographic), b.pop();
+      b.cyl([0, 0.3, 0], 0.25, 0.25, 0.3, C.yellow, 10, !0, !0);
+      for (let k = 0; k < 8; k++) {
+        let a = k / 8 * 6.283;
+        b.box([Math.cos(a) * 1.25, 0.16, Math.sin(a) * 1.25], [0.2, 0.1, 0.2], C.yellow);
+      }
     }), M2.boogie = mk((b) => {
       b.sphere([0, 0.16, 0], 0.16, rgb(13224408), 12, 1, !0);
       for (let k = 0; k < 10; k++) {
@@ -1723,6 +1732,7 @@ void main(){
     miniShield: { name: "Small Shield Potion", dur: 2, rarity: "uncommon", use: () => P.shield < 50 && (P.shield = Math.min(50, P.shield + 25), !0) },
     chug: { name: "Chug Jug", dur: 15, rarity: "legendary", use: () => (P.hp < 100 || P.shield < 100) && (P.hp = 100, P.shield = 100, !0) },
     grenade: { name: "Grenade", dur: 0, rarity: "uncommon", use: () => !1 },
+    launchpad: { name: "Launch Pad", dur: 0, rarity: "epic", use: () => !1 },
     boogie: { name: "Boogie Bomb", dur: 0, rarity: "rare", use: () => !1 },
     impulse: { name: "Impulse Grenade", dur: 0, rarity: "rare", use: () => !1 },
     medkit: { name: "Med Kit", dur: 10, rarity: "uncommon", use: () => P.hp < 100 && (P.hp = 100, !0) },
@@ -1746,6 +1756,7 @@ void main(){
     scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
     miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
     grenade: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="14" ry="16" fill="#4a6a3a"/><rect x="26" y="14" width="12" height="10" fill="#888"/><rect x="36" y="12" width="12" height="5" fill="#ccc"/></svg>',
+    launchpad: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="44" rx="24" ry="8" fill="#2c88f5"/><ellipse cx="32" cy="42" rx="14" ry="5" fill="#8cd5ff"/><path d="M32 10l10 14h-6v10h-8v-10h-6z" fill="#ffe22e"/></svg>',
     boogie: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="16" fill="#c9c9d8"/><circle cx="26" cy="30" r="3" fill="#ff3ec9"/><circle cx="38" cy="40" r="3" fill="#3ddcf5"/><circle cx="36" cy="28" r="2" fill="#ffe22e"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
     impulse: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="15" fill="#2c88f5"/><circle cx="32" cy="36" r="8" fill="#8cd5ff"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
     chug: '<svg viewBox="0 0 64 64"><path d="M18 20h28v30a6 6 0 0 1-6 6h-16a6 6 0 0 1-6-6z" fill="#3aa2ff"/><rect x="26" y="10" width="12" height="10" fill="#2c6fb0"/><rect x="24" y="30" width="16" height="10" fill="#fff"/></svg>',
@@ -1814,7 +1825,7 @@ void main(){
     e && (e.textContent = "\u24CB " + vbucks.toLocaleString()), localStorage.setItem("fn-vbucks", String(vbucks));
   }
   updateWallet();
-  var height = () => P.crouch ? 1.2 : 1.75, eyeH = () => height() - 0.15, fwd = () => [Math.sin(P.yaw), 0, Math.cos(P.yaw)], right = () => [-Math.cos(P.yaw), 0, Math.sin(P.yaw)], look = () => [Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), Math.cos(P.yaw) * Math.cos(P.pitch)], curItem = () => P.slot < 0 ? null : P.inv[P.slot], items = [], bots = [], fx = [], feed = [], chests = [], nades = [], drops = [], meteors = [], event = null, eventT = 0, bus = { a: [0, 0, 0], b: [0, 0, 0], t: 0, dur: 55, pos: [0, 0, 0], yaw: 0 }, storm = { c: [0, 0], r: 520, phaseT: 120, phase: 0, shrinking: !1, from: { c: [0, 0], r: 380 }, to: { c: [0, 0], r: 380 }, shrinkT: 0 }, PHASES = [[100, 50, 230], [70, 45, 140], [60, 40, 80], [50, 35, 40], [40, 30, 15], [30, 30, 3]];
+  var height = () => P.crouch ? 1.2 : 1.75, eyeH = () => height() - 0.15, fwd = () => [Math.sin(P.yaw), 0, Math.cos(P.yaw)], right = () => [-Math.cos(P.yaw), 0, Math.sin(P.yaw)], look = () => [Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), Math.cos(P.yaw) * Math.cos(P.pitch)], curItem = () => P.slot < 0 ? null : P.inv[P.slot], items = [], bots = [], fx = [], feed = [], chests = [], nades = [], pads = [], drops = [], meteors = [], event = null, eventT = 0, bus = { a: [0, 0, 0], b: [0, 0, 0], t: 0, dur: 55, pos: [0, 0, 0], yaw: 0 }, storm = { c: [0, 0], r: 520, phaseT: 120, phase: 0, shrinking: !1, from: { c: [0, 0], r: 380 }, to: { c: [0, 0], r: 380 }, shrinkT: 0 }, PHASES = [[100, 50, 230], [70, 45, 140], [60, 40, 80], [50, 35, 40], [40, 30, 15], [30, 30, 3]];
   function nextStormPhase() {
     for (let b of bots) b.dead || (b.skill = Math.min(1, b.skill + 0.06), b.accuracy = Math.min(0.75, b.accuracy + 0.03), b.reaction = Math.max(0.12, b.reaction - 0.05));
     let ph = PHASES[Math.min(storm.phase, PHASES.length - 1)];
@@ -1832,10 +1843,10 @@ void main(){
   }
   var dropItem = (item, pos, spread = 0) => items.push({ item, pos: [pos[0] + rand(-spread, spread), pos[1], pos[2] + rand(-spread, spread)] });
   function startMatch() {
-    P.state = "bus", P.hp = 100, P.shield = 0, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.pieces.clear();
+    P.state = "bus", P.hp = 100, P.shield = 0, P.kills = 0, P.alive = 100, P.matchT = 0, P.thanked = !1, P.slot = -1, P.inv.fill(null), P.build = !1, P.mats = { wood: 0, stone: 0, metal: 30 }, P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 }, items.length = 0, bots.length = 0, chests.length = 0, feed.length = 0, W.pieces.clear(), pads.length = 0, nades.length = 0;
     let a = rand(0, 6.28);
     bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420], bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)], bus.t = 0, bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]), P.yaw = bus.yaw, P.pitch = -0.22, storm.c = [rand(-80, 80), rand(-80, 80)], storm.r = 520, storm.phaseT = 120;
-    let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "ammo", "ammo"];
+    let pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "launchpad", "ammo", "ammo"];
     for (let l of W.lootSpots) Math.random() < 0.75 && dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
     for (let c of W.chestSpots) Math.random() < 0.7 && chests.push({ pos: [...c], yaw: rand(0, 6.28), open: !1 });
     for (let p of POIS) for (let i = 0; i < 3; i++) {
@@ -2650,7 +2661,7 @@ void main(){
           let item = null, idist = b.weapon ? 40 : 140;
           for (let g of items) {
             let k = g.item.kind;
-            if (!(isWeapon(k) ? !b.weapon || b.weapons.length < 3 && !b.weapons.includes(k) || b.weapon === "smg" && k !== "smg" : k === "ammo" || k === "boogie" || k === "impulse" ? !1 : k === "grenade" ? b.nades < 3 : b.heals < 3)) continue;
+            if (!(isWeapon(k) ? !b.weapon || b.weapons.length < 3 && !b.weapons.includes(k) || b.weapon === "smg" && k !== "smg" : k === "ammo" || k === "boogie" || k === "impulse" || k === "launchpad" ? !1 : k === "grenade" ? b.nades < 3 : b.heals < 3)) continue;
             let d = len(sub(g.pos, b.pos));
             d < idist && (idist = d, item = g);
           }
@@ -2772,7 +2783,12 @@ void main(){
       toLobby(), pressed.clear(), requestAnimationFrame(frame);
       return;
     }
-    if (key("F8") && toggleDbg(), P.over && (mouse.l = !1), updateEvents(dt), updateNades(dt), key("KeyM") && (H.bigmap.style.display = H.bigmap.style.display === "flex" ? "none" : "flex"), key("KeyB") && P.state === "play" && !P.dead && (EW.style.display === "flex" ? (EW.style.display = "none", startEmote(lastEmote)) : (EW.style.display = "flex", document.exitPointerLock())), P.stunT > 0 && (P.stunT -= dt, P.emoteT = Math.max(P.emoteT, 0.1), keys.delete("KeyW"), keys.delete("KeyA"), keys.delete("KeyS"), keys.delete("KeyD"), mouse.l = !1), P.emoteT > 0 && (P.emoteT -= dt, P.stunT <= 0 && (Math.hypot(P.vel[0], P.vel[2]) > 1 || mouse.l) && (P.emoteT = 0)), key("KeyT") && (P.thirdPerson = !P.thirdPerson), P.matchT += dt, storm.phaseT = Math.max(0, storm.phaseT - dt), storm.shrinking) {
+    key("F8") && toggleDbg(), P.over && (mouse.l = !1), updateEvents(dt), updateNades(dt);
+    for (let pd of pads) {
+      pd.t += dt, P.state === "play" && !P.dead && Math.hypot(P.pos[0] - pd.pos[0], P.pos[2] - pd.pos[2]) < 1.6 && Math.abs(P.pos[1] - pd.pos[1]) < 1.2 && (P.state = "sky", P.vel = [P.vel[0], 30, P.vel[2]], P.pos[1] += 0.5, beep(700, 0.3, "sine", 0.1, 600), rumble(200, 0.5, 0.8));
+      for (let b of bots) !b.dead && b.state === "ground" && Math.hypot(b.pos[0] - pd.pos[0], b.pos[2] - pd.pos[2]) < 1.6 && Math.abs(b.pos[1] - pd.pos[1]) < 1.2 && (b.state = "sky", b.vel = [b.vel[0], 30, b.vel[2]], b.pos[1] += 0.5, b.land = b.target ?? b.land);
+    }
+    if (key("KeyM") && (H.bigmap.style.display = H.bigmap.style.display === "flex" ? "none" : "flex"), key("KeyB") && P.state === "play" && !P.dead && (EW.style.display === "flex" ? (EW.style.display = "none", startEmote(lastEmote)) : (EW.style.display = "flex", document.exitPointerLock())), P.stunT > 0 && (P.stunT -= dt, P.emoteT = Math.max(P.emoteT, 0.1), keys.delete("KeyW"), keys.delete("KeyA"), keys.delete("KeyS"), keys.delete("KeyD"), mouse.l = !1), P.emoteT > 0 && (P.emoteT -= dt, P.stunT <= 0 && (Math.hypot(P.vel[0], P.vel[2]) > 1 || mouse.l) && (P.emoteT = 0)), key("KeyT") && (P.thirdPerson = !P.thirdPerson), P.matchT += dt, storm.phaseT = Math.max(0, storm.phaseT - dt), storm.shrinking) {
       let k = 1 - storm.phaseT / storm.shrinkT;
       storm.r = lerp(storm.from.r, storm.to.r, k), storm.c = [lerp(storm.from.c[0], storm.to.c[0], k), lerp(storm.from.c[1], storm.to.c[1], k)], storm.phaseT <= 0 && (storm.shrinking = !1, storm.phaseT = PHASES[Math.min(storm.phase, PHASES.length - 1)][0]);
     } else storm.phaseT <= 0 && nextStormPhase();
@@ -2865,6 +2881,11 @@ void main(){
           else if (isWeapon(it.kind)) {
             let w = WEAPONS[it.kind];
             (w.auto ? mouse.l : key("ML")) && P.fireCd <= 0 && P.reload <= 0 && (it.mag > 0 ? shoot(it) : P.ammo[w.ammo] > 0 ? P.reload = w.reload : beep(900, 0.05, "square", 0.03)), key("KeyR") && it.mag < w.mag && P.ammo[w.ammo] > 0 && P.reload <= 0 && (P.reload = w.reload);
+          } else if (it.kind === "launchpad") {
+            if (key("ML") && P.grounded) {
+              let f = fwd(), pp = [P.pos[0] + f[0] * 2.5, 0, P.pos[2] + f[2] * 2.5];
+              pp[1] = W.groundH(pp[0], pp[2], P.pos[1]), pads.push({ pos: pp, t: 0 }), --it.count <= 0 && (P.inv[P.slot] = null), P.fireCd = 0.5, beep(900, 0.15, "triangle", 0.06, 300);
+            }
           } else if (it.kind === "grenade" || it.kind === "boogie" || it.kind === "impulse")
             key("ML") && (nades.push({ pos: add(camPos, scale(camFwd, 1)), vel: add(scale(camFwd, 18), [0, 5, 0]), t: it.kind === "grenade" ? 2.5 : 1.6, by: "Player", kind: it.kind }), --it.count <= 0 && (P.inv[P.slot] = null), P.fireCd = 0.6, beep(500, 0.08, "triangle", 0.05));
           else if (it.kind === "rod") {
@@ -2988,6 +3009,8 @@ void main(){
       R.draw(M.bus, trs(bp, bus.yaw)), R.draw(M.balloon, trs(add(bp, [0, 16, 0]), bus.yaw));
     }
     for (let d of drops) d.landed || (R.draw(M.chest, trs(d.pos, 0, 0, 1.3)), R.draw(M.balloon, trs(add(d.pos, [0, 5.5, 0]), 0, 0, 0.32), [0.4, 0.5, 1]));
+    for (let pd of pads)
+      R.draw(M.launchpad, trs(pd.pos, pd.t * 2));
     for (let n of nades)
       n.rocket ? R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))) : R.draw(M[n.kind ?? "grenade"], trs(n.pos, n.t * 4, n.t * 3));
     for (let m of meteors) R.draw(M.rock, trs(m.pos, t * 3, t * 2, 1.2), [1, 0.5, 0.3]);

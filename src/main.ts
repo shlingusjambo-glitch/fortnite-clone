@@ -62,7 +62,7 @@ const BOT_VOICES = ['smak-mouth.mp3','ninjalaughing.mp3','ninja-your-trash-kid.m
 function botVoice(b: Bot) { if (b.voiceCd > 0 || len(sub(b.pos, P.pos)) > 55) return; b.voiceCd = rand(12, 25); const a = new Audio('Audio/' + BOT_VOICES[Math.floor(rand(0, BOT_VOICES.length))]); a.volume = clamp(1 - len(sub(b.pos, P.pos)) / 65, .08, .55) * S.master * S.voice; if (a.volume > 0.01) a.play().catch(() => {}); }
 
 // ---------------- items & weapons ----------------
-type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'revolver' | 'silenced' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'boogie' | 'impulse' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
+type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'revolver' | 'silenced' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'boogie' | 'impulse' | 'launchpad' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const RAR_MULT = [0.85, 0.93, 1, 1.08, 1.16];
 type Ammo = 'light' | 'medium' | 'heavy' | 'shells';
@@ -86,6 +86,7 @@ const CONS: Record<string, { name: string; dur: number; rarity: string; use: () 
   miniShield: { name: 'Small Shield Potion', dur: 2, rarity: 'uncommon', use: () => P.shield < 50 && ((P.shield = Math.min(50, P.shield + 25)), true) },
   chug: { name: 'Chug Jug', dur: 15, rarity: 'legendary', use: () => (P.hp < 100 || P.shield < 100) && ((P.hp = 100), (P.shield = 100), true) },
   grenade: { name: 'Grenade', dur: 0, rarity: 'uncommon', use: () => false },
+  launchpad: { name: 'Launch Pad', dur: 0, rarity: 'epic', use: () => false },
   boogie: { name: 'Boogie Bomb', dur: 0, rarity: 'rare', use: () => false },
   impulse: { name: 'Impulse Grenade', dur: 0, rarity: 'rare', use: () => false },
   medkit: { name: 'Med Kit', dur: 10, rarity: 'uncommon', use: () => P.hp < 100 && ((P.hp = 100), true) },
@@ -118,6 +119,7 @@ const ICON: Record<string, string> = {
   scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
   miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
   grenade: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="14" ry="16" fill="#4a6a3a"/><rect x="26" y="14" width="12" height="10" fill="#888"/><rect x="36" y="12" width="12" height="5" fill="#ccc"/></svg>',
+  launchpad: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="44" rx="24" ry="8" fill="#2c88f5"/><ellipse cx="32" cy="42" rx="14" ry="5" fill="#8cd5ff"/><path d="M32 10l10 14h-6v10h-8v-10h-6z" fill="#ffe22e"/></svg>',
   boogie: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="16" fill="#c9c9d8"/><circle cx="26" cy="30" r="3" fill="#ff3ec9"/><circle cx="38" cy="40" r="3" fill="#3ddcf5"/><circle cx="36" cy="28" r="2" fill="#ffe22e"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
   impulse: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="15" fill="#2c88f5"/><circle cx="32" cy="36" r="8" fill="#8cd5ff"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
   chug: '<svg viewBox="0 0 64 64"><path d="M18 20h28v30a6 6 0 0 1-6 6h-16a6 6 0 0 1-6-6z" fill="#3aa2ff"/><rect x="26" y="10" width="12" height="10" fill="#2c6fb0"/><rect x="24" y="30" width="16" height="10" fill="#fff"/></svg>',
@@ -160,6 +162,7 @@ const curItem = () => (P.slot < 0 ? null : P.inv[P.slot]);
 const items: GroundItem[] = [], bots: Bot[] = [], fx: Fx[] = [], feed: { html: string; t: number }[] = [];
 const chests: { pos: V3; yaw: number; open: boolean; drop?: boolean }[] = [];
 const nades: { pos: V3; vel: V3; t: number; by: string; rocket?: boolean; kind?: Kind }[] = [];
+const pads: { pos: V3; t: number }[] = [];
 const drops: { pos: V3; landed: boolean }[] = [], meteors: { pos: V3; vel: V3 }[] = []; let event: 'meteor' | null = null, eventT = 0;
 const bus = { a: [0, 0, 0] as V3, b: [0, 0, 0] as V3, t: 0, dur: 55, pos: [0, 0, 0] as V3, yaw: 0 };
 const storm = { c: [0, 0] as [number, number], r: 520, phaseT: 120, phase: 0, shrinking: false, from: { c: [0, 0] as [number, number], r: 380 }, to: { c: [0, 0] as [number, number], r: 380 }, shrinkT: 0 };
@@ -179,13 +182,13 @@ const dropItem = (item: Item, pos: V3, spread = 0) => items.push({ item, pos: [p
 function startMatch() {
   P.state = 'bus'; P.hp = 100; P.shield = 0; P.kills = 0; P.alive = 100; P.matchT = 0; P.thanked = false; P.slot = -1; P.inv.fill(null); P.build = false;
   P.mats = { wood: 0, stone: 0, metal: 30 }; P.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 };
-  items.length = 0; bots.length = 0; chests.length = 0; feed.length = 0; W.pieces.clear();
+  items.length = 0; bots.length = 0; chests.length = 0; feed.length = 0; W.pieces.clear(); pads.length = 0; nades.length = 0;
   const a = rand(0, 6.28); bus.a = [Math.cos(a) * 420, 130, Math.sin(a) * 420]; bus.b = [-Math.cos(a) * 420 + rand(-80, 80), 130, -Math.sin(a) * 420 + rand(-80, 80)]; bus.t = 0;
   bus.yaw = Math.atan2(bus.b[0] - bus.a[0], bus.b[2] - bus.a[2]); P.yaw = bus.yaw; P.pitch = -0.22;
   storm.c = [rand(-80, 80), rand(-80, 80)]; storm.r = 520; storm.phaseT = 120;
   // loot + bots per POI
   // loot lives inside buildings (kit spawn points) plus a little floor loot outdoors
-  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'rpg', 'revolver', 'silenced', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'boogie', 'impulse', 'ammo', 'ammo'];
+  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'rpg', 'revolver', 'silenced', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'boogie', 'impulse', 'launchpad', 'ammo', 'ammo'];
   for (const l of W.lootSpots) if (Math.random() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
   for (const c of W.chestSpots) if (Math.random() < 0.7) chests.push({ pos: [...c] as V3, yaw: rand(0, 6.28), open: false });
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z); if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]); }
@@ -791,7 +794,7 @@ function updateBot(b: Bot, dt: number) {
       let chest: typeof chests[number] | null = null, cdist = b.weapon ? 30 : 120;
       for (const c of chests) if (!c.open) { const d = len(sub(c.pos, b.pos)); if (d < cdist) { cdist = d; chest = c; } }
       let item: GroundItem | null = null, idist = b.weapon ? 40 : 140;
-      for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' || k === 'boogie' || k === 'impulse' ? false : k === 'grenade' ? b.nades < 3 : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
+      for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' || k === 'boogie' || k === 'impulse' || k === 'launchpad' ? false : k === 'grenade' ? b.nades < 3 : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
       if (out) { b.mode = 'rotate'; if (!b.target || Math.hypot(b.target[0] - sc[0], b.target[2] - sc[1]) > srad * 0.5) { const a = rand(0, 6.28), rr = rand(0, srad * 0.5); b.target = [sc[0] + Math.cos(a) * rr, 0, sc[1] + Math.sin(a) * rr]; } toward(b.target, 6.5); }
       else if (b.mode === 'hunt' && b.memory && b.weapon) {
         const L = toward(b.memory, 6.5); if (L < 3) { b.memory = null; b.mode = 'loot'; }
@@ -946,6 +949,10 @@ function frame(now: number) {
   if (key('F8')) toggleDbg();
   if (P.over) { mouse.l = false; }
   updateEvents(dt); updateNades(dt);
+  for (const pd of pads) { pd.t += dt;
+    if (P.state === 'play' && !P.dead && Math.hypot(P.pos[0] - pd.pos[0], P.pos[2] - pd.pos[2]) < 1.6 && Math.abs(P.pos[1] - pd.pos[1]) < 1.2) { P.state = 'sky'; P.vel = [P.vel[0], 30, P.vel[2]]; P.pos[1] += 0.5; beep(700, 0.3, 'sine', 0.1, 600); rumble(200, 0.5, 0.8); }
+    for (const b of bots) if (!b.dead && b.state === 'ground' && Math.hypot(b.pos[0] - pd.pos[0], b.pos[2] - pd.pos[2]) < 1.6 && Math.abs(b.pos[1] - pd.pos[1]) < 1.2) { b.state = 'sky'; b.vel = [b.vel[0], 30, b.vel[2]]; b.pos[1] += 0.5; b.land = b.target ?? b.land; }
+  }
   if (key('KeyM')) H.bigmap.style.display = H.bigmap.style.display === 'flex' ? 'none' : 'flex';
   if (key('KeyB') && P.state === 'play' && !P.dead) { if (EW.style.display === 'flex') { EW.style.display = 'none'; startEmote(lastEmote); } else { EW.style.display = 'flex'; document.exitPointerLock(); } }
   if (P.stunT > 0) { P.stunT -= dt; P.emoteT = Math.max(P.emoteT, 0.1); keys.delete('KeyW'); keys.delete('KeyA'); keys.delete('KeyS'); keys.delete('KeyD'); mouse.l = false; }
@@ -1052,6 +1059,8 @@ function frame(now: number) {
       const w = WEAPONS[it.kind];
       if ((w.auto ? mouse.l : key('ML')) && P.fireCd <= 0 && P.reload <= 0) { if (it.mag > 0) shoot(it); else if (P.ammo[w.ammo] > 0) P.reload = w.reload; else beep(900, 0.05, 'square', 0.03); }
       if (key('KeyR') && it.mag < w.mag && P.ammo[w.ammo] > 0 && P.reload <= 0) P.reload = w.reload;
+    } else if (it.kind === 'launchpad') {
+      if (key('ML') && P.grounded) { const f = fwd(), pp: V3 = [P.pos[0] + f[0] * 2.5, 0, P.pos[2] + f[2] * 2.5]; pp[1] = W.groundH(pp[0], pp[2], P.pos[1]); pads.push({ pos: pp, t: 0 }); if (--it.count <= 0) P.inv[P.slot] = null; P.fireCd = 0.5; beep(900, 0.15, 'triangle', 0.06, 300); }
     } else if (it.kind === 'grenade' || it.kind === 'boogie' || it.kind === 'impulse') {
       if (key('ML')) { nades.push({ pos: add(camPos, scale(camFwd, 1)), vel: add(scale(camFwd, 18), [0, 5, 0]), t: it.kind === 'grenade' ? 2.5 : 1.6, by: 'Player', kind: it.kind }); if (--it.count <= 0) P.inv[P.slot] = null; P.fireCd = 0.6; beep(500, 0.08, 'triangle', 0.05); }
     } else if (it.kind === 'rod') {
@@ -1129,6 +1138,7 @@ function frame(now: number) {
   if (P.build) { const bt = buildTarget(); const ok = P.mats[P.mat] >= 10 && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir)); R.draw(M[`${bt.type}_${P.mat}`], trs(bt.pos, bt.dir * Math.PI / 2), ok ? [0.5, 1.2, 0.6] : [1.4, 0.5, 0.5], 0.45, MAT_STYLE[P.mat], false); }
   if (P.state === 'bus' || bus.t < bus.dur + 30) { const bp = P.state === 'bus' ? bus.pos : add(bus.a, scale(sub(bus.b, bus.a), Math.min(1, (bus.t + (P.matchT - bus.t)) / bus.dur))); R.draw(M.bus, trs(bp, bus.yaw)); R.draw(M.balloon, trs(add(bp, [0, 16, 0]), bus.yaw)); }
   for (const d of drops) if (!d.landed) { R.draw(M.chest, trs(d.pos, 0, 0, 1.3)); R.draw(M.balloon, trs(add(d.pos, [0, 5.5, 0]), 0, 0, 0.32), [0.4, 0.5, 1]); }
+  for (const pd of pads) { R.draw(M.launchpad, trs(pd.pos, pd.t * 2)); }
   for (const n of nades) { if (n.rocket) R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))); else R.draw(M[n.kind ?? 'grenade'], trs(n.pos, n.t * 4, n.t * 3)); }
   for (const m of meteors) R.draw(M.rock, trs(m.pos, t * 3, t * 2, 1.2), [1, 0.5, 0.3]);
   R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [0.7, 0.72, 1.0], 0.22, 7, false);
