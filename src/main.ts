@@ -117,6 +117,7 @@ const bus = { a: [0, 0, 0] as V3, b: [0, 0, 0] as V3, t: 0, dur: 55, pos: [0, 0,
 const storm = { c: [0, 0] as [number, number], r: 520, phaseT: 120, phase: 0, shrinking: false, from: { c: [0, 0] as [number, number], r: 380 }, to: { c: [0, 0] as [number, number], r: 380 }, shrinkT: 0 };
 const PHASES = [[100, 50, 230], [70, 45, 140], [60, 40, 80], [50, 35, 40], [40, 30, 15], [30, 30, 3]];   // [wait, shrink, radius]
 function nextStormPhase() {
+  for (const b of bots) if (!b.dead) { b.skill = Math.min(1, b.skill + 0.06); b.accuracy = Math.min(0.75, b.accuracy + 0.03); b.reaction = Math.max(0.12, b.reaction - 0.05); }
   const ph = PHASES[Math.min(storm.phase, PHASES.length - 1)]; storm.from = { c: [storm.c[0], storm.c[1]], r: storm.r };
   const a = rand(0, 6.28), d = rand(0, Math.max(0, storm.r - ph[2]) * 0.6); storm.to = { c: [storm.c[0] + Math.cos(a) * d, storm.c[1] + Math.sin(a) * d], r: ph[2] };
   storm.shrinking = true; storm.shrinkT = ph[1]; storm.phaseT = ph[1]; storm.phase++; banner('STORM EYE SHRINKING', '', 4);
@@ -600,6 +601,10 @@ function updateBot(b: Bot, dt: number) {
     }
     if (!ep && (b.mode === 'fight' || b.mode === 'crank' || b.mode === 'rush')) { b.mode = b.memory ? 'hunt' : 'loot'; b.crank = null; }
     if (ep && !b.weapon) { const away = norm(sub(b.pos, ep)); toward(add(b.pos, scale(away, 20)), 7.5); b.mode = 'loot'; }
+    else if (ep && hpTotal < 30 && b.heals <= 0 && b.mode !== 'box' && b.aggression < 0.85) {   // hurt with nothing to heal: wall off and break line of sight
+      if (b.buildCd <= 0 && b.mats >= 10) { const d = yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), f = dirVec(d), c = cellOf(b.pos[0], b.pos[2]); botPlace(b, 'wall', [c[0] + f[0] * 2, Math.floor((b.pos[1] + 1) / 4) * 4, c[2] + f[2] * 2], d); }
+      const away = norm(sub(b.pos, ep)); toward(add(b.pos, scale(away, 25)), 7.5); b.mode = 'loot'; b.crank = null;
+    }
     // ---------- act ----------
     const [cd, dmg, rng] = BOT_W[b.weapon ?? 'ar'] ?? BOT_W.ar;
     const aimAndShoot = (L: number) => {
@@ -614,12 +619,12 @@ function updateBot(b: Bot, dt: number) {
       const from = add(b.pos, [0, 1.5, 0]), to = add(add(ep!, [0, 1.2 + rand(-0.45, 0.45), 0]), scale(b.aimDrift, clamp(L / 45, .15, 1)));
       const hit = Math.random() < acc && los(from, to);
       fx.push({ kind: 'tracer', t: 0.06, pos: from, to: hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]) });
-      if (hit) { const n = Math.round(dmg * rand(0.8, 1.1)); if (b.enemy === 'player') damage(n, b.name); else botDamage(b.enemy as Bot, n, b.name); }
+      if (hit) { const head = Math.random() < b.skill * 0.18, n = Math.round(dmg * rand(0.8, 1.1) * (head ? 1.5 : 1)); if (b.enemy === 'player') { damage(n, b.name); if (head) info('Headshot!'); } else botDamage(b.enemy as Bot, n, b.name); }
       else if (!hit && !los(from, to)) { const h = W.raycast(from, norm(sub(to, from)), L); if (h && h.kind === 'piece') W.damagePiece(h.ref as Piece, dmg); }
       botHear(b.pos, 60, b);
       if (len(sub(b.pos, P.pos)) < 90) beep(200, 0.08, 'sawtooth', 0.03, -60);
     };
-    if (ep && !b.weapon) { /* fleeing handled above */ }
+    if (ep && (!b.weapon || (hpTotal < 30 && b.heals <= 0 && b.mode !== 'box' && b.aggression < 0.85))) { /* fleeing handled above */ }
     else if (b.mode === 'fight' && ep) {
       const L = len(sub(ep, b.pos)), pref = BOT_W[b.weapon ?? 'ar']?.[3] ?? 20;
       aimAndShoot(L);
@@ -677,12 +682,13 @@ function updateBot(b: Bot, dt: number) {
     else {
       // ---------- non-combat: hunt / loot / rotate / roam ----------
       b.pitch = lerp(b.pitch, 0, 0.1);
-      const out = Math.hypot(b.pos[0] - storm.c[0], b.pos[2] - storm.c[1]) > storm.r * (storm.shrinking ? 0.75 : 0.9);
+      const sc = storm.shrinking ? storm.to.c : storm.c, srad = storm.shrinking ? storm.to.r : storm.r;
+      const out = Math.hypot(b.pos[0] - sc[0], b.pos[2] - sc[1]) > srad * (storm.shrinking ? 0.85 : 0.9);
       let chest: typeof chests[number] | null = null, cdist = b.weapon ? 30 : 120;
       for (const c of chests) if (!c.open) { const d = len(sub(c.pos, b.pos)); if (d < cdist) { cdist = d; chest = c; } }
       let item: GroundItem | null = null, idist = b.weapon ? 40 : 140;
       for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' ? false : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
-      if (out) { b.mode = 'rotate'; if (!b.target || Math.hypot(b.target[0] - storm.c[0], b.target[2] - storm.c[1]) > storm.r * 0.5) { const a = rand(0, 6.28), rr = rand(0, storm.r * 0.5); b.target = [storm.c[0] + Math.cos(a) * rr, 0, storm.c[1] + Math.sin(a) * rr]; } toward(b.target, 6.5); }
+      if (out) { b.mode = 'rotate'; if (!b.target || Math.hypot(b.target[0] - sc[0], b.target[2] - sc[1]) > srad * 0.5) { const a = rand(0, 6.28), rr = rand(0, srad * 0.5); b.target = [sc[0] + Math.cos(a) * rr, 0, sc[1] + Math.sin(a) * rr]; } toward(b.target, 6.5); }
       else if (b.mode === 'hunt' && b.memory && b.weapon) { if (toward(b.memory, 6.5) < 3) { b.memory = null; b.mode = 'loot'; } }
       else if (chest && (b.lootT <= 0 || !b.weapon)) {
         const L = toward(chest.pos, 5.8);

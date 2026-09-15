@@ -1618,6 +1618,7 @@ void main(){
   updateWallet();
   var height = () => P.crouch ? 1.2 : 1.75, eyeH = () => height() - 0.15, fwd = () => [Math.sin(P.yaw), 0, Math.cos(P.yaw)], right = () => [-Math.cos(P.yaw), 0, Math.sin(P.yaw)], look = () => [Math.sin(P.yaw) * Math.cos(P.pitch), Math.sin(P.pitch), Math.cos(P.yaw) * Math.cos(P.pitch)], curItem = () => P.slot < 0 ? null : P.inv[P.slot], items = [], bots = [], fx = [], feed = [], chests = [], drops = [], meteors = [], event = null, eventT = 0, bus = { a: [0, 0, 0], b: [0, 0, 0], t: 0, dur: 55, pos: [0, 0, 0], yaw: 0 }, storm = { c: [0, 0], r: 520, phaseT: 120, phase: 0, shrinking: !1, from: { c: [0, 0], r: 380 }, to: { c: [0, 0], r: 380 }, shrinkT: 0 }, PHASES = [[100, 50, 230], [70, 45, 140], [60, 40, 80], [50, 35, 40], [40, 30, 15], [30, 30, 3]];
   function nextStormPhase() {
+    for (let b of bots) b.dead || (b.skill = Math.min(1, b.skill + 0.06), b.accuracy = Math.min(0.75, b.accuracy + 0.03), b.reaction = Math.max(0.12, b.reaction - 0.05));
     let ph = PHASES[Math.min(storm.phase, PHASES.length - 1)];
     storm.from = { c: [storm.c[0], storm.c[1]], r: storm.r };
     let a = rand(0, 6.28), d = rand(0, Math.max(0, storm.r - ph[2]) * 0.6);
@@ -2291,6 +2292,13 @@ void main(){
       if (!ep && (b.mode === "fight" || b.mode === "crank" || b.mode === "rush") && (b.mode = b.memory ? "hunt" : "loot", b.crank = null), ep && !b.weapon) {
         let away = norm(sub(b.pos, ep));
         toward(add(b.pos, scale(away, 20)), 7.5), b.mode = "loot";
+      } else if (ep && hpTotal < 30 && b.heals <= 0 && b.mode !== "box" && b.aggression < 0.85) {
+        if (b.buildCd <= 0 && b.mats >= 10) {
+          let d = yawToDir(Math.atan2(ep[0] - b.pos[0], ep[2] - b.pos[2])), f = dirVec(d), c = cellOf(b.pos[0], b.pos[2]);
+          botPlace(b, "wall", [c[0] + f[0] * 2, Math.floor((b.pos[1] + 1) / 4) * 4, c[2] + f[2] * 2], d);
+        }
+        let away = norm(sub(b.pos, ep));
+        toward(add(b.pos, scale(away, 25)), 7.5), b.mode = "loot", b.crank = null;
       }
       let [cd, dmg, rng] = BOT_W[b.weapon ?? "ar"] ?? BOT_W.ar, aimAndShoot = (L) => {
         let d = sub(ep, b.pos), desiredYaw = Math.atan2(d[0], d[2]), desiredPitch = Math.atan2(d[1], Math.hypot(d[0], d[2])), yawErr = Math.atan2(Math.sin(desiredYaw - b.yaw), Math.cos(desiredYaw - b.yaw)), turnRate = lerp(2.4, 7, b.skill);
@@ -2302,15 +2310,15 @@ void main(){
         Math.random() < 0.2 && (b.aimDrift = [rand(-1.5, 1.5), rand(-0.75, 0.75), rand(-1.5, 1.5)]);
         let from = add(b.pos, [0, 1.5, 0]), to = add(add(ep, [0, 1.2 + rand(-0.45, 0.45), 0]), scale(b.aimDrift, clamp(L / 45, 0.15, 1))), hit = Math.random() < acc && los(from, to);
         if (fx.push({ kind: "tracer", t: 0.06, pos: from, to: hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]) }), hit) {
-          let n = Math.round(dmg * rand(0.8, 1.1));
-          b.enemy === "player" ? damage(n, b.name) : botDamage(b.enemy, n, b.name);
+          let head = Math.random() < b.skill * 0.18, n = Math.round(dmg * rand(0.8, 1.1) * (head ? 1.5 : 1));
+          b.enemy === "player" ? (damage(n, b.name), head && info("Headshot!")) : botDamage(b.enemy, n, b.name);
         } else if (!hit && !los(from, to)) {
           let h = W.raycast(from, norm(sub(to, from)), L);
           h && h.kind === "piece" && W.damagePiece(h.ref, dmg);
         }
         botHear(b.pos, 60, b), len(sub(b.pos, P.pos)) < 90 && beep(200, 0.08, "sawtooth", 0.03, -60);
       };
-      if (!(ep && !b.weapon))
+      if (!(ep && (!b.weapon || hpTotal < 30 && b.heals <= 0 && b.mode !== "box" && b.aggression < 0.85)))
         if (b.mode === "fight" && ep) {
           let L = len(sub(ep, b.pos)), pref = BOT_W[b.weapon ?? "ar"]?.[3] ?? 20;
           aimAndShoot(L);
@@ -2350,7 +2358,7 @@ void main(){
           } else t - b.lastHit > 3 && (b.peekWall && (b.peekWall.edit = 0), b.mode = "loot");
         } else {
           b.pitch = lerp(b.pitch, 0, 0.1);
-          let out = Math.hypot(b.pos[0] - storm.c[0], b.pos[2] - storm.c[1]) > storm.r * (storm.shrinking ? 0.75 : 0.9), chest = null, cdist = b.weapon ? 30 : 120;
+          let sc = storm.shrinking ? storm.to.c : storm.c, srad = storm.shrinking ? storm.to.r : storm.r, out = Math.hypot(b.pos[0] - sc[0], b.pos[2] - sc[1]) > srad * (storm.shrinking ? 0.85 : 0.9), chest = null, cdist = b.weapon ? 30 : 120;
           for (let c of chests) if (!c.open) {
             let d = len(sub(c.pos, b.pos));
             d < cdist && (cdist = d, chest = c);
@@ -2363,9 +2371,9 @@ void main(){
             d < idist && (idist = d, item = g);
           }
           if (out) {
-            if (b.mode = "rotate", !b.target || Math.hypot(b.target[0] - storm.c[0], b.target[2] - storm.c[1]) > storm.r * 0.5) {
-              let a = rand(0, 6.28), rr = rand(0, storm.r * 0.5);
-              b.target = [storm.c[0] + Math.cos(a) * rr, 0, storm.c[1] + Math.sin(a) * rr];
+            if (b.mode = "rotate", !b.target || Math.hypot(b.target[0] - sc[0], b.target[2] - sc[1]) > srad * 0.5) {
+              let a = rand(0, 6.28), rr = rand(0, srad * 0.5);
+              b.target = [sc[0] + Math.cos(a) * rr, 0, sc[1] + Math.sin(a) * rr];
             }
             toward(b.target, 6.5);
           } else if (b.mode === "hunt" && b.memory && b.weapon)
