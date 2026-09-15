@@ -1660,6 +1660,22 @@ void main(){
     }
     for (let cell of cells.values()) baked.push({ mesh: R.upload(new Float32Array(cell.data)), c: cell.c });
   }
+  var PC = 48, propCells = /* @__PURE__ */ new Map(), propKey = (q) => Math.floor(q.pos[0] / PC) + "," + Math.floor(q.pos[2] / PC), dirtyProp = (q) => propCells.delete(propKey(q));
+  function propCell(key) {
+    let cell = propCells.get(key);
+    if (cell !== void 0) return cell;
+    let data = [], cx = 0, cz = 0;
+    for (let q of W.props) {
+      if (q.dead || propKey(q) !== key) continue;
+      let src = M[q.type].data, m = trs(q.pos, q.yaw, 0, q.s), c = Math.cos(q.yaw), sn = Math.sin(q.yaw);
+      cx = (Math.floor(q.pos[0] / PC) + 0.5) * PC, cz = (Math.floor(q.pos[2] / PC) + 0.5) * PC;
+      for (let i = 0; i < src.length; i += 9) {
+        let p = transformPoint(m, [src[i], src[i + 1], src[i + 2]]), nx = src[i + 3], nz = src[i + 5];
+        data.push(p[0], p[1], p[2], nx * c + nz * sn, src[i + 4], -nx * sn + nz * c, src[i + 6], src[i + 7], src[i + 8]);
+      }
+    }
+    return cell = data.length ? { mesh: R.upload(new Float32Array(data)), c: [cx, 0, cz] } : null, propCells.set(key, cell), cell;
+  }
   var AC = null;
   function beep(f, dur, type = "square", vol = 0.08, slide = 0) {
     if (!AC || (vol *= S.master * S.sfx, vol <= 5e-4)) return;
@@ -2022,7 +2038,7 @@ void main(){
           W.damagePiece(h.ref, w.dmg), fx.push({ kind: "dmg", t: 0.6, pos: h.p, text: String(w.dmg) });
         else if (h.kind === "prop") {
           let q = h.ref;
-          q.hp -= w.dmg, q.hp <= 0 && (q.dead = 30);
+          q.hp -= w.dmg, q.hp <= 0 && (q.dead = 30, dirtyProp(q));
         }
       }
     }
@@ -2039,7 +2055,7 @@ void main(){
       let q = h.ref, dmg = weak ? 100 : 50;
       q.hp -= dmg;
       let m = q.type === "rock" ? "stone" : "wood", n = q.type === "bush" ? 3 : weak ? 24 : 10;
-      giveMat(m, n), fx.push({ kind: "dmg", t: 0.7, pos: h.p, text: weak ? "CRITICAL +" + n : "+" + n, head: weak }), beep(weak ? 950 : 500, 0.1, "square", 0.06), q.hp <= 0 ? (q.dead = 30, P.weakT = 0) : mark();
+      giveMat(m, n), fx.push({ kind: "dmg", t: 0.7, pos: h.p, text: weak ? "CRITICAL +" + n : "+" + n, head: weak }), beep(weak ? 950 : 500, 0.1, "square", 0.06), q.hp <= 0 ? (q.dead = 30, P.weakT = 0, dirtyProp(q)) : mark();
     } else if (h.kind === "static" && h.ref.baked) {
       let s = h.ref;
       giveMat(s.mesh === "crate" || s.mesh === "fence" || s.mesh === "bench" || s.mesh === "hedge" ? "wood" : "metal", 5), fx.push({ kind: "dmg", t: 0.7, pos: h.p, text: "+5" }), beep(430, 0.1, "square", 0.06);
@@ -2877,7 +2893,7 @@ void main(){
       far && (i + hudN) % 2 || updateBot(b, far ? dt * 2 : dt);
     }
     PROF.bots += performance.now() - pf0;
-    for (let q of W.props) q.dead > 0 && (q.dead -= dt, q.dead <= 0 && (q.dead = 0, q.hp = 250));
+    for (let q of W.props) q.dead > 0 && (q.dead -= dt, q.dead <= 0 && (q.dead = 0, q.hp = 250, dirtyProp(q)));
     for (let i = fx.length - 1; i >= 0; i--)
       fx[i].t -= dt, fx[i].t <= 0 && fx.splice(i, 1);
     for (let i = feed.length - 1; i >= 0; i--)
@@ -2896,7 +2912,15 @@ void main(){
     }
     R.draw(M.mountains, trs([0, 0, 0]), [1, 1, 1], 1, 0, !1), R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, !1);
     let cull = P.state === "play" ? [130, 190, 320][S.viewDist] : 900, vis = (p) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && (p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18;
-    for (let q of W.props) !q.dead && vis(q.pos) && R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
+    {
+      let r = Math.ceil((cull + PC) / PC), kx = Math.floor(camPos[0] / PC), kz = Math.floor(camPos[2] / PC);
+      for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) {
+        let c = [(kx + i + 0.5) * PC, 0, (kz + j + 0.5) * PC];
+        if (Math.abs(c[0] - camPos[0]) > cull + PC || Math.abs(c[2] - camPos[2]) > cull + PC || (c[0] - camPos[0]) * camFwd[0] + (c[2] - camPos[2]) * camFwd[2] < -PC) continue;
+        let cell = propCell(kx + i + "," + (kz + j));
+        cell && R.draw(cell.mesh, trs([0, 0, 0]));
+      }
+    }
     for (let bk of baked) Math.abs(bk.c[0] - camPos[0]) < cull + 34 && Math.abs(bk.c[2] - camPos[2]) < cull + 34 && (bk.c[0] - camPos[0]) * camFwd[0] + (bk.c[2] - camPos[2]) * camFwd[2] > -50 && R.draw(bk.mesh, trs([0, 0, 0]), [1, 1, 1], 1, 0, !0, !0);
     for (let s of W.statics) if (!s.dead && !s.baked && vis(s.pos)) {
       let sh = s.shake || 0, sp = sh ? [s.pos[0] + Math.sin(t * 95) * sh * 0.12, s.pos[1], s.pos[2] + Math.cos(t * 81) * sh * 0.12] : s.pos;

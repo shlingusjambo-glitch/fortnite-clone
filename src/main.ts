@@ -39,6 +39,18 @@ const baked: { mesh: Mesh; c: V3 }[] = [];
   for (const cell of cells.values()) baked.push({ mesh: R.upload(new Float32Array(cell.data)), c: cell.c });
 }
 
+// trees/rocks/bushes baked per 48m cell too; a cell is rebuilt when one of its props is felled or regrows
+const PC = 48, propCells = new Map<string, { mesh: Mesh; c: V3 } | null>();
+const propKey = (q: Prop) => Math.floor(q.pos[0] / PC) + ',' + Math.floor(q.pos[2] / PC);
+const dirtyProp = (q: Prop) => propCells.delete(propKey(q));
+function propCell(key: string) {
+  let cell = propCells.get(key); if (cell !== undefined) return cell;
+  const data: number[] = []; let cx = 0, cz = 0;
+  for (const q of W.props) { if (q.dead || propKey(q) !== key) continue; const src = M[q.type].data!, m = trs(q.pos, q.yaw, 0, q.s), c = Math.cos(q.yaw), sn = Math.sin(q.yaw); cx = (Math.floor(q.pos[0] / PC) + 0.5) * PC; cz = (Math.floor(q.pos[2] / PC) + 0.5) * PC;
+    for (let i = 0; i < src.length; i += 9) { const p = transformPoint(m, [src[i], src[i + 1], src[i + 2]]), nx = src[i + 3], nz = src[i + 5]; data.push(p[0], p[1], p[2], nx * c + nz * sn, src[i + 4], -nx * sn + nz * c, src[i + 6], src[i + 7], src[i + 8]); } }
+  cell = data.length ? { mesh: R.upload(new Float32Array(data)), c: [cx, 0, cz] } : null; propCells.set(key, cell); return cell;
+}
+
 // ---------------- audio ----------------
 let AC: AudioContext | null = null;
 function beep(f: number, dur: number, type: OscillatorType = 'square', vol = 0.08, slide = 0) {
@@ -346,7 +358,7 @@ function shoot(item: Item) {
       botDamage(dm, dmg, 'Player'); P.dmg += dmg; dm.lastHit = t; dm.enemy = 'player'; hitAny = true; headAny ||= head;
       fx.push({ kind: 'dmg', t: 0.9, pos: add(h.p, [rand(-0.3, 0.3), 0.3, 0]), text: String(dmg), head });
     } else if (h.kind === 'piece') { W.damagePiece(h.ref as Piece, w.dmg); fx.push({ kind: 'dmg', t: 0.6, pos: h.p, text: String(w.dmg) }); }
-    else if (h.kind === 'prop') { const q = h.ref as Prop; q.hp -= w.dmg; if (q.hp <= 0) q.dead = 30; }
+    else if (h.kind === 'prop') { const q = h.ref as Prop; q.hp -= w.dmg; if (q.hp <= 0) { q.dead = 30; dirtyProp(q); } }
   }
   P.bloom = Math.min(P.bloom + w.bloom, w.bloom * 4);
   if (hitAny) { H.hitm.style.opacity = '1'; H.hitm.className = headAny ? 'head' : ''; setTimeout(() => (H.hitm.style.opacity = '0'), 60); beep(headAny ? 1400 : 1000, 0.06, 'sine', 0.1); }
@@ -357,7 +369,7 @@ function swingPickaxe() {
   if (!h) return;
   const weak=!!(P.weakRef===h.ref&&P.weakPos&&len(sub(h.p,P.weakPos))<.9), mark=()=>{P.weakRef=h.ref;P.weakPos=add(h.p,[rand(-.45,.45),rand(-.45,.45),rand(-.08,.08)]);P.weakT=4;};
   if (weak) rumble(120, 0.8, 0.85); else rumble(75, 0.45, 0.45);
-  if (h.kind === 'prop') { const q = h.ref as Prop, dmg=weak?100:50; q.hp -= dmg; const m: Mat = q.type === 'rock' ? 'stone' : 'wood'; const n = q.type === 'bush' ? 3 : weak?24:10; giveMat(m, n); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: weak?'CRITICAL +'+n:'+' + n, head: weak }); beep(weak?950:500, 0.1, 'square', 0.06); if (q.hp <= 0){q.dead = 30;P.weakT=0;}else mark(); }
+  if (h.kind === 'prop') { const q = h.ref as Prop, dmg=weak?100:50; q.hp -= dmg; const m: Mat = q.type === 'rock' ? 'stone' : 'wood'; const n = q.type === 'bush' ? 3 : weak?24:10; giveMat(m, n); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: weak?'CRITICAL +'+n:'+' + n, head: weak }); beep(weak?950:500, 0.1, 'square', 0.06); if (q.hp <= 0){q.dead = 30;P.weakT=0;dirtyProp(q);}else mark(); }
   else if (h.kind === 'static' && (h.ref as typeof W.statics[number]).baked) { const s = h.ref as typeof W.statics[number]; giveMat(s.mesh === 'crate' || s.mesh === 'fence' || s.mesh === 'bench' ? 'wood' : s.mesh === 'hedge' ? 'wood' : 'metal', 5); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: '+5' }); beep(430, .1, 'square', .06); }
   else if (h.kind === 'static') { const s=h.ref as typeof W.statics[number], dmg=weak?100:45, mat:Mat=(s.mesh === 'car'||s.mesh==='truck'||s.mesh==='lamp')?'metal':s.mesh.startsWith('house')?'wood':'stone',n=weak?18:7;s.hp=(s.hp??300)-dmg;s.shake=.28;giveMat(mat,n);fx.push({kind:'dmg',t:.7,pos:h.p,text:weak?'CRITICAL +'+n:'+'+n,head:weak});beep(weak?900:430,.1,'square',.06);if(s.hp<=0){s.dead=true;s.boxes.length=0;P.weakT=0;}else mark(); }
   else if (h.kind === 'piece') { const p = h.ref as Piece; W.damagePiece(p, 50); giveMat(p.mat, 5); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: '50' }); beep(400, 0.1, 'square', 0.06); }
@@ -1066,7 +1078,7 @@ function frame(now: number) {
   // far-away bots simulate at half rate (every other frame with doubled dt); nobody can see the difference past 150m
   if (!D.pauseBots) for (let i = 0; i < bots.length; i++) { const b = bots[i]; const far = b.state === 'ground' && len(sub(b.pos, P.pos)) > 150; if (far && (i + hudN) % 2) continue; updateBot(b, far ? dt * 2 : dt); }
   PROF.bots += performance.now() - pf0;
-  for (const q of W.props) if (q.dead > 0) { q.dead -= dt; if (q.dead <= 0) { q.dead = 0; q.hp = 250; } }
+  for (const q of W.props) if (q.dead > 0) { q.dead -= dt; if (q.dead <= 0) { q.dead = 0; q.hp = 250; dirtyProp(q); } }
   for (let i = fx.length - 1; i >= 0; i--) { fx[i].t -= dt; if (fx[i].t <= 0) fx.splice(i, 1); }
   for (let i = feed.length - 1; i >= 0; i--) { feed[i].t -= dt; if (feed[i].t <= 0) feed.splice(i, 1); }
   if (infoT > 0) { infoT -= dt; if (infoT <= 0) H.info.style.display = 'none'; }
@@ -1082,7 +1094,8 @@ function frame(now: number) {
   R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, false);
   const cull = P.state === 'play' ? [130, 190, 320][S.viewDist] : 900;
   const vis = (p: V3) => Math.abs(p[0] - camPos[0]) < cull && Math.abs(p[2] - camPos[2]) < cull && ((p[0] - camPos[0]) * camFwd[0] + (p[2] - camPos[2]) * camFwd[2] > -18);   // ponytail: half-space cull, real frustum if draw calls ever matter
-  for (const q of W.props) if (!q.dead && vis(q.pos)) R.draw(M[q.type], trs(q.pos, q.yaw, 0, q.s));
+  { const r = Math.ceil((cull + PC) / PC), kx = Math.floor(camPos[0] / PC), kz = Math.floor(camPos[2] / PC);
+    for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) { const c: V3 = [(kx + i + 0.5) * PC, 0, (kz + j + 0.5) * PC]; if (Math.abs(c[0] - camPos[0]) > cull + PC || Math.abs(c[2] - camPos[2]) > cull + PC || (c[0] - camPos[0]) * camFwd[0] + (c[2] - camPos[2]) * camFwd[2] < -PC) continue; const cell = propCell((kx + i) + ',' + (kz + j)); if (cell) R.draw(cell.mesh, trs([0, 0, 0])); } }
   for (const bk of baked) if (Math.abs(bk.c[0] - camPos[0]) < cull + 34 && Math.abs(bk.c[2] - camPos[2]) < cull + 34 && (bk.c[0] - camPos[0]) * camFwd[0] + (bk.c[2] - camPos[2]) * camFwd[2] > -50) R.draw(bk.mesh, trs([0, 0, 0]), [1, 1, 1], 1, 0, true, true);
   for (const s of W.statics) if (!s.dead && !s.baked && vis(s.pos)) {const sh=s.shake||0,sp:V3=sh?[s.pos[0]+Math.sin(t*95)*sh*.12,s.pos[1],s.pos[2]+Math.cos(t*81)*sh*.12]:s.pos;R.draw(s.mesh.startsWith('house') ? W.houseMeshes[+s.mesh.slice(5)] : M[s.mesh], trs(sp, s.yaw), [1, 1, 1], 1, 0, s.mesh !== 'dash');}
   for (const p of W.pieces.values()) {
