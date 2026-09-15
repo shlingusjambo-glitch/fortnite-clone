@@ -2,8 +2,12 @@ import { add, sub, scale, norm, len, clamp, lerp, rand, mul, perspective, lookAt
 import { Renderer } from "../renderer";
 import { buildModels, buildCharacter, editedPiece, SKINS } from "./models";
 import { World, terrainH, POIS, SIZE, TILES, ISLAND } from "./world";
+import { NET } from "./net";
+import { setSeed } from "./math";
 const canvas = document.getElementById("vapour-game");
-const R = new Renderer(canvas), M = buildModels(R), W = new World(R);
+const R = new Renderer(canvas), M = buildModels(R);
+let W = new World(R);
+let matchSeed = 1;
 const MAT_STYLE = { wood: 2, stone: 3, metal: 4 };
 const editCache = /* @__PURE__ */ new Map();
 const editedMesh = (type, mat, mask) => {
@@ -21,9 +25,13 @@ const $ = (id) => document.getElementById(id);
 const H = { fade: $("fade"), lobby: $("lobby"), hud: $("hud"), hp: $("hp"), sh: $("sh"), mats: $("mats"), bld: $("bld"), ammo: $("ammo"), wname: $("wname"), hotbar: $("hotbar"), info: $("info"), fx: $("fx"), cross: $("cross"), weak: $("weak"), hitm: $("hitm"), prog: $("prog"), flash: $("flash"), scope: $("scope"), pause: $("pause"), comp: $("comp"), fps: $("fps"), mm: $("mm"), stats: $("stats"), feed: $("feed"), banner: $("banner"), elim: $("elim"), bigmap: $("bigmap"), pl: $("pl"), end: $("end"), dbg: $("dbg"), tgt: $("tgt") };
 const mapCv = document.createElement("canvas");
 mapCv.width = mapCv.height = 600;
-W.drawMap(mapCv);
-H.bigmap.querySelector("canvas").getContext("2d").drawImage(mapCv, 0, 0);
-W.drawLabels(H.bigmap.querySelector("canvas"));
+function drawMaps() {
+  W.drawMap(mapCv);
+  const big = H.bigmap.querySelector("canvas");
+  big.getContext("2d").drawImage(mapCv, 0, 0);
+  W.drawLabels(big);
+}
+drawMaps();
 {
   const svg = $("lobbybg");
   let s = "";
@@ -38,7 +46,8 @@ W.drawLabels(H.bigmap.querySelector("canvas"));
 }
 const BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain", "bridge", "curb", "sign", "bush", "rock", "pole", "flowers"]);
 const baked = [];
-{
+function bakeStatics() {
+  baked.length = 0;
   const cells = /* @__PURE__ */ new Map();
   for (const s of W.statics) {
     if (!BAKE.has(s.mesh) || !M[s.mesh]?.data) continue;
@@ -57,6 +66,23 @@ const baked = [];
   }
   for (const cell of cells.values()) baked.push({ mesh: R.upload(new Float32Array(cell.data)), c: cell.c });
 }
+bakeStatics();
+function rebuildWorld(seed) {
+  if (seed === matchSeed) return;
+  matchSeed = seed;
+  setSeed(seed);
+  W = new World(R);
+  bakeStatics();
+  propCells.clear();
+  drawMaps();
+  hookWorld();
+}
+function hookWorld() {
+  W.onRemove = (p) => {
+    if (matchLive && NET.active() && NET.isHost()) NET.send({ t: "piece", op: "del", key: p.key });
+  };
+}
+hookWorld();
 const PC = 48, propCells = /* @__PURE__ */ new Map();
 const propKey = (q) => Math.floor(q.pos[0] / PC) + "," + Math.floor(q.pos[2] / PC);
 const dirtyProp = (q) => propCells.delete(propKey(q));
@@ -139,6 +165,7 @@ const CONS = {
 };
 const isWeapon = (k) => k in WEAPONS;
 const mkItem = (kind, count = 1, rar = -1) => ({ kind, mag: isWeapon(kind) ? WEAPONS[kind].mag : 0, count, rar: rar >= 0 ? rar : isWeapon(kind) ? Math.min(4, Math.floor(Math.pow(Math.random(), 1.6) * 5)) : RARITIES.indexOf(CONS[kind].rarity) });
+let nextItemId = 1, matchLive = false;
 const ICON = {
   pickaxe: '<svg viewBox="0 0 64 64"><path d="M14 52 L44 22" stroke="#7a5a3a" stroke-width="6" stroke-linecap="round"/><path d="M30 12 Q46 8 56 26" stroke="#dfe6ee" stroke-width="8" fill="none" stroke-linecap="round"/></svg>',
   ar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#e8ecef"/><rect x="26" y="26" width="10" height="4" fill="#e8ecef"/></svg>',
@@ -236,7 +263,13 @@ const PROF_DEF = { name: "Player", xp: 0, vbucks: 2765, wins: 0, matches: 0, kil
 const PR = { ...PROF_DEF, ...JSON.parse(localStorage.getItem("fn-profile") || "{}") };
 const saveProfile = () => localStorage.setItem("fn-profile", JSON.stringify(PR));
 const level = () => Math.floor(PR.xp / 1e3) + 1;
-const MODES = [["SOLO", "BATTLE ROYALE"], ["PETERBOT GAUNTLET", "ALL 32 BOTS ARE PETERBOTS"], ["FORTRESS SIEGE", "DEFEND OR RAID A STONE FORT"], ["STORM TRIAL", "FAST STORM \xB7 NO LOOT WASTED"]];
+const MODES = [["SOLO", "BATTLE ROYALE"], ["PETERBOT GAUNTLET", "ALL 32 BOTS ARE PETERBOTS"], ["FORTRESS SIEGE", "DEFEND OR RAID A STONE FORT"], ["STORM TRIAL", "FAST STORM \xB7 NO LOOT WASTED"], ["DUOS", "TEAMS OF TWO \xB7 PARTY UP"], ["SQUADS", "TEAMS OF FOUR \xB7 PARTY UP"]];
+const teamSize = () => PR.mode === 4 ? 2 : PR.mode === 5 ? 4 : PR.mode === 2 ? 16 : 1;
+const teamOf = (id) => {
+  const i = NET.members.findIndex((m) => m.id === id);
+  return i < 0 ? -1 : Math.floor(i / teamSize());
+};
+const sameTeam = (a, b) => teamSize() > 1 && a >= 0 && teamOf(a) === teamOf(b);
 function updateWallet() {
   $("wallet").textContent = "\u24CB " + PR.vbucks.toLocaleString();
   saveProfile();
@@ -316,12 +349,22 @@ function banner(h, p, t2) {
 }
 const NAMES1 = ["Misty", "Coastal", "Storm", "Quiet", "Frenzy", "Slurp", "Salty", "Lazy", "Sweaty", "Dusty"], NAMES2 = ["Runner", "Scout", "Ranger", "Nomad", "Camper", "Hunter", "Rider", "Drifter"];
 const botName = () => NAMES1[Math.floor(rand(0, 10))] + NAMES2[Math.floor(rand(0, 8))] + Math.floor(rand(10, 99));
-function addFeed(html) {
+function addFeed(html, fromNet = false) {
   feed.push({ html, t: 12 });
   if (feed.length > 5) feed.shift();
+  if (!fromNet && matchLive && NET.active() && NET.isHost()) NET.send({ t: "feed", html });
 }
-const dropItem = (item, pos, spread = 0) => items.push({ item, pos: [pos[0] + rand(-spread, spread), pos[1], pos[2] + rand(-spread, spread)] });
-function startMatch() {
+const dropItem = (item, pos, spread = 0, id = nextItemId++) => {
+  const g = { item, pos: [pos[0] + rand(-spread, spread), pos[1], pos[2] + rand(-spread, spread)], id };
+  items.push(g);
+  if (matchLive && NET.active() && NET.isHost()) NET.send({ t: "item", op: "add", id, kind: item.kind, count: item.count, rar: item.rar, pos: g.pos });
+  return g;
+};
+function startMatch(seed = Math.floor(Math.random() * 1e9), remoteStart = false) {
+  rebuildWorld(seed);
+  setSeed(seed ^ 1540483477);
+  matchLive = false;
+  nextItemId = 1;
   P.state = "island";
   P.islandT = 0;
   P.dyingT = 0;
@@ -369,8 +412,8 @@ function startMatch() {
   storm.r = 520;
   storm.phaseT = PR.mode === 3 ? 35 : 120;
   const pool = ["ar", "burst", "smg", "shotgun", "sniper", "pistol", "pistol", "tac", "hunting", "scar", "rpg", "revolver", "silenced", "bandage", "shieldPot", "miniShield", "miniShield", "chug", "medkit", "grenade", "boogie", "impulse", "launchpad", "bushItem", "ammo", "ammo"];
-  for (const l of W.lootSpots) if (Math.random() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
-  for (const c of W.chestSpots) if (Math.random() < 0.7) chests.push({ pos: [...c], yaw: rand(0, 6.28), open: false });
+  for (const l of W.lootSpots) if (rand() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
+  for (const c of W.chestSpots) if (rand() < 0.7) chests.push({ pos: [...c], yaw: rand(0, 6.28), open: false });
   for (const p of POIS) for (let i = 0; i < 9; i++) {
     const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z);
     if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]);
@@ -387,7 +430,7 @@ function startMatch() {
   drops.length = 0;
   for (const p of POIS) for (let i = 0; i < 3; i++) {
     const x = p.x + rand(-p.r, p.r) * 0.6, z = p.z + rand(-p.r, p.r) * 0.6, y = terrainH(x, z);
-    if (y > 1) items.push({ item: mkItem("ammo"), pos: [x, y, z] });
+    if (y > 1) dropItem(mkItem("ammo"), [x, y, z]);
   }
   P.dead = false;
   P.over = false;
@@ -403,6 +446,26 @@ function startMatch() {
   }
   fade(1.2);
   banner("SPAWN ISLAND", "WAITING FOR PLAYERS \xB7 PRACTICE WHILE THE LOBBY FILLS", 5);
+  if (NET.active()) {
+    for (const m of NET.members) if (m.id !== NET.id) addRemotePlayer(m);
+    if (NET.isHost() && !remoteStart) NET.send({ t: "start", seed, mode: PR.mode });
+  }
+  matchLive = true;
+}
+function addRemotePlayer(m) {
+  const b = spawnBot([ISLAND[0] + rand(-20, 20), 8, ISLAND[2] + rand(-20, 20)], 2);
+  b.name = m.name;
+  b.skin = m.skin % SKINS.length;
+  b.remote = m.id;
+  b.team = teamOf(m.id);
+  b.state = "island";
+  b.joinT = 0;
+  b.weapon = null;
+  b.weapons = [];
+  b.mats = 0;
+  b.netPos = [...b.pos];
+  b.netYaw = 0;
+  return b;
 }
 const PROFILES = [
   { name: "cautious beginner", skill: [0.15, 0.35], aggro: [0.1, 0.35], loot: 0.6 },
@@ -417,7 +480,7 @@ function spawnBot(at, profileIdx = -1) {
   const pr = PROFILES[profileIdx >= 0 ? profileIdx : Math.floor(rand(0, PROFILES.length))];
   const skill = rand(pr.skill[0], pr.skill[1]), aggression = rand(pr.aggro[0], pr.aggro[1]), pos = at ? [...at] : [0, 0, 0];
   const cracked = profileIdx >= 4 || pr.skill[0] >= 0.7;
-  const b = { name: cracked ? "Peterbot" + Math.floor(rand(10, 99)) : botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? "ground" : "bus", dead: false, anim: 0, weapon: at ? "ar" : null, weapons: at ? ["ar"] : [], heals: at ? 2 : 0, mats: at ? 500 : 0, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: false, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: "loot", profile: pr.name, skill, aggression, accuracy: cracked ? 0.3 + skill * 0.35 : 0.14 + skill * 0.3, reaction: lerp(0.9, 0.2, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos], voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-0.5, 0.5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null, nades: at ? 3 : 0, stunT: 0, shots: 0, cracked: profileIdx >= 4 || pr.skill[0] >= 0.7, ammo: { light: at ? 90 : 0, medium: at ? 90 : 0, heavy: at ? 10 : 0, shells: at ? 20 : 0 }, farmT: 0, farmRef: null, ignore: /* @__PURE__ */ new Set(), tryRef: null, tryT: 0, joinT: 0 };
+  const b = { name: cracked ? "Peterbot" + Math.floor(rand(10, 99)) : botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? "ground" : "bus", dead: false, anim: 0, weapon: at ? "ar" : null, weapons: at ? ["ar"] : [], heals: at ? 2 : 0, mats: at ? 500 : 0, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: false, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: "loot", profile: pr.name, skill, aggression, accuracy: cracked ? 0.3 + skill * 0.35 : 0.14 + skill * 0.3, reaction: lerp(0.9, 0.2, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos], voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-0.5, 0.5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null, nades: at ? 3 : 0, stunT: 0, shots: 0, remote: 0, team: -1, netPos: [0, 0, 0], netYaw: 0, netPitch: 0, netHeld: null, netPose: 0, cracked: profileIdx >= 4 || pr.skill[0] >= 0.7, ammo: { light: at ? 90 : 0, medium: at ? 90 : 0, heavy: at ? 10 : 0, shells: at ? 20 : 0 }, farmT: 0, farmRef: null, ignore: /* @__PURE__ */ new Set(), tryRef: null, tryT: 0, joinT: 0 };
   bots.push(b);
   return b;
 }
@@ -512,9 +575,14 @@ addEventListener("wheel", (e) => {
   P.slot = s;
 });
 $("btnPlay").onclick = () => {
+  if (NET.active() && !NET.isHost()) return toast("Waiting for the party leader to start");
   AC ??= new AudioContext();
   startMatch();
 };
+NET.on("members", () => {
+  if (P.state === "lobby" && menuPage.style.display === "block" && menuTitle.textContent === "PARTY") openPage("PARTY");
+  document.querySelector("#lnav .box").textContent = "\u{1F464} " + Math.max(0, NET.members.length - 1);
+});
 $("btnSkin").onclick = () => {
   PR.mode = (PR.mode + 1) % MODES.length;
   refreshLobby();
@@ -564,7 +632,10 @@ function openPage(name) {
   else if (name === "ITEM SHOP") html = SHOP.map((o) => skinTile(o.skin, PR.unlocked.includes(o.skin) ? "OWNED" : `\u24CB ${o.price} <button data-buy="${o.skin}" data-price="${o.price}">BUY</button>`)).join("");
   else if (name === "CAREER") html = `<div class="tile"><b>${PR.name}</b>Level ${level()} \xB7 ${PR.xp.toLocaleString()} XP</div><div class="tile"><b>${PR.matches}</b>MATCHES</div><div class="tile"><b>${PR.wins}</b>VICTORY ROYALES</div><div class="tile"><b>${PR.kills}</b>ELIMINATIONS</div><div class="tile"><b>${Math.round(PR.dmg).toLocaleString()}</b>DAMAGE</div><div class="tile"><b>${PR.builds}</b>STRUCTURES</div><div class="tile"><b>${PR.chests}</b>CHESTS</div><div class="tile"><b>${PR.discovered.length} / ${POIS.length}</b>LOCATIONS<br>${PR.discovered.join(", ") || "\u2014"}</div><div class="tile"><b>RESET</b><button data-act="reset">Wipe local profile</button></div>`;
   else if (name === "STORE") html = [1e3, 2800, 5e3, 13500].map((v) => `<div class="tile"><b>\u24CB ${v.toLocaleString()}</b>Free in this local build<br><button data-vb="${v}">GET</button></div>`).join("");
-  else if (name === "PARTY") html = `<div class="tile"><b>${PR.name} (you)</b>Level ${level()} \xB7 ${MODES[PR.mode][0]}</div><div class="tile"><b>INVITE</b>This build is local only \u2014 no online party. The lobby fills with ${32} bots when you press PLAY.</div>`;
+  else if (name === "PARTY") {
+    const me = NET.id;
+    html = NET.connected() ? `<div class="tile" style="grid-column:1/-1"><b>PARTY CODE: ${NET.code}</b>Share this code \u2014 friends join from their PARTY page. ${NET.isHost() ? "You are the party leader: your PLAY starts the match for everyone." : "Waiting for the party leader to press PLAY."} Ping ${Math.round(NET.rtt)}ms<br><button data-party="leave">LEAVE PARTY</button></div>` + NET.members.map((m, i) => `<div class="tile ${m.id === me ? "on" : ""}"><b>${m.name}${m.id === NET.hostId ? " \u{1F451}" : ""}${m.id === me ? " (you)" : ""}</b>${SKINS[m.skin % SKINS.length].name}${teamSize() > 1 ? ` \xB7 Team ${Math.floor(i / teamSize()) + 1}` : ""}</div>`).join("") : `<div class="tile"><b>CREATE PARTY</b>Get a 5-letter code your friends can join. The leader's mode (Solo / Duos / Squads\u2026) applies to everyone.<br><button data-party="create">CREATE</button></div><div class="tile"><b>JOIN PARTY</b><input id="joinCode" maxlength="5" placeholder="CODE" style="text-transform:uppercase;width:90px;padding:6px;font-size:16px"> <button data-party="join">JOIN</button></div><div class="tile"><b>${PR.name} (you)</b>Level ${level()} \xB7 ${MODES[PR.mode][0]}<br>Bots fill the rest of the lobby.</div>`;
+  }
   menuCards.innerHTML = html;
   paintSkins();
   menuPage.style.display = "block";
@@ -616,6 +687,25 @@ function openPage(name) {
     lastEmote = PR.emote;
     saveProfile();
     openPage(name);
+  });
+  menuCards.querySelectorAll("[data-party]").forEach((b) => b.onclick = async () => {
+    try {
+      if (b.dataset.party === "create") {
+        const code = await NET.createRoom();
+        await NET.join(code, PR.name, P.skin);
+        toast("Party " + code + " created");
+      } else if (b.dataset.party === "join") {
+        const code = menuCards.querySelector("#joinCode").value.trim().toUpperCase();
+        if (code.length !== 5) return toast("Enter the 5-letter code");
+        await NET.join(code, PR.name, P.skin);
+        toast("Joined " + code);
+      } else {
+        NET.leave();
+      }
+    } catch (e) {
+      toast("Party: " + e.message);
+    }
+    openPage("PARTY");
   });
   menuCards.querySelectorAll("[data-act=reset]").forEach((b) => b.onclick = () => {
     if (confirm("Wipe the local profile?")) {
@@ -670,7 +760,7 @@ function damage(n, by = "the storm") {
     P.hp = 0;
     P.dead = true;
     P.dyingT = 1.5;
-    addFeed(`${by} eliminated <span class="me">Player</span>`);
+    addFeed(`${by} eliminated <span class="me">${PR.name}</span>`);
     banner("YOU WERE ELIMINATED", "BY " + by.toUpperCase(), 4);
     setTimeout(() => endScreen(false, by), 4e3);
   }
@@ -729,10 +819,12 @@ function buildTarget() {
 }
 function botDamage(dm, n, by, how = "with a weapon") {
   if (dm.dead || dm.state === "island") return;
+  if (by === "Player") by = PR.name;
   const sh = Math.min(dm.shield, n);
   dm.shield -= sh;
   dm.hp -= n - sh;
   dm.lastHit = t;
+  if (dm.remote) NET.send({ t: "dmg", to: dm.remote, hp: dm.hp, sh: dm.shield, by });
   const att = by === "Player" ? P.pos : bots.find((x) => x.name === by)?.pos;
   if (att) {
     dm.memory = [...att];
@@ -758,7 +850,7 @@ function botDamage(dm, n, by, how = "with a weapon") {
       killer.emote = Math.floor(rand(0, 4));
     }
   }
-  if (by === "Player") {
+  if (by === PR.name) {
     P.kills++;
     H.elim.querySelector("b").textContent = dm.name;
     H.elim.style.display = "block";
@@ -782,7 +874,11 @@ function shoot(item) {
     P.pitch += w.kick;
     beep(80, 0.3, "sawtooth", 0.15, -40);
     rumble(250, 0.9, 1);
-    nades.push({ pos: add(camPos, scale(camFwd, 1.2)), vel: scale(camFwd, 34), t: 6, by: "Player", rocket: true });
+    {
+      const nd = { pos: add(camPos, scale(camFwd, 1.2)), vel: scale(camFwd, 34), t: 6, by: PR.name, rocket: true };
+      nades.push({ ...nd, visual: NET.active() && !NET.isHost() });
+      netNade(nd);
+    }
     botHear(P.pos, 90, "player");
     return;
   }
@@ -803,6 +899,8 @@ function shoot(item) {
   }
   const boxes = botBoxes();
   let hitAny = false, headAny = false;
+  const client = NET.active() && !NET.isHost();
+  const shotRays = [];
   for (let i = 0; i < w.pellets; i++) {
     const sp = (w.spread + P.bloom) * (P.scoped ? 0 : P.ads ? 0.5 : 1) * (P.grounded ? 1 : 1.8) * (P.crouch ? 0.7 : 1) * (Math.hypot(P.vel[0], P.vel[2]) > 3 ? 1.5 : 1);
     let aim = camFwd;
@@ -820,6 +918,7 @@ function shoot(item) {
     const d = norm(add(aim, [rand(-sp, sp), rand(-sp, sp), rand(-sp, sp)]));
     const h = W.raycast(camPos, d, w.range, boxes);
     const end = h ? h.p : add(camPos, scale(d, w.range));
+    shotRays.push(d);
     fx.push({ kind: "tracer", t: 0.08, pos: add(add(P.pos, [0, eyeH() - 0.3, 0]), scale(right(), 0.35)), to: end });
     if (!h) continue;
     fx.push({ kind: "puff", t: 0.22, pos: h.p, col: h.kind === "box" ? [1, 0.3, 0.2] : h.kind === "terrain" ? [0.7, 0.6, 0.45] : h.kind === "prop" ? [0.5, 0.7, 0.3] : [0.9, 0.85, 0.7] });
@@ -827,7 +926,7 @@ function shoot(item) {
       const { d: dm, head } = h.ref;
       const fall = h.t > w.range * 0.5 ? lerp(1, 0.6, (h.t - w.range * 0.5) / (w.range * 0.5)) : 1;
       const dmg = Math.round(w.dmg * RAR_MULT[item.rar] * fall * (head ? w.hs : 1));
-      botDamage(dm, dmg, "Player");
+      if (!client && !(dm.remote && sameTeam(NET.id, dm.remote))) botDamage(dm, dmg, "Player");
       P.dmg += dmg;
       dm.lastHit = t;
       dm.enemy = "player";
@@ -835,7 +934,7 @@ function shoot(item) {
       headAny ||= head;
       fx.push({ kind: "dmg", t: 0.9, pos: add(h.p, [rand(-0.3, 0.3), 0.3, 0]), text: String(dmg), head });
     } else if (h.kind === "piece") {
-      W.damagePiece(h.ref, w.dmg);
+      if (!client) W.damagePiece(h.ref, w.dmg);
       fx.push({ kind: "dmg", t: 0.6, pos: h.p, text: String(w.dmg) });
     } else if (h.kind === "prop") {
       const q = h.ref;
@@ -846,6 +945,7 @@ function shoot(item) {
       }
     }
   }
+  if (client) NET.send({ t: "act", k: "shot", o: camPos, d: shotRays, kind: item.kind, rar: item.rar });
   P.bloom = Math.min(P.bloom + w.bloom, w.bloom * 4);
   if (hitAny) {
     H.hitm.style.opacity = "1";
@@ -1111,6 +1211,10 @@ function drawHud() {
   if (P.state === "bus" && bus.t > 4) banner("SPACE TO JUMP", `EVERYBODY OFF. LAST STOP IN ${Math.ceil(bus.dur - bus.t)}s`, 0.2);
   H.fps.textContent = S.showFps ? fpsV + " FPS" : "";
   let html = "";
+  for (const d of bots) if (d.remote && !d.dead && d.state !== "bus") {
+    const s = project(add(d.pos, [0, 2.4, 0]));
+    if (s) html += `<div class="nm" style="left:${s[0]}px;top:${s[1]}px;color:${sameTeam(NET.id, d.remote) ? "#7cf23a" : "#fff"}">${d.name}</div>`;
+  }
   if (D.esp && !S.streamer) {
     for (const d of bots) if (!d.dead && d.state !== "bus") {
       const s = project(add(d.pos, [0, 2.4, 0]));
@@ -1566,7 +1670,12 @@ function dbgAction(a) {
   }
   info(a.toUpperCase() + " \u2713");
 }
-function explode(pos, by, kind = "grenade") {
+function explode(pos, by, kind = "grenade", visual = false) {
+  if (visual) {
+    beep(50, 0.5, "sawtooth", 0.25, -30);
+    fx.push({ kind: "dmg", t: 0.8, pos: add(pos, [0, 1.5, 0]), text: "BOOM", head: true });
+    return;
+  }
   if (kind === "boogie") {
     beep(600, 0.4, "triangle", 0.1, 400);
     fx.push({ kind: "dmg", t: 0.8, pos: add(pos, [0, 1.5, 0]), text: "BOOGIE", head: true });
@@ -1602,7 +1711,7 @@ function explode(pos, by, kind = "grenade") {
   rumble(300, 0.8, 1);
   const dmg = (d) => Math.round(100 * clamp(1 - d / 5, 0, 1));
   const dp = len(sub(P.pos, pos));
-  if (dp < 5 && dmg(dp) > 0) damage(dmg(dp), by);
+  if (dp < 5 && dmg(dp) > 0 && !(NET.active() && !NET.isHost())) damage(dmg(dp), by);
   for (const b of bots) if (!b.dead) {
     const d = len(sub(b.pos, pos));
     if (d < 5 && dmg(d) > 0) {
@@ -1619,8 +1728,8 @@ function updateNades(dt) {
     if (n.rocket) {
       const L = len(n.vel) * dt, h = W.raycast(n.pos, norm(n.vel), L, botBoxes().filter((b) => n.by !== b.ref.d.name));
       const hitP = h ? h.p : null, self = n.by === "Player" && len(sub(n.pos, P.pos)) < 1.5;
-      if (hitP || n.by !== "Player" && len(sub(n.pos, P.pos)) < 1.2 || n.t <= 0) {
-        explode(hitP ?? n.pos, n.by);
+      if (hitP || n.by !== PR.name && len(sub(n.pos, P.pos)) < 1.2 || n.t <= 0) {
+        explode(hitP ?? n.pos, n.by, "grenade", n.visual);
         nades.splice(i, 1);
         continue;
       }
@@ -1639,7 +1748,7 @@ function updateNades(dt) {
     } else n.pos = next;
     if (next[1] <= g) n.pos = next;
     if (n.t <= 0) {
-      explode(n.pos, n.by, n.kind);
+      explode(n.pos, n.by, n.kind, n.visual);
       nades.splice(i, 1);
     }
   }
@@ -2578,7 +2687,7 @@ function frame(now) {
       storm.shrinking = false;
       storm.phaseT = PHASES[Math.min(storm.phase, PHASES.length - 1)][0] * (PR.mode === 3 ? 0.45 : 1);
     }
-  } else if (storm.phaseT <= 0) nextStormPhase();
+  } else if (storm.phaseT <= 0 && !(NET.active() && !NET.isHost())) nextStormPhase();
   if (bannerT > 0) {
     bannerT -= dt;
     if (bannerT <= 0) H.banner.style.display = "none";
@@ -2629,6 +2738,7 @@ function frame(now) {
       P.yaw = bus.yaw;
       P.pitch = -0.22;
       addFeed(`<span class="me">${PR.name}</span> has entered the Battle Bus`);
+      if (NET.active() && NET.isHost()) NET.send({ t: "ev", k: "bus" });
     }
   }
   if (bus.t >= 0 && bus.t < bus.dur) {
@@ -2768,6 +2878,7 @@ function frame(now) {
     if (key("KeyX")) {
       if (P.editing) {
         P.editing.edit = P.editMask;
+        netPiece({ op: "edit", key: P.editing.key, mask: P.editMask });
         P.editing = null;
         beep(900, 0.06, "square", 0.05);
       } else {
@@ -2782,6 +2893,7 @@ function frame(now) {
     if (P.editing) {
       if (key("MR")) {
         P.editing.edit = P.editMask;
+        netPiece({ op: "edit", key: P.editing.key, mask: P.editMask });
         P.editing = null;
       } else if (key("KeyR")) P.editMask = 0;
       else if (len(sub(P.editing.pos, P.pos)) > 9 || !W.pieces.has(P.editing.key)) P.editing = null;
@@ -2811,6 +2923,7 @@ function frame(now) {
       const bt = buildTarget();
       if (mouse.l && P.fireCd <= 0 && (P.mats[P.mat] >= 10 || D.infMats) && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir))) {
         W.place(bt.type, P.mat, bt.pos, bt.dir);
+        netPiece({ op: "add", type: bt.type, mat: P.mat, pos: bt.pos, dir: bt.dir });
         PR.builds++;
         if (!D.infMats) P.mats[P.mat] -= 10;
         P.fireCd = 0.12;
@@ -2841,7 +2954,9 @@ function frame(now) {
       }
     } else if (it.kind === "grenade" || it.kind === "boogie" || it.kind === "impulse") {
       if (key("ML")) {
-        nades.push({ pos: add(camPos, scale(camFwd, 1)), vel: add(scale(camFwd, 18), [0, 5, 0]), t: it.kind === "grenade" ? 2.5 : 1.6, by: "Player", kind: it.kind });
+        const nd2 = { pos: add(camPos, scale(camFwd, 1)), vel: add(scale(camFwd, 18), [0, 5, 0]), t: it.kind === "grenade" ? 2.5 : 1.6, by: PR.name, kind: it.kind };
+        nades.push({ ...nd2, visual: NET.active() && !NET.isHost() });
+        netNade(nd2);
         if (--it.count <= 0) P.inv[P.slot] = null;
         P.fireCd = 0.6;
         beep(500, 0.08, "triangle", 0.05);
@@ -2879,6 +2994,7 @@ function frame(now) {
           if (c.use()) {
             if (--it.count <= 0) P.inv[P.slot] = null;
             beep(500, 0.3, "sine", 0.08, 400);
+            if (NET.active() && !NET.isHost()) NET.send({ t: "act", k: "heal", hp: P.hp, sh: P.shield });
           } else P.useT = 0;
         }
       } else P.useT = 0;
@@ -2913,9 +3029,15 @@ function frame(now) {
       infoT = Math.max(infoT, 0.05);
     }
     if (key("KeyE")) {
-      if (nearChest) {
+      if (nearChest && NET.active() && !NET.isHost()) {
+        NET.send({ t: "act", k: "chest", i: chests.indexOf(nearChest) });
         nearChest.open = true;
         PR.chests++;
+        beep(400, 0.4, "triangle", 0.08, 500);
+      } else if (nearChest) {
+        nearChest.open = true;
+        PR.chests++;
+        if (NET.active()) NET.send({ t: "ev", k: "chest", i: chests.indexOf(nearChest) });
         beep(400, 0.4, "triangle", 0.08, 500);
         const pool = ["ar", "burst", "smg", "shotgun", "sniper", "tac", "hunting", "scar", "pistol", "revolver", "silenced"];
         dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1);
@@ -2951,15 +3073,36 @@ function frame(now) {
         items.splice(items.indexOf(near), 1);
         P.build = false;
         beep(660, 0.08, "sine", 0.06, 200);
+        if (NET.active()) {
+          if (NET.isHost()) NET.send({ t: "item", op: "del", id: near.id });
+          else NET.send({ t: "act", k: "pickup", id: near.id });
+        }
       }
     }
   }
   const pf0 = performance.now();
+  const netClient = NET.active() && !NET.isHost();
   if (!D.pauseBots) for (let i = 0; i < bots.length; i++) {
     const b = bots[i];
+    if (b.dead) continue;
+    if (b.remote || netClient) {
+      netInterp(b, dt);
+      continue;
+    }
     const far = b.state === "ground" && len(sub(b.pos, P.pos)) > 150;
     if (far && (i + hudN) % 2) continue;
     updateBot(b, far ? dt * 2 : dt);
+  }
+  netTick(dt);
+  if (NET.active() && NET.isHost() && P.state === "play" && !P.over && P.matchT > 5) {
+    const humans = (P.dead ? 0 : 1) + bots.filter((b) => b.remote && !b.dead).length, ai = bots.filter((b) => !b.remote && !b.dead).length;
+    const lastHuman = P.dead ? bots.find((b) => b.remote && !b.dead) : null;
+    if (humans + ai <= 1 || humans === 0) {
+      const winner = P.dead ? lastHuman ? lastHuman.remote : 0 : NET.id;
+      NET.send({ t: "ev", k: "end", winner, by: "the storm" });
+      if (!P.dead) endScreen(true);
+      else P.over = true;
+    }
   }
   PROF.bots += performance.now() - pf0;
   for (const q of W.props) if (q.dead > 0) {
@@ -3076,7 +3219,13 @@ function frame(now) {
     const k = clamp((1.4 - d.t) / 0.5, 0, 1);
     drawChar(CHARS[d.skin], mul(trs(d.pos, d.yaw), mul(translate(0, 0, -0.3 * k), rotX(-1.45 * k * k))), { anim: 0, speed: 0, grounded: true, pitch: 0, pose: "idle" });
   }
-  for (const d of bots) if (!d.dead && d.state !== "bus" && Math.abs(d.pos[0] - camPos[0]) < cull && Math.abs(d.pos[2] - camPos[2]) < cull) drawChar(CHARS[d.skin], trs(d.pos, d.yaw), { anim: d.anim, speed: Math.hypot(d.vel[0], d.vel[2]), grounded: d.grounded || d.state !== "ground", pitch: d.pitch, pose: d.emoteT > 0 ? "emote" : d.state === "sky" ? "sky" : d.state === "glide" ? "glide" : d.state === "island" ? "aim" : d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? "build" : d.weapon && d.enemy ? "aim" : "idle", held: d.state !== "ground" && d.state !== "island" || d.emoteT > 0 || d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? void 0 : d.weapon ?? "pickaxe", emote: d.emote });
+  for (const d of bots) if (d.remote && !d.dead && d.state !== "bus" && Math.abs(d.pos[0] - camPos[0]) < cull && Math.abs(d.pos[2] - camPos[2]) < cull) {
+    const po = d.netPose, pose2 = po & 4 ? "emote" : po & 1 ? "build" : po & 2 ? "crouch" : d.netHeld && d.netHeld !== "pickaxe" ? "aim" : "pick";
+    R.draw(M.shadow, trs([d.pos[0], W.groundH(d.pos[0], d.pos[2], d.pos[1]) + 0.03, d.pos[2]]), [1, 1, 1], 0.3, 0, false);
+    drawChar(CHARS[d.skin], trs(d.pos, d.yaw), { anim: d.anim, speed: Math.hypot(d.vel[0], d.vel[2]), grounded: true, pitch: d.netPitch, pitch2: 0, pose: pose2, held: po & 4 || po & 1 ? void 0 : d.netHeld ?? "pickaxe", emote: d.emote });
+    continue;
+  }
+  for (const d of bots) if (!d.remote && !d.dead && d.state !== "bus" && Math.abs(d.pos[0] - camPos[0]) < cull && Math.abs(d.pos[2] - camPos[2]) < cull) drawChar(CHARS[d.skin], trs(d.pos, d.yaw), { anim: d.anim, speed: Math.hypot(d.vel[0], d.vel[2]), grounded: d.grounded || d.state !== "ground", pitch: d.pitch, pose: d.emoteT > 0 ? "emote" : d.state === "sky" ? "sky" : d.state === "glide" ? "glide" : d.state === "island" ? "aim" : d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? "build" : d.weapon && d.enemy ? "aim" : "idle", held: d.state !== "ground" && d.state !== "island" || d.emoteT > 0 || d.mode === "crank" || d.mode === "box" || d.mode === "rush" ? void 0 : d.weapon ?? "pickaxe", emote: d.emote });
   if (P.build) {
     const bt = buildTarget();
     const ok = P.mats[P.mat] >= 10 && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir));
@@ -3139,6 +3288,232 @@ function frame(now) {
   gpPrev.clear();
   for (const b of curGpButtons) gpPrev.add(b);
 }
+const netPose = (build, crouch, emoteT, emote, dead) => (build ? 1 : 0) | (crouch ? 2 : 0) | (emoteT > 0 ? 4 : 0) | (dead ? 8 : 0) | emote << 4;
+function netPiece(msg) {
+  if (!NET.active()) return;
+  NET.send(NET.isHost() ? { t: "piece", ...msg } : { t: "act", k: "piece", ...msg });
+}
+function netNade(nd) {
+  if (!NET.active()) return;
+  NET.send(NET.isHost() ? { t: "ev", k: "nade", nd } : { t: "act", k: "nade", nd });
+}
+function applyPiece(m) {
+  if (m.op === "add") W.place(m.type, m.mat, m.pos, m.dir);
+  else if (m.op === "del") {
+    const p = W.pieces.get(m.key);
+    if (p) W.removePiece(p);
+  } else if (m.op === "edit") {
+    const p = W.pieces.get(m.key);
+    if (p) p.edit = m.mask;
+  } else if (m.op === "dmg") {
+    const p = W.pieces.get(m.key);
+    if (p) {
+      W.damagePiece(p, m.d);
+      if (!W.pieces.has(m.key) && NET.isHost()) NET.send({ t: "piece", op: "del", key: m.key });
+    }
+  }
+}
+function netInterp(b, dt) {
+  const k = 1 - Math.exp(-14 * dt), prev = [...b.pos];
+  b.pos[0] += (b.netPos[0] - b.pos[0]) * k;
+  b.pos[1] += (b.netPos[1] - b.pos[1]) * k;
+  b.pos[2] += (b.netPos[2] - b.pos[2]) * k;
+  const dy = Math.atan2(Math.sin(b.netYaw - b.yaw), Math.cos(b.netYaw - b.yaw));
+  b.yaw += dy * k;
+  b.pitch += (b.netPitch - b.pitch) * k;
+  const sp = len(sub(b.pos, prev)) / Math.max(dt, 1e-3);
+  b.vel = [(b.pos[0] - prev[0]) / dt, 0, (b.pos[2] - prev[2]) / dt];
+  b.anim += dt * sp * 1.6;
+  b.grounded = true;
+  if (b.emoteT > 0) b.emoteT -= dt;
+}
+let netAcc = 0, snapTick = 0;
+function netTick(dt) {
+  if (!NET.active() || P.state === "lobby") return;
+  netAcc += dt;
+  if (netAcc < 0.066) return;
+  netAcc = 0;
+  const it = curItem();
+  const mine = { id: NET.id, p: P.pos.map((v) => +v.toFixed(2)), yaw: +P.yaw.toFixed(3), pitch: +P.pitch.toFixed(3), held: P.build || P.editing || P.emoteT > 0 ? null : it ? it.kind : "pickaxe", pose: netPose(P.build || !!P.editing, P.crouch, P.emoteT, P.emote, P.dead), hp: Math.ceil(P.hp), sh: Math.ceil(P.shield), skin: P.skin };
+  if (!NET.isHost()) {
+    NET.send({ t: "in", ...mine });
+    return;
+  }
+  const players = [mine, ...bots.filter((b) => b.remote).map((b) => ({ id: b.remote, p: b.pos.map((v) => +v.toFixed(2)), yaw: +b.yaw.toFixed(3), pitch: +b.pitch.toFixed(3), held: b.netHeld, pose: b.netPose, hp: Math.ceil(b.hp), sh: Math.ceil(b.shield), skin: b.skin, dead: b.dead }))];
+  const bs = bots.map((b, i) => b.remote ? null : [i, +b.pos[0].toFixed(2), +b.pos[1].toFixed(2), +b.pos[2].toFixed(2), +b.yaw.toFixed(2), Math.ceil(b.hp), Math.ceil(b.shield), b.dead ? 1 : 0, b.weapon, b.emoteT > 0 ? b.emote : -1, ["island", "bus", "sky", "glide", "ground"].indexOf(b.state), b.mode === "crank" || b.mode === "box" || b.mode === "rush" ? 1 : 0]).filter(Boolean);
+  NET.send({ t: "snap", tick: snapTick++, players, bots: bs, storm: { c: storm.c, r: +storm.r.toFixed(1), phase: storm.phase, phaseT: +storm.phaseT.toFixed(1), shrinking: storm.shrinking, from: storm.from, to: storm.to, shrinkT: storm.shrinkT }, alive: P.alive, islandT: +P.islandT.toFixed(2), busT: +bus.t.toFixed(2), state: P.state, matchT: +P.matchT.toFixed(1) });
+}
+const remoteOf = (id) => bots.find((b) => b.remote === id);
+function applyRemote(b, m) {
+  b.netPos = m.p;
+  b.netYaw = m.yaw;
+  b.netPitch = m.pitch;
+  b.netHeld = m.held;
+  b.netPose = m.pose;
+  b.weapon = m.held && m.held !== "pickaxe" ? m.held : null;
+  b.emote = m.pose >> 4;
+  b.emoteT = m.pose & 4 ? 1 : 0;
+  if (m.skin !== void 0) b.skin = m.skin;
+  if (m.dead && !b.dead) {
+    b.dead = true;
+    dying.push({ skin: b.skin, pos: [...b.pos], yaw: b.yaw, t: 1.4 });
+  }
+}
+NET.on("start", (m) => {
+  if (NET.isHost()) return;
+  PR.mode = m.mode ?? PR.mode;
+  AC ??= new AudioContext();
+  startMatch(m.seed, true);
+});
+NET.on("in", (m) => {
+  const b = remoteOf(m.from);
+  if (!b) return;
+  applyRemote(b, m);
+  if (m.hp !== void 0 && m.hp > b.hp) {
+    b.hp = m.hp;
+    b.shield = m.sh;
+  }
+  if (P.state !== "island" && b.state === "island") b.state = "ground";
+});
+NET.on("snap", (m) => {
+  if (NET.isHost()) return;
+  for (const pl of m.players) {
+    if (pl.id === NET.id) {
+      if (!P.dead && pl.dead) {
+      }
+    } else {
+      const b = remoteOf(pl.id);
+      if (b) applyRemote(b, pl);
+    }
+  }
+  for (const a of m.bots) {
+    const b = bots[a[0]];
+    if (!b || b.remote) continue;
+    b.netPos = [a[1], a[2], a[3]];
+    b.netYaw = a[4];
+    b.hp = a[5];
+    b.shield = a[6];
+    if (a[7] && !b.dead) {
+      b.dead = true;
+      dying.push({ skin: b.skin, pos: [...b.pos], yaw: b.yaw, t: 1.4 });
+    }
+    b.weapon = a[8];
+    b.emote = a[9] >= 0 ? a[9] : b.emote;
+    b.emoteT = a[9] >= 0 ? 1 : 0;
+    b.state = ["island", "bus", "sky", "glide", "ground"][a[10]] ?? "ground";
+    b.mode = a[11] ? "crank" : b.weapon ? "fight" : "loot";
+    if (b.state === "bus") b.pos = [...bus.pos];
+    if (Math.abs(b.pos[0] - a[1]) + Math.abs(b.pos[2] - a[3]) > 40) b.pos = [a[1], a[2], a[3]];
+  }
+  Object.assign(storm, m.storm);
+  P.alive = m.alive;
+  P.matchT = m.matchT;
+  if (P.state === "island") {
+    P.islandT = m.islandT;
+    if (m.state !== "island" && m.state !== "lobby") P.islandT = 99;
+  }
+  if (P.state === "bus" && m.busT >= 0) bus.t = m.busT;
+});
+NET.on("dmg", (m) => {
+  if (NET.isHost()) return;
+  const n = Math.max(0, P.hp + P.shield - (m.hp + m.sh));
+  if (n > 0) {
+    P.shield = m.sh;
+    P.hp = m.hp + 1e-4;
+    damage(1e-4, m.by);
+    P.hp = m.hp;
+    if (P.hp <= 0 && !P.dead) damage(1, m.by);
+  } else {
+    P.hp = m.hp;
+    P.shield = m.sh;
+  }
+});
+NET.on("act", (m) => {
+  const b = remoteOf(m.from);
+  const by = b ? b.name : "Player";
+  if (m.k === "shot") {
+    const w = WEAPONS[m.kind];
+    if (!w) return;
+    const boxes = botBoxes();
+    boxes.push({ min: [P.pos[0] - 0.35, P.pos[1], P.pos[2] - 0.25], max: [P.pos[0] + 0.35, P.pos[1] + 2.05, P.pos[2] + 0.25], ref: { host: true } });
+    for (const d of m.d) {
+      const h = W.raycast(m.o, d, w.range, boxes);
+      if (!h) continue;
+      if (h.kind === "box") {
+        const r = h.ref;
+        const fall = h.t > w.range * 0.5 ? lerp(1, 0.6, (h.t - w.range * 0.5) / (w.range * 0.5)) : 1;
+        const n = Math.round(w.dmg * RAR_MULT[m.rar] * fall * (r.head ? w.hs : 1));
+        if (r.host) {
+          if (!sameTeam(m.from, NET.id)) damage(n, by);
+        } else if (!r.d.remote || r.d.remote !== m.from && !sameTeam(m.from, r.d.remote)) botDamage(r.d, n, by);
+      } else if (h.kind === "piece") {
+        W.damagePiece(h.ref, w.dmg);
+        if (!W.pieces.has(h.ref.key)) NET.send({ t: "piece", op: "del", key: h.ref.key });
+      }
+    }
+  } else if (m.k === "piece") {
+    applyPiece(m);
+    NET.send({ t: "piece", op: m.op, type: m.type, mat: m.mat, pos: m.pos, dir: m.dir, key: m.key, mask: m.mask });
+  } else if (m.k === "pickup") {
+    const i = items.findIndex((g) => g.id === m.id);
+    if (i >= 0) {
+      items.splice(i, 1);
+      NET.send({ t: "item", op: "del", id: m.id });
+    }
+  } else if (m.k === "chest") {
+    const c = chests[m.i];
+    if (c && !c.open) {
+      c.open = true;
+      const pool = ["ar", "burst", "smg", "shotgun", "sniper", "tac", "hunting", "scar", "pistol", "revolver", "silenced"];
+      dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, c.drop ? 4 : -1), add(c.pos, [0, 0.3, 0]), 1);
+      dropItem(mkItem(["shieldPot", "bandage", "miniShield", "chug", "grenade"][Math.floor(rand(0, 5))], 3), add(c.pos, [0, 0.3, 0]), 1.2);
+      dropItem(mkItem("ammo"), add(c.pos, [0, 0.3, 0]), 1.5);
+      NET.send({ t: "ev", k: "chest", i: m.i });
+    }
+  } else if (m.k === "nade") {
+    nades.push({ ...m.nd, by });
+    NET.send({ t: "ev", k: "nade", nd: m.nd, from: m.from });
+  } else if (m.k === "heal") {
+    if (b) {
+      b.hp = m.hp;
+      b.shield = m.sh;
+    }
+  }
+});
+NET.on("piece", (m) => {
+  if (!NET.isHost()) applyPiece(m);
+});
+NET.on("item", (m) => {
+  if (NET.isHost()) return;
+  if (m.op === "add") {
+    if (!items.some((g) => g.id === m.id)) items.push({ item: { kind: m.kind, mag: isWeapon(m.kind) ? WEAPONS[m.kind].mag : 0, count: m.count, rar: m.rar }, pos: m.pos, id: m.id });
+  } else {
+    const i = items.findIndex((g) => g.id === m.id);
+    if (i >= 0) items.splice(i, 1);
+  }
+});
+NET.on("ev", (m) => {
+  if (m.k === "chest") {
+    const c = chests[m.i];
+    if (c) c.open = true;
+  } else if (m.k === "nade" && m.from !== NET.id) nades.push({ ...m.nd, visual: !NET.isHost() });
+  else if (m.k === "end" && !NET.isHost() && !P.over) endScreen(m.winner === NET.id, m.by ?? "");
+  else if (m.k === "bus" && !NET.isHost()) {
+  }
+});
+NET.on("feed", (m) => {
+  if (!NET.isHost()) addFeed(m.html, true);
+});
+NET.on("left", (m) => {
+  const b = remoteOf(m.id);
+  if (b && !b.dead) {
+    b.dead = true;
+    addFeed(`${b.name} left the match`);
+  }
+});
+NET.on("closed", () => {
+  if (P.state !== "lobby") info("Disconnected from party");
+});
 {
   const q = new URLSearchParams(location.search);
   if (q.get("auto") === "play") setTimeout(() => {
@@ -3173,7 +3548,7 @@ function frame(now) {
     }, 600);
   }, 1500);
 }
-window.G = { H, mmBg: () => mmBg, PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+window.G = { NET, H, mmBg: () => mmBg, PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
 export {
   canvas,
   R as renderer,

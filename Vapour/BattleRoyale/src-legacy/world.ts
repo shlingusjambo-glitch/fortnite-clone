@@ -189,11 +189,11 @@ export class World {
         for (let row = -3; row <= 3; row++) for (let c = -5; c <= 5; c++) { const x = p.x + 30 + c * 4.2, z = p.z - 30 + row * 5; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (ok) addStatic('hedge', [x, p.h - 0.3, z], 0, []); }
       }
       if (p.name === 'WAILING WOODS') {   // hedge maze: 9x9 grid with random gaps
-        for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) { if ((gx + gz) % 2 === 0 && Math.random() < 0.55) continue; if (Math.random() < 0.3) continue; addStatic('hedge', [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]); }
+        for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) { if ((gx + gz) % 2 === 0 && rand() < 0.55) continue; if (rand() < 0.3) continue; addStatic('hedge', [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]); }
         this.chestSpots.push([p.x + 60, p.h, p.z + 30]);
       }
       if (p.name === 'DUSTY DEPOT' || p.name === 'FLUSH FACTORY') {   // container yard: crate stacks between the warehouses
-        for (let k = 0; k < 14; k++) { const x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = Math.random() < 0.4 ? 2 : 1; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (!ok) continue; for (let l = 0; l < h; l++) addStatic('crate', [x, p.h + l * 2, z], Math.floor(rand(0, 4)), l ? [] : [{ min: [-1, 0, -1], max: [1, 2 * h, 1] }]); }
+        for (let k = 0; k < 14; k++) { const x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = rand() < 0.4 ? 2 : 1; let ok = true; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false; if (!ok) continue; for (let l = 0; l < h; l++) addStatic('crate', [x, p.h + l * 2, z], Math.floor(rand(0, 4)), l ? [] : [{ min: [-1, 0, -1], max: [1, 2 * h, 1] }]); }
         this.chestSpots.push([p.x, p.h, p.z]);
       }
       if (p.name === 'PLEASANT PARK') {
@@ -213,16 +213,16 @@ export class World {
     // vegetation: authored clusters (woods, tree lines along roads/rivers) + sparse fill
     const put = (x: number, z: number, type: Prop['type'], s: number) => { const y = terrainH(x, z); if (y < 2.2) return; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) return; if (roadDist(x, z) < 6) return; this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === 'bush' ? 30 : 250, r: (type === 'rock' ? 1.4 : type === 'bush' ? 0.7 : 0.4) * s, h: (type === 'rock' ? 1.2 : type === 'bush' ? 1 : 6) * s, dead: 0 }); };
     for (let k = 0; k < 1500; k++) {   // sparse fill
-      const x = rand(-SIZE / 2, SIZE / 2), z = rand(-SIZE / 2, SIZE / 2), rv = Math.random();
+      const x = rand(-SIZE / 2, SIZE / 2), z = rand(-SIZE / 2, SIZE / 2), rv = rand();
       let ok = true; for (const p of POIS) if (Math.hypot(x - p.x, z - p.z) < p.r * 0.7 && p.layout !== 'scatter') ok = false; if (!ok) continue;
       const type: Prop['type'] = rv < 0.4 ? 'tree' : rv < 0.55 ? 'tree2' : rv < 0.72 ? 'pine' : rv < 0.9 ? 'rock' : 'bush';
       put(x, z, type, type === 'pine' ? rand(1.1, 1.7) : type === 'rock' ? rand(0.9, 1.8) : type === 'bush' ? rand(1.2, 1.8) : rand(1.3, 1.9));
     }
     for (const [cx, cz, cr, pineK] of [[215, -195, 60, 0.85], [265, -40, 55, 0.9], [235, 240, 60, 0.2], [-120, 40, 50, 0.6], [-300, -60, 45, 0.5], [120, 10, 40, 0.4]] as [number, number, number, number][]) {   // woods
-      for (let k = 0; k < 220; k++) { const a = rand(0, 6.28), rr = Math.sqrt(Math.random()) * cr; const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr; const pine = Math.random() < pineK; put(x, z, pine ? 'pine' : Math.random() < 0.7 ? 'tree' : 'tree2', pine ? rand(1.3, 2.0) : rand(1.4, 2.0)); }
+      for (let k = 0; k < 220; k++) { const a = rand(0, 6.28), rr = Math.sqrt(rand()) * cr; const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr; const pine = rand() < pineK; put(x, z, pine ? 'pine' : rand() < 0.7 ? 'tree' : 'tree2', pine ? rand(1.3, 2.0) : rand(1.4, 2.0)); }
     }
-    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L; for (let tt = 30; tt < L - 30; tt += rand(10, 18)) { const s = Math.random() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14); put(x, z, Math.random() < 0.8 ? 'tree' : 'bush', rand(1.3, 1.8)); } }
-    for (const [mx, mz, mr] of MESAS) for (let k = 0; k < 10; k++) { const a = rand(0, 6.28); put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), Math.random() < 0.5 ? 'pine' : 'rock', rand(1.2, 1.8)); for (let q = 0; q < 2; q++) put(mx + Math.cos(a) * (mr + rand(6, 14)), mz + Math.sin(a) * (mr + rand(6, 14)), 'rock', rand(1.4, 2.4)); }
+    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L; for (let tt = 30; tt < L - 30; tt += rand(10, 18)) { const s = rand() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14); put(x, z, rand() < 0.8 ? 'tree' : 'bush', rand(1.3, 1.8)); } }
+    for (const [mx, mz, mr] of MESAS) for (let k = 0; k < 10; k++) { const a = rand(0, 6.28); put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), rand() < 0.5 ? 'pine' : 'rock', rand(1.2, 1.8)); for (let q = 0; q < 2; q++) put(mx + Math.cos(a) * (mr + rand(6, 14)), mz + Math.sin(a) * (mr + rand(6, 14)), 'rock', rand(1.4, 2.4)); }
     this.buildGrid();
   }
   /** lush 3D grass blade clusters with varied heights, wildflowers and wind sway */
@@ -293,7 +293,8 @@ export class World {
     this.pieces.set(key, p); this.pcAdd(p); return p;
   }
   damagePiece(p: Piece, d: number) { p.hp -= d; if (p.hp <= 0) this.removePiece(p); }
-  removePiece(p: Piece) { this.pieces.delete(p.key); this.pcDel(p); }
+  onRemove: ((p: Piece) => void) | null = null;
+  removePiece(p: Piece) { this.pieces.delete(p.key); this.pcDel(p); this.onRemove?.(p); }
   clearPieces() { this.pieces.clear(); this.pieceCells.clear(); }
   pieceBox(p: Piece): Box {
     const [x, y, z] = p.pos;

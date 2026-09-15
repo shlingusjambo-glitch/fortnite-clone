@@ -11,7 +11,18 @@ const norm = (a) => {
 };
 const lerp = (a, b, t) => a + (b - a) * t;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-const rand = (a = 0, b = 1) => a + Math.random() * (b - a);
+let seedState = 2654435769;
+function setSeed(seed) {
+  seedState = seed >>> 0 || 1;
+}
+function srand() {
+  seedState = seedState + 1831565813 >>> 0;
+  let t = seedState;
+  t = Math.imul(t ^ t >>> 15, t | 1);
+  t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
+}
+const rand = (a = 0, b = 1) => a + srand() * (b - a);
 const ident = () => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 function mul(a, b, out = new Float32Array(16)) {
   for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) {
@@ -115,6 +126,8 @@ export {
   rotZ,
   scale,
   scaleM,
+  setSeed,
+  srand,
   sub,
   transformDir,
   transformPoint,

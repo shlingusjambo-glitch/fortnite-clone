@@ -1,4 +1,4 @@
-import { mul, translate, rotY, rotZ, rotX } from "./math";
+import { mul, translate, rotY, rotZ, rotX, rand } from "./math";
 import { MB, rgb, dk, lt, C, FH, aoY } from "./models";
 const PALETTES = [
   { wall: rgb(12900066), wall2: rgb(11123913), roof: rgb(5001820), trim: rgb(16316662), floor: rgb(12160866), interior: rgb(15328472) },
@@ -215,7 +215,7 @@ class Kit {
     this.b.box([0, 1, 0], [w, 2, 0.35], rgb(6965808));
     for (let s = 0; s < 4; s++) {
       this.b.box([0, 0.3 + s * 0.5, 0.02], [w - 0.1, 0.04, 0.32], rgb(9071176));
-      for (let i = 0; i < Math.floor(w / 0.12); i++) if (Math.random() < 0.8) this.b.box([-w / 2 + 0.1 + i * 0.12, 0.5 + s * 0.5, 0.05], [0.09, 0.36 + Math.random() * 0.06, 0.24], [Math.random() * 0.6 + 0.2, Math.random() * 0.5 + 0.2, Math.random() * 0.6 + 0.2]);
+      for (let i = 0; i < Math.floor(w / 0.12); i++) if (rand() < 0.8) this.b.box([-w / 2 + 0.1 + i * 0.12, 0.5 + s * 0.5, 0.05], [0.09, 0.36 + rand() * 0.06, 0.24], [rand() * 0.6 + 0.2, rand() * 0.5 + 0.2, rand() * 0.6 + 0.2]);
     }
     this.b.pop();
     this.boxes.push({ min: [x - w / 2, y, z - 0.2], max: [x + w / 2, y + 2, z + 0.2] });
@@ -253,7 +253,7 @@ class Kit {
       const yy = 0.2 + s * 0.65;
       this.b.box([0, yy, 0], [w, 0.05, 1], rgb(13489112));
       if (stock) {
-        for (let i = 0; i < Math.floor(w / 0.45); i++) if (Math.random() < 0.75) this.b.rbox([-w / 2 + 0.25 + i * 0.45, yy + 0.22, (Math.random() - 0.5) * 0.4], [0.32, 0.36, 0.32], [0.3 + Math.random() * 0.6, 0.3 + Math.random() * 0.5, 0.3 + Math.random() * 0.6], 0.03);
+        for (let i = 0; i < Math.floor(w / 0.45); i++) if (rand() < 0.75) this.b.rbox([-w / 2 + 0.25 + i * 0.45, yy + 0.22, (rand() - 0.5) * 0.4], [0.32, 0.36, 0.32], [0.3 + rand() * 0.6, 0.3 + rand() * 0.5, 0.3 + rand() * 0.6], 0.03);
       }
     }
     this.b.pop();

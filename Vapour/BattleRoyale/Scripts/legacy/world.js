@@ -327,15 +327,15 @@ class World {
       }
       if (p.name === "WAILING WOODS") {
         for (let gx = -4; gx <= 4; gx++) for (let gz = -4; gz <= 4; gz++) {
-          if ((gx + gz) % 2 === 0 && Math.random() < 0.55) continue;
-          if (Math.random() < 0.3) continue;
+          if ((gx + gz) % 2 === 0 && rand() < 0.55) continue;
+          if (rand() < 0.3) continue;
           addStatic("hedge", [p.x + 60 + gx * 4, p.h, p.z + 30 + gz * 4], (gx + gz) % 2 ? 1 : 0, [{ min: [-2, 0, -0.6], max: [2, 2.2, 0.6] }]);
         }
         this.chestSpots.push([p.x + 60, p.h, p.z + 30]);
       }
       if (p.name === "DUSTY DEPOT" || p.name === "FLUSH FACTORY") {
         for (let k = 0; k < 14; k++) {
-          const x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = Math.random() < 0.4 ? 2 : 1;
+          const x = p.x + rand(-30, 30), z = p.z + rand(-12, 12), h = rand() < 0.4 ? 2 : 1;
           let ok = true;
           for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2]) ok = false;
           if (!ok) continue;
@@ -384,7 +384,7 @@ class World {
       this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === "bush" ? 30 : 250, r: (type === "rock" ? 1.4 : type === "bush" ? 0.7 : 0.4) * s, h: (type === "rock" ? 1.2 : type === "bush" ? 1 : 6) * s, dead: 0 });
     };
     for (let k = 0; k < 1500; k++) {
-      const x = rand(-SIZE / 2, SIZE / 2), z = rand(-SIZE / 2, SIZE / 2), rv = Math.random();
+      const x = rand(-SIZE / 2, SIZE / 2), z = rand(-SIZE / 2, SIZE / 2), rv = rand();
       let ok = true;
       for (const p of POIS) if (Math.hypot(x - p.x, z - p.z) < p.r * 0.7 && p.layout !== "scatter") ok = false;
       if (!ok) continue;
@@ -393,22 +393,22 @@ class World {
     }
     for (const [cx, cz, cr, pineK] of [[215, -195, 60, 0.85], [265, -40, 55, 0.9], [235, 240, 60, 0.2], [-120, 40, 50, 0.6], [-300, -60, 45, 0.5], [120, 10, 40, 0.4]]) {
       for (let k = 0; k < 220; k++) {
-        const a = rand(0, 6.28), rr = Math.sqrt(Math.random()) * cr;
+        const a = rand(0, 6.28), rr = Math.sqrt(rand()) * cr;
         const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr;
-        const pine = Math.random() < pineK;
-        put(x, z, pine ? "pine" : Math.random() < 0.7 ? "tree" : "tree2", pine ? rand(1.3, 2) : rand(1.4, 2));
+        const pine = rand() < pineK;
+        put(x, z, pine ? "pine" : rand() < 0.7 ? "tree" : "tree2", pine ? rand(1.3, 2) : rand(1.4, 2));
       }
     }
     for (const [ia, ib] of ROADS) {
       const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), nx = -(B.z - A.z) / L, nz = (B.x - A.x) / L;
       for (let tt = 30; tt < L - 30; tt += rand(10, 18)) {
-        const s = Math.random() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14);
-        put(x, z, Math.random() < 0.8 ? "tree" : "bush", rand(1.3, 1.8));
+        const s = rand() < 0.5 ? 1 : -1, x = A.x + (B.x - A.x) * tt / L + nx * s * rand(9, 14), z = A.z + (B.z - A.z) * tt / L + nz * s * rand(9, 14);
+        put(x, z, rand() < 0.8 ? "tree" : "bush", rand(1.3, 1.8));
       }
     }
     for (const [mx, mz, mr] of MESAS) for (let k = 0; k < 10; k++) {
       const a = rand(0, 6.28);
-      put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), Math.random() < 0.5 ? "pine" : "rock", rand(1.2, 1.8));
+      put(mx + Math.cos(a) * rand(0, mr * 0.7), mz + Math.sin(a) * rand(0, mr * 0.7), rand() < 0.5 ? "pine" : "rock", rand(1.2, 1.8));
       for (let q = 0; q < 2; q++) put(mx + Math.cos(a) * (mr + rand(6, 14)), mz + Math.sin(a) * (mr + rand(6, 14)), "rock", rand(1.4, 2.4));
     }
     this.buildGrid();
@@ -545,9 +545,11 @@ class World {
     p.hp -= d;
     if (p.hp <= 0) this.removePiece(p);
   }
+  onRemove = null;
   removePiece(p) {
     this.pieces.delete(p.key);
     this.pcDel(p);
+    this.onRemove?.(p);
   }
   clearPieces() {
     this.pieces.clear();
