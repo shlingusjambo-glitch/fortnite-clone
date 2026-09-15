@@ -29,7 +29,7 @@ const BOT_VOICES = ['smak-mouth.mp3','ninjalaughing.mp3','ninja-your-trash-kid.m
 function botVoice(b: Bot) { if (b.voiceCd > 0 || len(sub(b.pos, P.pos)) > 55) return; b.voiceCd = rand(12, 25); const a = new Audio('Audio/' + BOT_VOICES[Math.floor(rand(0, BOT_VOICES.length))]); a.volume = clamp(1 - len(sub(b.pos, P.pos)) / 65, .08, .55) * S.master * S.voice; if (a.volume > 0.01) a.play().catch(() => {}); }
 
 // ---------------- items & weapons ----------------
-type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
+type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'boogie' | 'impulse' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
 const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const RAR_MULT = [0.85, 0.93, 1, 1.08, 1.16];
 type Ammo = 'light' | 'medium' | 'heavy' | 'shells';
@@ -51,6 +51,8 @@ const CONS: Record<string, { name: string; dur: number; rarity: string; use: () 
   miniShield: { name: 'Small Shield Potion', dur: 2, rarity: 'uncommon', use: () => P.shield < 50 && ((P.shield = Math.min(50, P.shield + 25)), true) },
   chug: { name: 'Chug Jug', dur: 15, rarity: 'legendary', use: () => (P.hp < 100 || P.shield < 100) && ((P.hp = 100), (P.shield = 100), true) },
   grenade: { name: 'Grenade', dur: 0, rarity: 'uncommon', use: () => false },
+  boogie: { name: 'Boogie Bomb', dur: 0, rarity: 'rare', use: () => false },
+  impulse: { name: 'Impulse Grenade', dur: 0, rarity: 'rare', use: () => false },
   medkit: { name: 'Med Kit', dur: 10, rarity: 'uncommon', use: () => P.hp < 100 && ((P.hp = 100), true) },
   bandage: { name: 'Bandages', dur: 4, rarity: 'common', use: () => P.hp < 75 && ((P.hp = Math.min(75, P.hp + 15)), true) },
   fish: { name: 'Flopper', dur: 1, rarity: 'epic', use: () => P.hp < 100 && ((P.hp = Math.min(100, P.hp + 40)), true) },
@@ -63,7 +65,7 @@ const mkItem = (kind: Kind, count = 1, rar = -1): Item => ({ kind, mag: isWeapon
 interface GroundItem { item: Item; pos: V3; }
 type BotMode = 'loot' | 'rotate' | 'hunt' | 'fight' | 'box' | 'crank' | 'heal' | 'rush';
 interface Crank { c: V3; L: number; d: number; t: number; steps: number; }
-interface Bot { name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; nades: number; }
+interface Bot { name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; nades: number; stunT: number; }
 interface Fx { kind: 'dmg' | 'tracer'; t: number; pos: V3; text?: string; head?: boolean; to?: V3; }
 const ICON: Record<string, string> = {
   pickaxe: '<svg viewBox="0 0 64 64"><path d="M14 52 L44 22" stroke="#7a5a3a" stroke-width="6" stroke-linecap="round"/><path d="M30 12 Q46 8 56 26" stroke="#dfe6ee" stroke-width="8" fill="none" stroke-linecap="round"/></svg>',
@@ -79,6 +81,8 @@ const ICON: Record<string, string> = {
   scar: '<svg viewBox="0 0 64 64"><path d="M6 34h40l8-6h6v6h-8l-4 6h-8v10h-6v-10h-8l-4 8h-6l3-8h-13z" fill="#ffd23a"/><rect x="24" y="24" width="14" height="5" fill="#ffd23a"/></svg>',
   miniShield: '<svg viewBox="0 0 64 64"><rect x="27" y="18" width="10" height="6" fill="#fff"/><path d="M24 26h16v20a6 6 0 0 1-6 6h-4a6 6 0 0 1-6-6z" fill="#3aa2ff"/></svg>',
   grenade: '<svg viewBox="0 0 64 64"><ellipse cx="32" cy="38" rx="14" ry="16" fill="#4a6a3a"/><rect x="26" y="14" width="12" height="10" fill="#888"/><rect x="36" y="12" width="12" height="5" fill="#ccc"/></svg>',
+  boogie: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="16" fill="#c9c9d8"/><circle cx="26" cy="30" r="3" fill="#ff3ec9"/><circle cx="38" cy="40" r="3" fill="#3ddcf5"/><circle cx="36" cy="28" r="2" fill="#ffe22e"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
+  impulse: '<svg viewBox="0 0 64 64"><circle cx="32" cy="36" r="15" fill="#2c88f5"/><circle cx="32" cy="36" r="8" fill="#8cd5ff"/><rect x="28" y="14" width="8" height="8" fill="#888"/></svg>',
   chug: '<svg viewBox="0 0 64 64"><path d="M18 20h28v30a6 6 0 0 1-6 6h-16a6 6 0 0 1-6-6z" fill="#3aa2ff"/><rect x="26" y="10" width="12" height="10" fill="#2c6fb0"/><rect x="24" y="30" width="16" height="10" fill="#fff"/></svg>',
   bandage: '<svg viewBox="0 0 64 64"><rect x="8" y="26" width="48" height="12" rx="4" fill="#f4f4f4"/><rect x="26" y="26" width="12" height="12" fill="#e33"/><rect x="8" y="34" width="48" height="4" fill="#ddd"/></svg>',
   medkit: '<svg viewBox="0 0 64 64"><rect x="10" y="18" width="44" height="32" rx="4" fill="#f4f4f4"/><rect x="28" y="24" width="8" height="20" fill="#e33"/><rect x="22" y="30" width="20" height="8" fill="#e33"/></svg>',
@@ -98,7 +102,7 @@ const P = {
   inv: [null, null, null, null, null] as (Item | null)[], slot: -1,
   build: false, piece: 'wall' as PieceType, fireCd: 0, reload: 0, swing: 0, useT: 0, useDur: 0,
   scoped: false, ads: false, thirdPerson: true, anim: 0, hurtCd: 0, kills: 0, alive: 100, matchT: 0, thanked: false, dmg: 0, dead: false, over: false,
-  bloom: 0, burstLeft: 0, equipT: 0, swim: false, emote: 0, emoteT: 0, editing: null as Piece | null, editMask: 0, rampRot: 0, fishing: 0, nextDrop: 90, weakPos:null as V3|null, weakRef:null as any, weakT:0,
+  bloom: 0, burstLeft: 0, equipT: 0, swim: false, emote: 0, emoteT: 0, stunT: 0, editing: null as Piece | null, editMask: 0, rampRot: 0, fishing: 0, nextDrop: 90, weakPos:null as V3|null, weakRef:null as any, weakT:0,
 };
 const SDEF = { sensX: 1, sensY: 1, adsSens: 0.7, scopeSens: 0.5, invertY: false, toggleSprint: false, turbo: true, padSens: 1, rumble: true, master: 0.8, sfx: 0.8, voice: 0.7, music: 0.5, fov: 80, scale: 1, shadows: 2, grass: 1, viewDist: 1, showFps: true, streamer: false };
 // low-end defaults (Chromebooks: few cores / little RAM / no discrete GPU) unless the player saved their own settings
@@ -118,7 +122,7 @@ const curItem = () => (P.slot < 0 ? null : P.inv[P.slot]);
 // ---------------- match content ----------------
 const items: GroundItem[] = [], bots: Bot[] = [], fx: Fx[] = [], feed: { html: string; t: number }[] = [];
 const chests: { pos: V3; yaw: number; open: boolean; drop?: boolean }[] = [];
-const nades: { pos: V3; vel: V3; t: number; by: string; rocket?: boolean }[] = [];
+const nades: { pos: V3; vel: V3; t: number; by: string; rocket?: boolean; kind?: Kind }[] = [];
 const drops: { pos: V3; landed: boolean }[] = [], meteors: { pos: V3; vel: V3 }[] = []; let event: 'meteor' | null = null, eventT = 0;
 const bus = { a: [0, 0, 0] as V3, b: [0, 0, 0] as V3, t: 0, dur: 55, pos: [0, 0, 0] as V3, yaw: 0 };
 const storm = { c: [0, 0] as [number, number], r: 520, phaseT: 120, phase: 0, shrinking: false, from: { c: [0, 0] as [number, number], r: 380 }, to: { c: [0, 0] as [number, number], r: 380 }, shrinkT: 0 };
@@ -144,7 +148,7 @@ function startMatch() {
   storm.c = [rand(-80, 80), rand(-80, 80)]; storm.r = 520; storm.phaseT = 120;
   // loot + bots per POI
   // loot lives inside buildings (kit spawn points) plus a little floor loot outdoors
-  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'rpg', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'ammo', 'ammo'];
+  const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'pistol', 'pistol', 'tac', 'hunting', 'scar', 'rpg', 'bandage', 'shieldPot', 'miniShield', 'miniShield', 'chug', 'medkit', 'grenade', 'boogie', 'impulse', 'ammo', 'ammo'];
   for (const l of W.lootSpots) if (Math.random() < 0.75) dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1), l);
   for (const c of W.chestSpots) if (Math.random() < 0.7) chests.push({ pos: [...c] as V3, yaw: rand(0, 6.28), open: false });
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.7, z = p.z + rand(-p.r, p.r) * 0.7, y = terrainH(x, z); if (y > 1) dropItem(mkItem(pool[Math.floor(rand(0, 14))], 1), [x, y, z]); }
@@ -164,7 +168,7 @@ function spawnBot(at?: V3, profileIdx = -1): Bot {
   const p = POIS[Math.floor(rand(0, POIS.length))], land: V3 = [p.x + rand(-p.r, p.r) * 0.8, 0, p.z + rand(-p.r, p.r) * 0.8];
   const pr = PROFILES[profileIdx >= 0 ? profileIdx : Math.floor(rand(0, PROFILES.length))];
   const skill = rand(pr.skill[0], pr.skill[1]), aggression = rand(pr.aggro[0], pr.aggro[1]), pos = at ? [...at] as V3 : [0, 0, 0] as V3;
-  const b: Bot = { name: botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? 'ground' : 'bus', dead: false, anim: 0, weapon: at ? 'ar' : null, weapons: at ? ['ar'] : [], heals: at ? 2 : 0, mats: at ? 500 : 60, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: false, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: 'loot', profile: pr.name, skill, aggression, accuracy: 0.22 + skill * 0.45, reaction: lerp(0.85, 0.15, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos] as V3, voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-.5, .5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null, nades: at ? 3 : 0 };
+  const b: Bot = { name: botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? 'ground' : 'bus', dead: false, anim: 0, weapon: at ? 'ar' : null, weapons: at ? ['ar'] : [], heals: at ? 2 : 0, mats: at ? 500 : 60, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: false, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: 'loot', profile: pr.name, skill, aggression, accuracy: 0.22 + skill * 0.45, reaction: lerp(0.85, 0.15, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos] as V3, voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-.5, .5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null, nades: at ? 3 : 0, stunT: 0 };
   bots.push(b); return b;
 }
 function toLobby() { P.state = 'lobby'; H.end.style.display = 'none'; P.over = false; H.lobby.style.display = 'block'; H.hud.style.display = 'none'; document.exitPointerLock(); }
@@ -520,7 +524,19 @@ function dbgAction(a: string) {
   }
   info(a.toUpperCase() + ' ✓');
 }
-function explode(pos: V3, by: string) {
+function explode(pos: V3, by: string, kind: Kind = 'grenade') {
+  if (kind === 'boogie') {   // everyone nearby dances for 5s
+    beep(600, 0.4, 'triangle', 0.1, 400); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOGIE', head: true });
+    if (len(sub(P.pos, pos)) < 6 && !P.dead) { P.emote = 0; P.emoteT = 5; P.stunT = 5; }
+    for (const b of bots) if (!b.dead && len(sub(b.pos, pos)) < 6) { b.emote = 0; b.emoteT = 5; b.stunT = 5; }
+    return;
+  }
+  if (kind === 'impulse') {   // knockback, no damage
+    beep(300, 0.3, 'sine', 0.1, -200); fx.push({ kind: 'dmg', t: 0.6, pos: add(pos, [0, 1.5, 0]), text: 'WHOOSH', head: false });
+    const push = (e: { pos: V3; vel: V3; grounded: boolean }) => { const d = sub(add(e.pos, [0, 1, 0]), pos), L = len(d); if (L < 7) { const k = 26 * (1 - L / 7) + 8; e.vel = add(e.vel, add(scale(norm(d), k), [0, k * 0.6, 0])); e.grounded = false; } };
+    push(P); for (const b of bots) if (!b.dead) push(b);
+    return;
+  }
   beep(50, 0.5, 'sawtooth', 0.25, -30); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); rumble(300, 0.8, 1);
   const dmg = (d: number) => Math.round(100 * clamp(1 - d / 5, 0, 1));
   const dp = len(sub(P.pos, pos)); if (dp < 5 && dmg(dp) > 0) damage(dmg(dp), by);
@@ -542,7 +558,7 @@ function updateNades(dt: number) {
     else if (W.solids(next[0], next[2], 3).some(b => next[0] > b.min[0] && next[0] < b.max[0] && next[1] > b.min[1] && next[1] < b.max[1] && next[2] > b.min[2] && next[2] < b.max[2])) { n.vel = scale(n.vel, -0.3); }
     else n.pos = next;
     if (next[1] <= g) n.pos = next;
-    if (n.t <= 0) { explode(n.pos, n.by); nades.splice(i, 1); }
+    if (n.t <= 0) { explode(n.pos, n.by, n.kind); nades.splice(i, 1); }
   }
 }
 function updateEvents(dt: number) {
@@ -586,6 +602,7 @@ function botHear(pos: V3, radius: number, who: Bot | 'player') {   // gunfire: b
 function updateBot(b: Bot, dt: number) {
   if (b.dead) return;
   b.anim += dt * Math.hypot(b.vel[0], b.vel[2]) * 1.6; b.fireCd -= dt; b.buildCd -= dt; b.retarget -= dt; b.voiceCd -= dt; b.peekT -= dt; b.lootT -= dt;
+  if (b.stunT > 0) { b.stunT -= dt; b.emoteT = Math.max(b.emoteT, 0.1); b.vel[0] *= 0.8; b.vel[2] *= 0.8; b.vel[1] -= 26 * dt; b.grounded = false; moveEntity(b, 1.75, dt); return; }
   if (b.emoteT > 0) { b.emoteT -= dt; b.vel[0] *= 0.8; b.vel[2] *= 0.8; if (b.enemy || t - b.lastHit < 2) b.emoteT = 0; }
   if (b.state === 'bus') { b.pos = [...bus.pos] as V3; if (bus.t > b.dropT || bus.t >= bus.dur) { b.state = 'sky'; b.vel = [Math.sin(bus.yaw) * 8, -10, Math.cos(bus.yaw) * 8]; } return; }
   const gAbove = b.pos[1] - W.groundH(b.pos[0], b.pos[2], b.pos[1]);
@@ -725,7 +742,7 @@ function updateBot(b: Bot, dt: number) {
       let chest: typeof chests[number] | null = null, cdist = b.weapon ? 30 : 120;
       for (const c of chests) if (!c.open) { const d = len(sub(c.pos, b.pos)); if (d < cdist) { cdist = d; chest = c; } }
       let item: GroundItem | null = null, idist = b.weapon ? 40 : 140;
-      for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' ? false : k === 'grenade' ? b.nades < 3 : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
+      for (const g of items) { const k = g.item.kind; const need = isWeapon(k) ? (!b.weapon || (b.weapons.length < 3 && !b.weapons.includes(k)) || (b.weapon === 'smg' && k !== 'smg')) : k === 'ammo' || k === 'boogie' || k === 'impulse' ? false : k === 'grenade' ? b.nades < 3 : b.heals < 3; if (!need) continue; const d = len(sub(g.pos, b.pos)); if (d < idist) { idist = d; item = g; } }
       if (out) { b.mode = 'rotate'; if (!b.target || Math.hypot(b.target[0] - sc[0], b.target[2] - sc[1]) > srad * 0.5) { const a = rand(0, 6.28), rr = rand(0, srad * 0.5); b.target = [sc[0] + Math.cos(a) * rr, 0, sc[1] + Math.sin(a) * rr]; } toward(b.target, 6.5); }
       else if (b.mode === 'hunt' && b.memory && b.weapon) { if (toward(b.memory, 6.5) < 3) { b.memory = null; b.mode = 'loot'; } }
       else if (chest && (b.lootT <= 0 || !b.weapon)) {
@@ -876,7 +893,8 @@ function frame(now: number) {
   updateEvents(dt); updateNades(dt);
   if (key('KeyM')) H.bigmap.style.display = H.bigmap.style.display === 'flex' ? 'none' : 'flex';
   if (key('KeyB') && P.state === 'play' && !P.dead) { if (EW.style.display === 'flex') { EW.style.display = 'none'; startEmote(lastEmote); } else { EW.style.display = 'flex'; document.exitPointerLock(); } }
-  if (P.emoteT > 0) { P.emoteT -= dt; if (Math.hypot(P.vel[0], P.vel[2]) > 1 || mouse.l) P.emoteT = 0; }
+  if (P.stunT > 0) { P.stunT -= dt; P.emoteT = Math.max(P.emoteT, 0.1); keys.delete('KeyW'); keys.delete('KeyA'); keys.delete('KeyS'); keys.delete('KeyD'); mouse.l = false; }
+  if (P.emoteT > 0) { P.emoteT -= dt; if (P.stunT <= 0 && (Math.hypot(P.vel[0], P.vel[2]) > 1 || mouse.l)) P.emoteT = 0; }
   if (key('KeyT')) P.thirdPerson = !P.thirdPerson;
   P.matchT += dt; storm.phaseT = Math.max(0, storm.phaseT - dt);
   if (storm.shrinking) { const k = 1 - storm.phaseT / storm.shrinkT; storm.r = lerp(storm.from.r, storm.to.r, k); storm.c = [lerp(storm.from.c[0], storm.to.c[0], k), lerp(storm.from.c[1], storm.to.c[1], k)]; if (storm.phaseT <= 0) { storm.shrinking = false; storm.phaseT = PHASES[Math.min(storm.phase, PHASES.length - 1)][0]; } }
@@ -979,8 +997,8 @@ function frame(now: number) {
       const w = WEAPONS[it.kind];
       if ((w.auto ? mouse.l : key('ML')) && P.fireCd <= 0 && P.reload <= 0) { if (it.mag > 0) shoot(it); else if (P.ammo[w.ammo] > 0) P.reload = w.reload; else beep(900, 0.05, 'square', 0.03); }
       if (key('KeyR') && it.mag < w.mag && P.ammo[w.ammo] > 0 && P.reload <= 0) P.reload = w.reload;
-    } else if (it.kind === 'grenade') {
-      if (key('ML')) { nades.push({ pos: add(camPos, scale(camFwd, 1)), vel: add(scale(camFwd, 18), [0, 5, 0]), t: 2.5, by: 'Player' }); if (--it.count <= 0) P.inv[P.slot] = null; P.fireCd = 0.6; beep(500, 0.08, 'triangle', 0.05); }
+    } else if (it.kind === 'grenade' || it.kind === 'boogie' || it.kind === 'impulse') {
+      if (key('ML')) { nades.push({ pos: add(camPos, scale(camFwd, 1)), vel: add(scale(camFwd, 18), [0, 5, 0]), t: it.kind === 'grenade' ? 2.5 : 1.6, by: 'Player', kind: it.kind }); if (--it.count <= 0) P.inv[P.slot] = null; P.fireCd = 0.6; beep(500, 0.08, 'triangle', 0.05); }
     } else if (it.kind === 'rod') {
       const hw = W.raycast(camPos, camFwd, 25); const water = hw && hw.kind === 'terrain' && hw.p[1] < -0.2;
       if (key('ML') && water && P.fishing <= 0) { P.fishing = 2.5; P.useT = 2.5; P.useDur = 2.5; beep(500, 0.1, 'sine', 0.05); info('Fishing…'); }
@@ -997,7 +1015,7 @@ function frame(now: number) {
     if (near) { H.info.textContent = `[E] ${isWeapon(near.item.kind) ? WEAPONS[near.item.kind].name : CONS[near.item.kind].name}`; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
     else if (nearChest) { H.info.textContent = '[E] Open chest'; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
     if (key('KeyE')) {
-      if (nearChest) { nearChest.open = true; beep(400, 0.4, 'triangle', 0.08, 500); const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol']; dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1); if (nearChest.drop) { dropItem(mkItem('rpg', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.8); dropItem(mkItem('rod'), add(nearChest.pos, [0, 0.3, 0]), 1.4); dropItem(mkItem('sniper', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6); } dropItem(mkItem((['shieldPot', 'bandage', 'miniShield', 'chug', 'grenade'] as Kind[])[Math.floor(rand(0, 5))], 3), add(nearChest.pos, [0, 0.3, 0]), 1.2); P.ammo.medium += 30; P.ammo.light += 30; P.ammo.shells += 5; P.ammo.heavy += 3; P.mats.wood += 30; info('+ ammo, +30 wood'); }
+      if (nearChest) { nearChest.open = true; beep(400, 0.4, 'triangle', 0.08, 500); const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol']; dropItem(mkItem(pool[Math.floor(rand(0, pool.length))], 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1); if (nearChest.drop) { dropItem(mkItem('rpg', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.8); dropItem(mkItem('rod'), add(nearChest.pos, [0, 0.3, 0]), 1.4); dropItem(mkItem('sniper', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6); } dropItem(mkItem((['shieldPot', 'bandage', 'miniShield', 'chug', 'grenade', 'boogie', 'impulse'] as Kind[])[Math.floor(rand(0, 7))], 3), add(nearChest.pos, [0, 0.3, 0]), 1.2); P.ammo.medium += 30; P.ammo.light += 30; P.ammo.shells += 5; P.ammo.heavy += 3; P.mats.wood += 30; info('+ ammo, +30 wood'); }
       else if (near) {
         const k = near.item.kind; if (isWeapon(k)) { const a = WEAPONS[k].ammo; P.ammo[a] += a === 'heavy' ? 5 : a === 'shells' ? 10 : 30; }
         const same = P.inv.findIndex(s => s && !isWeapon(s.kind) && s.kind === k);
@@ -1050,7 +1068,7 @@ function frame(now: number) {
   if (P.build) { const bt = buildTarget(); const ok = P.mats[P.mat] >= 10 && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir)); R.draw(M[`${bt.type}_${P.mat}`], trs(bt.pos, bt.dir * Math.PI / 2), ok ? [0.5, 1.2, 0.6] : [1.4, 0.5, 0.5], 0.45, MAT_STYLE[P.mat], false); }
   if (P.state === 'bus' || bus.t < bus.dur + 30) { const bp = P.state === 'bus' ? bus.pos : add(bus.a, scale(sub(bus.b, bus.a), Math.min(1, (bus.t + (P.matchT - bus.t)) / bus.dur))); R.draw(M.bus, trs(bp, bus.yaw)); R.draw(M.balloon, trs(add(bp, [0, 16, 0]), bus.yaw)); }
   for (const d of drops) if (!d.landed) { R.draw(M.chest, trs(d.pos, 0, 0, 1.3)); R.draw(M.balloon, trs(add(d.pos, [0, 5.5, 0]), 0, 0, 0.32), [0.4, 0.5, 1]); }
-  for (const n of nades) { if (n.rocket) R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))); else R.draw(M.grenade, trs(n.pos, n.t * 4, n.t * 3)); }
+  for (const n of nades) { if (n.rocket) R.draw(M.rocket, trs(n.pos, Math.atan2(n.vel[0], n.vel[2]), -Math.asin(clamp(n.vel[1] / len(n.vel), -1, 1)))); else R.draw(M[n.kind ?? 'grenade'], trs(n.pos, n.t * 4, n.t * 3)); }
   for (const m of meteors) R.draw(M.rock, trs(m.pos, t * 3, t * 2, 1.2), [1, 0.5, 0.3]);
   R.draw(M.storm, trs([storm.c[0], 0, storm.c[1]], 0, 0, [storm.r, 1, storm.r]), [0.7, 0.72, 1.0], 0.22, 7, false);
   // player

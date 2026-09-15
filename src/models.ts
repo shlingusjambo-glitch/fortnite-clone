@@ -709,6 +709,8 @@ export function buildModels(r: Renderer): Models {
   // consumables: mini shield, chug jug
   M.miniShield = mk(b => { b.cyl([0, 0.02, 0], 0.09, 0.1, 0.22, rgb(0x3aa2ff), 12, true, true); b.cyl([0, 0.26, 0], 0.05, 0.05, 0.06, C.white, 10, true, true); b.box([0, 0.14, 0.1], [0.1, 0.08, 0.01], C.white); });
   M.grenade = mk(b => { b.sphere([0, 0.15, 0], 0.14, rgb(0x4a6a3a), 10, 1.2, true); b.cyl([0, 0.3, 0], 0.05, 0.05, 0.08, rgb(0x888888), 8, true, true); b.box([0.06, 0.34, 0], [0.12, 0.02, 0.03], rgb(0xcccccc)); for (let k = 0; k < 3; k++) b.torus([0, 0.08 + k * 0.07, 0], 0.14, 0.008, rgb(0x2e4a26), 10, 4); });
+  M.boogie = mk(b => { b.sphere([0, 0.16, 0], 0.16, rgb(0xc9c9d8), 12, 1, true); for (let k = 0; k < 10; k++) { const a = k * 2.4, y = 0.16 + Math.sin(k * 1.7) * 0.1; b.sphere([Math.cos(a) * 0.14, y, Math.sin(a) * 0.14], 0.03, [C.red, C.blue, C.yellow, rgb(0xff3ec9)][k % 4], 6, 1, true); } b.cyl([0, 0.32, 0], 0.04, 0.04, 0.06, rgb(0x888888), 8, true, true); });
+  M.impulse = mk(b => { b.sphere([0, 0.16, 0], 0.15, C.blue, 12, 1, true); b.torus([0, 0.16, 0], 0.16, 0.02, C.holographic, 14, 6); b.cyl([0, 0.32, 0], 0.04, 0.04, 0.06, rgb(0x888888), 8, true, true); });
   M.chug = mk(b => { b.cyl([0, 0, 0], 0.2, 0.22, 0.55, rgb(0x3aa2ff), 14, true, true); b.torus([0, 0.35, 0.22], 0.08, 0.025, rgb(0x2c6fb0), 12, 6); b.cyl([0, 0.55, 0], 0.09, 0.09, 0.08, rgb(0x2c6fb0), 10, true, true); b.box([0, 0.28, 0.21], [0.22, 0.18, 0.01], C.white); });
 
   // Submachine Gun
