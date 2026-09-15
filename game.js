@@ -143,7 +143,8 @@ void main(){
   // Chapter 1 look: warm key light, cool sky-tinted ambient in shadow, painterly soft wrap on the terminator
   float wrap = smoothstep(-0.25, 0.6, dot(n, uSun));
   vec3 ambient = mix(vec3(0.42, 0.50, 0.66), vec3(0.62, 0.68, 0.78), hemi);
-  vec3 key = vec3(1.0, 0.94, 0.82) * (0.30 * d + 0.28 * wrap) * lit;
+  float cloud = 0.72 + 0.28 * smoothstep(0.35, 0.7, vn(vWorld.xz * 0.012 + vec2(uT * 0.012, uT * 0.006)));   // drifting cloud shadows
+  vec3 key = vec3(1.0, 0.94, 0.82) * (0.30 * d + 0.28 * wrap) * lit * cloud;
   vec3 c = col * (ambient + key + emit) + vec3(1.0, 0.96, 0.88) * spec * 0.45 + vec3(0.4, 0.7, 1.0) * rim;
   float dist = length(vWorld - uCam);
   float f = 1.0 - exp(-dist * uFogD);
