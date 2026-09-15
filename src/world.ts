@@ -84,7 +84,7 @@ export interface Box { min: V3; max: V3; ref?: any; }
 export interface Hit { t: number; p: V3; n: V3; kind: 'terrain' | 'prop' | 'piece' | 'box' | 'static'; ref?: any; }
 
 export class World {
-  terrain!: Mesh; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
+  terrain!: Mesh; terrainChunks: { mesh: Mesh; c: V3; r: number }[] = []; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
   lootSpots: V3[] = []; chestSpots: V3[] = []; footprints: [number, number, number][] = [];
   /** 32m spatial hash of props + statics so collision/raycast only touch nearby objects */
   grid = new Map<number, { props: Prop[]; statics: Static[] }>();
@@ -105,17 +105,22 @@ export class World {
   /** cells within rad of (x,z) */
   private near(x: number, z: number, rad: number) { const out: { props: Prop[]; statics: Static[] }[] = []; for (let cx = x - rad; cx <= x + rad + World.GC; cx += World.GC) for (let cz = z - rad; cz <= z + rad + World.GC; cz += World.GC) { const c = this.grid.get(this.gkey(Math.min(cx, x + rad), Math.min(cz, z + rad))); if (c && !out.includes(c)) out.push(c); } return out; }
   constructor(r: Renderer) {
-    const b = new MB(), n = Math.floor(SIZE / STEP);
+    // terrain in 6x6 chunks so distant/behind-camera ground is skipped on weak GPUs
+    const n = Math.floor(SIZE / STEP), CH = 6, per = Math.ceil(n / CH);
     const N = (x: number, z: number): V3 => norm([terrainH(x - 1, z) - terrainH(x + 1, z), 2, terrainH(x, z - 1) - terrainH(x, z + 1)]);
-    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const x0 = -SIZE / 2 + i * STEP, z0 = -SIZE / 2 + j * STEP, x1 = x0 + STEP, z1 = z0 + STEP;
-      const p = (x: number, z: number): V3 => [x, terrainH(x, z), z];
-      const a = p(x0, z0), bb = p(x1, z0), c = p(x1, z1), d = p(x0, z1);
-      if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue;
-      const mx = x0 + STEP / 2, mz = z0 + STEP / 2, col = terrainColor(mx, mz, (a[1] + c[1]) / 2);
-      b.triN(a, d, c, N(x0, z0), N(x0, z1), N(x1, z1), col); b.triN(a, c, bb, N(x0, z0), N(x1, z1), N(x1, z0), col);
+    for (let ci = 0; ci < CH; ci++) for (let cj = 0; cj < CH; cj++) {
+      const b = new MB();
+      for (let i = ci * per; i < Math.min(n, (ci + 1) * per); i++) for (let j = cj * per; j < Math.min(n, (cj + 1) * per); j++) {
+        const x0 = -SIZE / 2 + i * STEP, z0 = -SIZE / 2 + j * STEP, x1 = x0 + STEP, z1 = z0 + STEP;
+        const p = (x: number, z: number): V3 => [x, terrainH(x, z), z];
+        const a = p(x0, z0), bb = p(x1, z0), c = p(x1, z1), d = p(x0, z1);
+        if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue;
+        const mx = x0 + STEP / 2, mz = z0 + STEP / 2, col = terrainColor(mx, mz, (a[1] + c[1]) / 2);
+        b.triN(a, d, c, N(x0, z0), N(x0, z1), N(x1, z1), col); b.triN(a, c, bb, N(x0, z0), N(x1, z1), N(x1, z0), col);
+      }
+      const cs = per * STEP; this.terrainChunks.push({ mesh: b.build(r), c: [-SIZE / 2 + (ci + 0.5) * cs, 0, -SIZE / 2 + (cj + 0.5) * cs], r: cs * 0.71 });
     }
-    this.terrain = b.build(r);
+    this.terrain = this.terrainChunks[0].mesh;
     // road center dashes
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 0; t < L; t += 7) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'dash', pos: [x, y, z], yaw, boxes: [] }); } }
     const rotBox = (bx: LBox, k: number, o: V3): Box => {   // rotate local AABB by k*90deg around Y then offset

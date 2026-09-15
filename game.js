@@ -1161,6 +1161,7 @@ void main(){
   var TILES = (t2) => t2 === "wall" ? 9 : t2 === "floor" ? 4 : 0, MAT_HP = { wood: 150, stone: 300, metal: 500 }, _World = class _World {
     constructor(r) {
       __publicField(this, "terrain");
+      __publicField(this, "terrainChunks", []);
       __publicField(this, "props", []);
       __publicField(this, "statics", []);
       __publicField(this, "houseMeshes", []);
@@ -1173,14 +1174,19 @@ void main(){
       __publicField(this, "grid", /* @__PURE__ */ new Map());
       /** lush 3D grass blade clusters with varied heights, wildflowers and wind sway */
       __publicField(this, "grassChunks", /* @__PURE__ */ new Map());
-      let b = new MB(), n = Math.floor(SIZE / STEP), N = (x, z) => norm([terrainH(x - 1, z) - terrainH(x + 1, z), 2, terrainH(x, z - 1) - terrainH(x, z + 1)]);
-      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-        let x0 = -SIZE / 2 + i * STEP, z0 = -SIZE / 2 + j * STEP, x1 = x0 + STEP, z1 = z0 + STEP, p = (x, z) => [x, terrainH(x, z), z], a = p(x0, z0), bb = p(x1, z0), c = p(x1, z1), d = p(x0, z1);
-        if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue;
-        let mx = x0 + STEP / 2, mz = z0 + STEP / 2, col = terrainColor(mx, mz, (a[1] + c[1]) / 2);
-        b.triN(a, d, c, N(x0, z0), N(x0, z1), N(x1, z1), col), b.triN(a, c, bb, N(x0, z0), N(x1, z1), N(x1, z0), col);
+      let n = Math.floor(SIZE / STEP), CH = 6, per = Math.ceil(n / CH), N = (x, z) => norm([terrainH(x - 1, z) - terrainH(x + 1, z), 2, terrainH(x, z - 1) - terrainH(x, z + 1)]);
+      for (let ci = 0; ci < CH; ci++) for (let cj = 0; cj < CH; cj++) {
+        let b = new MB();
+        for (let i = ci * per; i < Math.min(n, (ci + 1) * per); i++) for (let j = cj * per; j < Math.min(n, (cj + 1) * per); j++) {
+          let x0 = -SIZE / 2 + i * STEP, z0 = -SIZE / 2 + j * STEP, x1 = x0 + STEP, z1 = z0 + STEP, p = (x, z) => [x, terrainH(x, z), z], a = p(x0, z0), bb = p(x1, z0), c = p(x1, z1), d = p(x0, z1);
+          if (Math.max(a[1], bb[1], c[1], d[1]) < -2.5) continue;
+          let mx = x0 + STEP / 2, mz = z0 + STEP / 2, col = terrainColor(mx, mz, (a[1] + c[1]) / 2);
+          b.triN(a, d, c, N(x0, z0), N(x0, z1), N(x1, z1), col), b.triN(a, c, bb, N(x0, z0), N(x1, z1), N(x1, z0), col);
+        }
+        let cs = per * STEP;
+        this.terrainChunks.push({ mesh: b.build(r), c: [-SIZE / 2 + (ci + 0.5) * cs, 0, -SIZE / 2 + (cj + 0.5) * cs], r: cs * 0.71 });
       }
-      this.terrain = b.build(r);
+      this.terrain = this.terrainChunks[0].mesh;
       for (let [ia, ib] of ROADS) {
         let A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z);
         for (let t2 = 0; t2 < L; t2 += 7) {
@@ -2642,7 +2648,11 @@ void main(){
     for (let s of W.statics) s.shake && s.shake > 0 && (s.shake = Math.max(0, s.shake - dt));
     pressed.clear();
     let pf1 = performance.now();
-    if (R.draw(W.terrain, trs([0, 0, 0]), [1, 1, 1], 1, 5), P.state === "play" && S.grass > 0) {
+    for (let tc of W.terrainChunks) {
+      let dx = tc.c[0] - camPos[0], dz = tc.c[2] - camPos[2], dist = Math.hypot(dx, dz);
+      P.state === "play" && dist > tc.r && (dist - tc.r > [420, 600, 900][S.viewDist] || dx * camFwd[0] + dz * camFwd[2] < -tc.r) || R.draw(tc.mesh, trs([0, 0, 0]), [1, 1, 1], 1, 5);
+    }
+    if (P.state === "play" && S.grass > 0) {
       let cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1;
       for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, !1, !0);
     }

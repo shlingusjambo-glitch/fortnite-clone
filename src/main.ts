@@ -978,7 +978,7 @@ function frame(now: number) {
 
   // ---------------- render ----------------
   const pf1 = performance.now();
-  R.draw(W.terrain, trs([0, 0, 0]), [1, 1, 1], 1, 5);
+  for (const tc of W.terrainChunks) { const dx = tc.c[0] - camPos[0], dz = tc.c[2] - camPos[2], dist = Math.hypot(dx, dz); if (P.state === 'play' && dist > tc.r && (dist - tc.r > [420, 600, 900][S.viewDist] || dx * camFwd[0] + dz * camFwd[2] < -tc.r)) continue; R.draw(tc.mesh, trs([0, 0, 0]), [1, 1, 1], 1, 5); }
   if (P.state === 'play' && S.grass > 0) { const cx = Math.floor(P.pos[0] / 24), cz = Math.floor(P.pos[2] / 24), gr = S.grass > 1 ? 2 : 1; for (let i = -gr; i <= gr; i++) for (let j = -gr; j <= gr; j++) R.draw(W.grassChunk(R, cx + i, cz + j), trs([0, 0, 0]), [1, 1, 1], 1, 5, false, true); }
   R.draw(M.water, trs([0, -0.25, 0]), [1, 1, 1], 0.82, 6, false);
   const cull = P.state === 'play' ? [130, 190, 320][S.viewDist] : 900;
