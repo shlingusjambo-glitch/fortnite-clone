@@ -183,6 +183,7 @@ export class World {
       if (p.name === 'SALTY SPRINGS' || p.name === 'RETAIL ROW' || p.name === 'ANARCHY ACRES' || p.name === 'DUSTY DEPOT') addStatic('waterTower', [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21.0, 3.8] }]);
       if (p.name === 'ANARCHY ACRES' || p.name === 'FATAL FIELDS') for (let i = -3; i <= 3; i++) { addStatic('fence', [p.x + i * 8, p.h, p.z - 40], 0, []); addStatic('fence', [p.x + i * 8, p.h, p.z + 40], 0, []); }
     }
+    for (let i = 1; i < MESAS.length; i += 2) { const [mx, mz] = MESAS[i]; placeBuilding(i % 4 === 1 ? 'tower' : 'cottage', mx, mz, i % 4, i, i); this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]); }   // hilltop lookouts on the mesas
     // vegetation: authored clusters (woods, tree lines along roads/rivers) + sparse fill
     const put = (x: number, z: number, type: Prop['type'], s: number) => { const y = terrainH(x, z); if (y < 2.2) return; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) return; if (roadDist(x, z) < 6) return; this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === 'bush' ? 30 : 250, r: (type === 'rock' ? 1.4 : type === 'bush' ? 0.7 : 0.4) * s, h: (type === 'rock' ? 1.2 : type === 'bush' ? 1 : 6) * s, dead: 0 }); };
     for (let k = 0; k < 1500; k++) {   // sparse fill

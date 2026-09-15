@@ -397,6 +397,8 @@ void main(){
     { name: "Aerial Assault Trooper", skin: rgb(14266508), top: rgb(2834218), top2: rgb(6978106), pants: rgb(4872762), boots: rgb(1973794), hair: rgb(2760212), hat: "beanie", style: 0 },
     { name: "Blue Squire", skin: rgb(15780004), top: rgb(2250188), top2: rgb(14212584), pants: rgb(1719434), boots: rgb(2763312), hair: rgb(5913114), hat: "hair", style: 0 },
     { name: "Tower Recon Specialist", skin: rgb(13208168), top: rgb(12034940), top2: rgb(4868666), pants: rgb(6974026), boots: rgb(2761760), hair: rgb(1709072), hat: "cap", style: 0 },
+    { name: "Red Knight", skin: rgb(15253658), top: rgb(9048594), top2: rgb(2763312), pants: rgb(2829107), boots: rgb(1710622), hair: rgb(9048594), hat: "beanie", style: 0, female: !0 },
+    { name: "Sparkle Specialist", skin: rgb(15845797), top: rgb(16734899), top2: rgb(6217983), pants: rgb(2759236), boots: rgb(1710622), hair: rgb(3811866), hat: "hair", style: 1, female: !0 },
     { name: "Grid Leader", skin: rgb(10213882), top: rgb(15704804), top2: rgb(9229823), pants: rgb(10213882), boots: rgb(15704804), hair: rgb(10213882), hat: "spiky", style: 1 }
   ];
   function buildCharacter(r, s, bulk = 1) {
@@ -1345,6 +1347,10 @@ void main(){
         }
         if ((p.name === "SALTY SPRINGS" || p.name === "RETAIL ROW" || p.name === "ANARCHY ACRES" || p.name === "DUSTY DEPOT") && addStatic("waterTower", [p.x - 44, p.h, p.z + 38], 0, [{ min: [-3.8, 0, -3.8], max: [3.8, 21, 3.8] }]), p.name === "ANARCHY ACRES" || p.name === "FATAL FIELDS") for (let i = -3; i <= 3; i++)
           addStatic("fence", [p.x + i * 8, p.h, p.z - 40], 0, []), addStatic("fence", [p.x + i * 8, p.h, p.z + 40], 0, []);
+      }
+      for (let i = 1; i < MESAS.length; i += 2) {
+        let [mx, mz] = MESAS[i];
+        placeBuilding(i % 4 === 1 ? "tower" : "cottage", mx, mz, i % 4, i, i), this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]);
       }
       let put = (x, z, type, s) => {
         let y = terrainH(x, z);
