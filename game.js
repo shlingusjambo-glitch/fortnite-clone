@@ -112,8 +112,11 @@ void main(){
     vec2 wuv1 = vWorld.xz * 0.2 + vec2(uT * 0.12, uT * 0.08);
     vec2 wuv2 = vWorld.xz * 0.45 - vec2(uT * 0.16, -uT * 0.05);
     float w = vn(wuv1) * 0.55 + vn(wuv2) * 0.45;
-    col = mix(vec3(0.18, 0.62, 0.85), vec3(0.35, 0.88, 0.96), w);
-    rough = 0.12; emit = 0.05;
+    col = mix(vec3(0.16, 0.60, 0.82), vec3(0.32, 0.86, 0.94), w);
+    float caustic = smoothstep(0.62, 0.78, vn(vWorld.xz * 0.9 + vec2(uT * 0.25, -uT * 0.2))) * smoothstep(0.55, 0.75, vn(vWorld.xz * 0.9 - vec2(uT * 0.2, uT * 0.3)));
+    col += vec3(0.35, 0.4, 0.4) * caustic;                                   // bright ripple crests
+    n = normalize(n + vec3((w - 0.5) * 0.35, 0.0, (vn(wuv2 + 3.0) - 0.5) * 0.35));   // wobble normal for moving specular
+    rough = 0.1; emit = 0.05;
   }
   else if (st == 8) {            // holographic build preview (blue grid as in Image 1)
     vec3 g = abs(fract(vObj * 2.0) - 0.5);
