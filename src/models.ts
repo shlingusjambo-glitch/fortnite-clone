@@ -872,22 +872,20 @@ export function buildModels(r: Renderer): Models {
 
   // Oak Tree: Smooth organic trunk splitting into lush cartoon leaf boughs (Image 1 & 2)
   M.tree = mk(b => {
-    b.cyl([0, 0, 0], 0.44, 0.32, 3.6, C.trunk, 14, true, true);
-    // Boughs branching outward
-    for (let i = 0; i < 5; i++) {
+    b.cyl([0, 0, 0], 0.5, 0.34, 3.8, C.trunk, 14, true, true);
+    for (let i = 0; i < 4; i++) { const a = i * 1.57 + 0.4; b.cyl([Math.cos(a) * 0.45, 0.12, Math.sin(a) * 0.45], 0.2, 0.05, 0.5, C.trunkDark, 8, true, true); }   // root flare
+    for (let i = 0; i < 5; i++) {   // boughs
       const a = (i / 5) * Math.PI * 2;
-      b.push(mul(translate(Math.cos(a) * 0.22, 2.6 + (i % 2) * 0.4, Math.sin(a) * 0.22), mul(rotY(a), rotX(0.95))));
-      b.cyl([0, 0, 0], 0.18, 0.08, 2.1, C.trunk, 10, true, true);
+      b.push(mul(translate(Math.cos(a) * 0.22, 2.7 + (i % 2) * 0.4, Math.sin(a) * 0.22), mul(rotY(a), rotX(0.95))));
+      b.cyl([0, 0, 0], 0.18, 0.07, 2.3, C.trunk, 10, true, true);
       b.pop();
     }
-    // Multiple dense spherical cartoon foliage masses with smooth normals
-    b.sphere([0, 5.0, 0], 2.4, C.leaf, 14, 0.82, true);
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2;
-      const col = i % 2 === 0 ? C.leaf2 : C.leaf3;
-      b.sphere([Math.cos(a) * 1.6, 4.4 + (i % 2) * 0.6, Math.sin(a) * 1.6], 1.4, col, 12, 0.9, true);
-    }
-    b.sphere([0, 5.9, 0], 1.5, lt(C.leaf, 0.15), 10, 0.85, true);                        // sun highlight top
+    // lumpy multi-lobe canopy: big core + ring of lobes + second smaller ring + crown, each lobe slightly squashed
+    b.sphere([0, 5.1, 0], 2.5, C.leaf, 16, 0.8, true);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, rr = 1.9; b.sphere([Math.cos(a) * rr, 4.5 + (i % 2) * 0.7, Math.sin(a) * rr], 1.35 + (i % 3) * 0.15, i % 2 ? C.leaf2 : C.leaf3, 12, 0.88, true); }
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.5, rr = 1.3; b.sphere([Math.cos(a) * rr, 6.2, Math.sin(a) * rr], 1.1, i % 2 ? C.leaf : C.leaf3, 12, 0.85, true); }
+    b.sphere([0.3, 6.9, 0.2], 1.4, lt(C.leaf, 0.18), 12, 0.8, true);                     // sunlit crown
+    b.sphere([-1.2, 3.9, 1.4], 0.9, dk(C.leaf2, 0.85), 10, 0.9, true);                   // shaded underside lobe
   });
 
   M.tree2 = mk(b => {
