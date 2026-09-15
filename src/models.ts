@@ -570,22 +570,15 @@ export function buildModels(r: Renderer): Models {
 
   // ==================== HIGH-POLY WEAPONS ====================
   // Pickaxe: Steel pick head with beveled edges and taped wooden shaft
-  M.pickaxe = mk(b => {
-    b.cyl([0, 0, 0], 0.032, 0.028, 0.95, rgb(0x654a32), 12, true, true);                // haft
-    // Grip wrap
-    for (let i = 0; i < 6; i++) {
-      b.torus([0, 0.15 + i * 0.04, 0], 0.034, 0.008, C.dark, 12, 6);
-    }
-    // Hardened steel pick head (curved double point)
-    b.rbox([0, 0.92, 0], [0.24, 0.14, 0.14], rgb(0x42464e), 0.02);                      // central collar
-    b.box([0, 0.92, 0.07], [0.12, 0.08, 0.03], C.gold);                                 // emblem
-    // Pick horns (arched)
-    for (const sx of [-1, 1]) {
-      b.push(mul(translate(sx * 0.22, 0.90, 0), rotZ(sx * -0.25)));
-      b.cyl([0, 0, 0], 0.065, 0.025, 0.32, rgb(0x9fa8b4), 8, true, true);
-      b.cyl([0, 0.30, 0], 0.025, 0.005, 0.14, rgb(0xd0d8e2), 6, true, true);           // chisel tip
-      b.pop();
-    }
+  M.pickaxe = mk(b => {   // default C1 pickaxe: wooden haft, steel head with a long curved pick and a flat adze
+    b.cyl([0, 0, 0], 0.034, 0.028, 0.98, rgb(0x8a6240), 12, true, true);                // haft
+    b.cyl([0, 0.05, 0], 0.04, 0.04, 0.22, rgb(0x2a2a30), 10, true, true);                 // grip
+    for (let i = 0; i < 5; i++) b.torus([0, 0.08 + i * 0.045, 0], 0.041, 0.006, rgb(0x444), 10, 5);
+    b.rbox([0, 0.92, 0], [0.12, 0.16, 0.12], rgb(0x42464e), 0.02);                       // collar
+    b.box([0, 0.92, 0.065], [0.06, 0.06, 0.01], C.gold);
+    b.push(mul(translate(0.28, 0.93, 0), rotZ(-0.35))); b.cyl([0, 0, 0], 0.05, 0.012, 0.5, rgb(0x9fa8b4), 8, true, true); b.cyl([0, 0.02, 0], 0.052, 0.02, 0.2, rgb(0x6e7682), 8, true, true); b.pop();   // pick
+    b.push(mul(translate(-0.16, 0.93, 0), rotZ(1.57))); b.box([0, 0, 0], [0.06, 0.28, 0.16], rgb(0x9fa8b4)); b.box([0, 0.13, 0], [0.02, 0.03, 0.2], rgb(0xd0d8e2)); b.pop();   // adze blade
+    b.torus([0, 0.83, 0], 0.045, 0.01, rgb(0x6e7682), 10, 5); b.torus([0, 1.0, 0], 0.045, 0.01, rgb(0x6e7682), 10, 5);   // head bands
   });
 
   // Assault Rifle (SCAR / M4 tactical style with rails and magazine)
@@ -1226,26 +1219,22 @@ export function buildModels(r: Renderer): Models {
   });
 
   // Glider: Classic military umbrella / canopy glider (Image 2)
-  M.glider = mk(b => {
-    const tan = rgb(0xd8a86a), brown = rgb(0x7a5a3a);
-    b.rbox([-2.3, 0, 0], [2.6, 0.08, 1.1], tan, 0.03);
-    b.rbox([2.3, 0, 0], [2.6, 0.08, 1.1], tan, 0.03);
-    // Outer wingtip struts
-    b.box([-3.6, -0.05, 0.5], [0.65, 0.52, 0.52], brown);
-    b.box([3.6, -0.05, 0.5], [0.65, 0.52, 0.52], brown);
-    // Center curved frame arch
+  M.glider = mk(b => {   // paraglider wing: arched canopy with cells + ribs, strut frame, risers
+    const tan = rgb(0xd8a86a), brown = rgb(0x7a5a3a), cell = rgb(0xe8bd7e);
     for (let i = 0; i < 12; i++) {
       const a0 = (i / 12) * Math.PI, a1 = ((i + 1) / 12) * Math.PI;
-      const x0 = -Math.cos(a0) * 2.6, y0 = Math.sin(a0) * 1.6;
-      const x1 = -Math.cos(a1) * 2.6, y1 = Math.sin(a1) * 1.6;
-      b.push(mul(translate((x0 + x1) / 2, (y0 + y1) / 2, 0), rotZ(Math.atan2(y1 - y0, x1 - x0))));
-      b.box([0, 0, 0], [Math.hypot(x1 - x0, y1 - y0) + 0.06, 0.11, 0.11], brown);
+      const x0 = -Math.cos(a0) * 3.2, y0 = Math.sin(a0) * 1.4, x1 = -Math.cos(a1) * 3.2, y1 = Math.sin(a1) * 1.4;
+      const mx = (x0 + x1) / 2, my = (y0 + y1) / 2, ang = Math.atan2(y1 - y0, x1 - x0), L = Math.hypot(x1 - x0, y1 - y0);
+      b.push(mul(translate(mx, my, 0), rotZ(ang)));
+      b.rbox([0, 0, 0], [L + 0.04, 0.1, 1.6], i % 2 ? tan : cell, 0.02);                  // canopy cell
+      b.box([0, 0.03, 0], [L + 0.05, 0.12, 0.06], brown);                                 // rib
+      b.box([0, -0.02, -0.72], [L + 0.05, 0.1, 0.16], dk(tan, 0.75));                      // leading edge
       b.pop();
     }
-    // Handlebars for player hands to grip
-    for (const x of [-0.55, 0.55]) {
-      b.cyl([x, -0.6, 0], 0.025, 0.025, 1.1, rgb(0x333), 8, true, true);
-    }
+    b.box([0, 1.45, 0], [0.16, 0.16, 1.7], brown);                                       // keel
+    for (const x of [-1.5, 1.5]) { b.push(mul(translate(x * 0.5, 0.35, 0), rotZ(x > 0 ? -0.9 : 0.9))); b.cyl([0, 0, 0], 0.03, 0.03, 1.9, rgb(0x333333), 6, true, true); b.pop(); }   // risers
+    for (const x of [-0.55, 0.55]) b.cyl([x, -0.6, 0], 0.03, 0.03, 1.1, rgb(0x333333), 8, true, true);   // handlebars
+    b.box([0, -0.6, 0], [1.2, 0.06, 0.06], rgb(0x333333));
   });
 
   M.pad = mk(b => {
