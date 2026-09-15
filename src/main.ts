@@ -99,7 +99,9 @@ const P = {
   bloom: 0, burstLeft: 0, equipT: 0, swim: false, emote: 0, emoteT: 0, editing: null as Piece | null, editMask: 0, rampRot: 0, fishing: 0, nextDrop: 90, weakPos:null as V3|null, weakRef:null as any, weakT:0,
 };
 const SDEF = { sensX: 1, sensY: 1, adsSens: 0.7, scopeSens: 0.5, invertY: false, toggleSprint: false, turbo: true, padSens: 1, rumble: true, master: 0.8, sfx: 0.8, voice: 0.7, music: 0.5, fov: 80, scale: 1, shadows: 2, grass: 1, viewDist: 1, showFps: true, streamer: false };
-const S: typeof SDEF = { ...SDEF, ...JSON.parse(localStorage.getItem('fn-settings') || '{}') };
+// low-end defaults (Chromebooks: few cores / little RAM / no discrete GPU) unless the player saved their own settings
+const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || ((navigator as any).deviceMemory || 8) <= 4;
+const S: typeof SDEF = { ...SDEF, ...(lowEnd ? { shadows: 1, grass: 1, scale: 0.8, viewDist: 0 } : {}), ...JSON.parse(localStorage.getItem('fn-settings') || '{}') };
 const GALLERY = new URLSearchParams(location.search).get('gallery'); if (GALLERY) { document.getElementById('lobby')!.style.display = 'none'; document.getElementById('lobbybg')!.style.display = 'none'; }
 const D = { aimbot: false, esp: false, invuln: false, infMats: false, infAmmo: false, fly: false, lowGrav: false, pauseBots: false };
 let vbucks=+(localStorage.getItem('fn-vbucks')||2765),gameMode=0; const GAME_MODES=['SOLO','DUOS','SQUADS'];

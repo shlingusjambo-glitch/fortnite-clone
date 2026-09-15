@@ -1657,7 +1657,7 @@ void main(){
     weakPos: null,
     weakRef: null,
     weakT: 0
-  }, SDEF = { sensX: 1, sensY: 1, adsSens: 0.7, scopeSens: 0.5, invertY: !1, toggleSprint: !1, turbo: !0, padSens: 1, rumble: !0, master: 0.8, sfx: 0.8, voice: 0.7, music: 0.5, fov: 80, scale: 1, shadows: 2, grass: 1, viewDist: 1, showFps: !0, streamer: !1 }, S = { ...SDEF, ...JSON.parse(localStorage.getItem("fn-settings") || "{}") }, GALLERY = new URLSearchParams(location.search).get("gallery");
+  }, SDEF = { sensX: 1, sensY: 1, adsSens: 0.7, scopeSens: 0.5, invertY: !1, toggleSprint: !1, turbo: !0, padSens: 1, rumble: !0, master: 0.8, sfx: 0.8, voice: 0.7, music: 0.5, fov: 80, scale: 1, shadows: 2, grass: 1, viewDist: 1, showFps: !0, streamer: !1 }, lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || (navigator.deviceMemory || 8) <= 4, S = { ...SDEF, ...lowEnd ? { shadows: 1, grass: 1, scale: 0.8, viewDist: 0 } : {}, ...JSON.parse(localStorage.getItem("fn-settings") || "{}") }, GALLERY = new URLSearchParams(location.search).get("gallery");
   GALLERY && (document.getElementById("lobby").style.display = "none", document.getElementById("lobbybg").style.display = "none");
   var D = { aimbot: !1, esp: !1, invuln: !1, infMats: !1, infAmmo: !1, fly: !1, lowGrav: !1, pauseBots: !1 }, vbucks = +(localStorage.getItem("fn-vbucks") || 2765), gameMode = 0, GAME_MODES = ["SOLO", "DUOS", "SQUADS"];
   function updateWallet() {
