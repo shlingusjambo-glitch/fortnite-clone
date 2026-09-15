@@ -12,37 +12,60 @@ uniform vec3 uCam, uSun, uFog; uniform float uAlpha, uStyle, uTexel, uT, uFogD; 
 out vec4 o;
 float h2(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f); return mix(mix(h2(i), h2(i+vec2(1,0)), f.x), mix(h2(i+vec2(0,1)), h2(i+vec2(1,1)), f.x), f.y); }
-float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * vn(p); p = p * 2.1 + 3.7; a *= 0.5; } return v; }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 5; i++) { v += a * vn(p); p = p * 2.08 + 3.7; a *= 0.5; } return v; }
 // planar uv from the dominant axis of the normal (object space)
 vec2 puv(vec3 n, vec3 p){ vec3 a = abs(n); return a.y > a.x && a.y > a.z ? p.xz : (a.x > a.z ? p.zy : p.xy); }
 void main(){
   vec3 n = normalize(vNrm);
-  vec3 col = vCol; float rough = 1.0;
+  vec3 col = vCol; float rough = 0.85; float emit = 0.0;
   int st = int(uStyle + 0.5);
   if (st == 1) { vec3 g = abs(fract(vObj * 4.0) - 0.5); float l = 1.0 - smoothstep(0.42, 0.47, max(max(g.x, g.y), g.z)); col = mix(col, vec3(1.0), (1.0 - l) * 0.85); }
   else if (st == 2) {            // wood planks
-    vec2 uv = puv(n, vObj); float pw = 0.5; float row = floor(uv.y / pw); float off = h2(vec2(row, 1.0)) * 3.0;
-    float grain = fbm(vec2(uv.x * 1.5 + off, uv.y * 14.0)); col *= 0.82 + 0.36 * grain;
-    float edge = smoothstep(0.0, 0.05, abs(fract(uv.y / pw) - 0.5) * pw); col *= mix(0.6, 1.0, edge);
-    float seam = step(0.97, fract((uv.x + off) / 2.4)); col *= 1.0 - seam * 0.35;
+    vec2 uv = puv(n, vObj); float pw = 0.35; float row = floor(uv.y / pw); float off = h2(vec2(row, 1.0)) * 3.0;
+    float grain = fbm(vec2(uv.x * 2.2 + off, uv.y * 18.0)); col *= 0.80 + 0.38 * grain;
+    float edge = smoothstep(0.0, 0.06, abs(fract(uv.y / pw) - 0.5) * pw); col *= mix(0.55, 1.0, edge);
+    float seam = step(0.975, fract((uv.x + off) / 2.2)); col *= 1.0 - seam * 0.4;
   }
-  else if (st == 3) {            // brick / stone
-    vec2 uv = puv(n, vObj); float bh = 0.34, bw = 0.7; float row = floor(uv.y / bh); float x = uv.x / bw + (mod(row, 2.0) * 0.5);
+  else if (st == 3) {            // stone masonry
+    vec2 uv = puv(n, vObj); float bh = 0.28, bw = 0.55; float row = floor(uv.y / bh); float x = uv.x / bw + (mod(row, 2.0) * 0.5);
     vec2 f = vec2(fract(x), fract(uv.y / bh)); float m = smoothstep(0.0, 0.08, f.x) * smoothstep(0.0, 0.12, f.y) * smoothstep(0.0, 0.08, 1.0 - f.x) * smoothstep(0.0, 0.12, 1.0 - f.y);
-    float id = h2(vec2(floor(x), row)); col *= mix(1.12, 0.88 + 0.22 * id, m); col *= 0.95 + 0.1 * vn(uv * 20.0);
+    float id = h2(vec2(floor(x), row)); col *= mix(1.15, 0.82 + 0.3 * id, m); col *= 0.92 + 0.15 * vn(uv * 18.0);
   }
   else if (st == 4) {            // metal panels
     vec2 uv = puv(n, vObj); vec2 f = fract(uv / 1.0); float line = min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y));
-    col *= mix(0.65, 1.0, smoothstep(0.0, 0.04, line)); float diag = smoothstep(0.02, 0.04, abs(fract((uv.x + uv.y) * 1.5) - 0.5)); col *= 0.9 + 0.1 * diag;
-    vec2 b = abs(f - 0.12); float bolt = step(length(b), 0.035) + step(length(abs(f - 0.88)), 0.035); col *= 1.0 - bolt * 0.4; rough = 0.5;
+    col *= mix(0.6, 1.0, smoothstep(0.0, 0.05, line)); float diag = smoothstep(0.02, 0.05, abs(fract((uv.x + uv.y) * 1.5) - 0.5)); col *= 0.88 + 0.14 * diag;
+    vec2 b = abs(f - 0.12); float bolt = step(length(b), 0.04) + step(length(abs(f - 0.88)), 0.04); col *= 1.0 - bolt * 0.45; rough = 0.38;
   }
-  else if (st == 5) {            // grass ground
-    float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.6); col *= 0.9 + 0.2 * v + 0.06 * v2;
+  else if (st == 5) {            // terrain: grass detail, dirt speckle, rock strata on cliffs
+    float v = fbm(vWorld.xz * 0.06), v2 = vn(vWorld.xz * 0.7), v3 = vn(vWorld.xz * 2.5);
+    vec3 grass = col * (0.88 + 0.22 * v + 0.08 * v2 + 0.05 * v3);
+    float slope = 1.0 - n.y;
+    float band = 0.5 + 0.5 * sin(vWorld.y * 2.2 + fbm(vWorld.xz * 0.3) * 3.0);
+    vec3 rock = mix(vec3(0.62, 0.58, 0.50), vec3(0.82, 0.78, 0.68), band) * (0.85 + 0.3 * vn(vWorld.xz * 1.3 + vWorld.y));
+    float rk = smoothstep(0.32, 0.5, slope);
+    vec3 dirt = vec3(0.66, 0.54, 0.36) * (0.9 + 0.2 * v3);
+    float dk = smoothstep(0.2, 0.32, slope) * (1.0 - rk);
+    col = mix(mix(grass, dirt, dk), rock, rk);
+    if (rk > 0.5) rough = 0.9;
   }
-  else if (st == 6) {            // water
-    float w = vn(vWorld.xz * 0.35 + vec2(uT * 0.15, uT * 0.1)) * 0.5 + vn(vWorld.xz * 0.8 - vec2(uT * 0.2, 0.0)) * 0.5; col *= 0.9 + 0.25 * w; rough = 0.3;
+  else if (st == 6) {            // animated cartoon water with specular
+    vec2 wuv1 = vWorld.xz * 0.2 + vec2(uT * 0.12, uT * 0.08);
+    vec2 wuv2 = vWorld.xz * 0.45 - vec2(uT * 0.16, -uT * 0.05);
+    float w = vn(wuv1) * 0.55 + vn(wuv2) * 0.45;
+    col = mix(vec3(0.18, 0.62, 0.85), vec3(0.35, 0.88, 0.96), w);
+    rough = 0.12; emit = 0.05;
+  }
+  else if (st == 8) {            // holographic build preview (blue grid as in Image 1)
+    vec3 g = abs(fract(vObj * 2.0) - 0.5);
+    float line = smoothstep(0.44, 0.48, max(max(g.x, g.y), g.z));
+    vec3 blueGlow = vec3(0.25, 0.65, 1.0);
+    vec3 whiteLine = vec3(0.95, 0.98, 1.0);
+    col = mix(blueGlow, whiteLine, line);
+    emit = 0.4 + line * 0.5;
+    rough = 0.1;
   }
   if (st == 7) { o = vec4(col, uAlpha); return; }   // unlit (storm wall, fx)
+
   float d = max(dot(n, uSun), 0.0);
   vec3 s = vSh.xyz / vSh.w * 0.5 + 0.5;
   float lit = 1.0;
@@ -52,13 +75,17 @@ void main(){
     lit /= 9.0;
   }
   float hemi = 0.5 + 0.5 * n.y;
-  vec3 v = normalize(uCam - vWorld); vec3 hv = normalize(v + uSun); float spec = pow(max(dot(n, hv), 0.0), 40.0) * (1.0 - rough) * lit;
-  float shade = 0.55 + 0.18 * hemi + 0.42 * d * lit;
-  vec3 c = col * shade + vec3(spec * 0.4);
+  vec3 v = normalize(uCam - vWorld); vec3 hv = normalize(v + uSun);
+  float spec = pow(max(dot(n, hv), 0.0), 32.0) * (1.0 - rough) * (lit * 0.8 + 0.2);
+  // Stylized character rim lighting for the cartoon silhouette (Image 2)
+  float rim = pow(1.0 - max(dot(n, v), 0.0), 3.2) * 0.28 * max(dot(uSun, -v), 0.2);
+
+  float shade = 0.52 + 0.22 * hemi + 0.45 * d * lit;
+  vec3 c = col * (shade + emit) + vec3(spec * 0.5) + vec3(0.4, 0.7, 1.0) * rim;
   float dist = length(vWorld - uCam);
   float f = 1.0 - exp(-dist * uFogD);
   c = mix(c, uFog, clamp(f, 0.0, 0.92));
-  c = pow(c * 1.06, vec3(0.95));                 // slight lift, pastel
+  c = pow(c * 1.05, vec3(0.96));                 // crisp vibrant tone curve
   o = vec4(c, uAlpha);
 }`;
 const DVS = `#version 300 es
@@ -98,7 +125,7 @@ const SM = 1024;
 export class Renderer {
   gl: WebGL2RenderingContext; prog: WebGLProgram; dprog: WebGLProgram; sprog: WebGLProgram;
   u: Record<string, WebGLUniformLocation | null> = {}; du: Record<string, WebGLUniformLocation | null> = {}; su: Record<string, WebGLUniformLocation | null> = {};
-  fog: V3 = [0.80, 0.90, 0.98]; items: Item[] = []; fbo: WebGLFramebuffer; shadowTex: WebGLTexture; emptyVao: WebGLVertexArrayObject;
+  fog: V3 = [0.80, 0.90, 0.98]; shadows = 2; scale = 1; items: Item[] = []; fbo: WebGLFramebuffer; shadowTex: WebGLTexture; emptyVao: WebGLVertexArrayObject;
   constructor(public canvas: HTMLCanvasElement) {
     const gl = canvas.getContext('webgl2', { antialias: true, alpha: true, premultipliedAlpha: false })!;
     this.gl = gl;
@@ -131,18 +158,19 @@ export class Renderer {
     gl.bindVertexArray(null);
     return { vao, n: data.length / 9 };
   }
-  draw(m: Mesh, mat: M4, tint: V3 = [1, 1, 1], alpha = 1, style = 0, shadow = true, two = false) { this.items.push({ m, mat, tint, alpha, style, shadow, two }); }
+  draw(m: Mesh, mat: M4, tint: V3 = [1, 1, 1], alpha = 1, style = 0, shadow = true, two = false) { if (!m) { console.error('draw(): undefined mesh', new Error().stack); return; } this.items.push({ m, mat, tint, alpha, style, shadow, two }); }
 
   /** render everything queued: shadow pass → sky → opaque → transparent */
   flush(cam: Cam, vp: M4, sun: V3, focus: V3, t: number, sky = true, shadowRange = 90) {
     const gl = this.gl, c = this.canvas;
-    if (c.width !== c.clientWidth || c.height !== c.clientHeight) { c.width = c.clientWidth; c.height = c.clientHeight; }
+    const cw = Math.round(c.clientWidth * this.scale), chh = Math.round(c.clientHeight * this.scale);
+    if (c.width !== cw || c.height !== chh) { c.width = cw; c.height = chh; }
     // light matrix (ortho box around focus, texel-snapped)
     const ts = shadowRange * 2 / SM, fx = Math.round(focus[0] / ts) * ts, fz = Math.round(focus[2] / ts) * ts, f: V3 = [fx, focus[1], fz];
     const lvp = mul(ortho(-shadowRange, shadowRange, -shadowRange, shadowRange, 1, 400), lookAt(add(f, scale(sun, 200)), f));
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.fbo); gl.viewport(0, 0, SM, SM); gl.clear(gl.DEPTH_BUFFER_BIT);
     gl.useProgram(this.dprog); gl.uniformMatrix4fv(this.du.uLVP, false, lvp); gl.cullFace(gl.FRONT);
-    for (const it of this.items) if (it.shadow && it.alpha >= 1) { gl.uniformMatrix4fv(this.du.uM, false, it.mat); gl.bindVertexArray(it.m.vao); gl.drawArrays(gl.TRIANGLES, 0, it.m.n); }
+    if (this.shadows > 0) for (const it of this.items) if (it.shadow && it.alpha >= 1) { gl.uniformMatrix4fv(this.du.uM, false, it.mat); gl.bindVertexArray(it.m.vao); gl.drawArrays(gl.TRIANGLES, 0, it.m.n); }
     gl.cullFace(gl.BACK); gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, c.width, c.height);
     gl.clearColor(0, 0, 0, sky ? 1 : 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
     if (sky) {

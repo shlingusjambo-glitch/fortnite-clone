@@ -165,10 +165,78 @@
   #dbg button,#dbg select{display:block;width:100%;margin:8px 0;padding:11px;background:#1a4f9a;color:#fff;border:1px solid #6ab0ff;font-family:var(--fn);font-style:italic;font-weight:900;font-size:15px;text-transform:uppercase;cursor:pointer;letter-spacing:.5px}
   #dbg select{font-family:"Segoe UI",Arial;font-style:normal;font-weight:700;text-transform:none}
   #dbg .hint{font-size:13px;color:#cfe;margin:4px 0 8px}
-  #menuPage{position:absolute;left:50%;top:100px;bottom:70px;width:min(760px,72vw);transform:translateX(-50%);background:linear-gradient(145deg,#174f91ee,#0c285de8);border:2px solid #70c7ff;box-shadow:0 18px 55px #001a44aa;padding:34px;box-sizing:border-box;display:none;overflow:auto;pointer-events:auto}
-  #menuPage h1{font-family:var(--fn);font-style:italic;font-size:46px;margin:0 0 20px;color:#fff}#menuPage .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px}#menuPage .tile{min-height:110px;background:linear-gradient(145deg,#278bd2,#2455a1);border:1px solid #8bdcff;padding:18px;font-weight:700;box-sizing:border-box}#menuPage .tile b{display:block;font-family:var(--fn);font-style:italic;font-size:24px;color:#ffe22e;margin-bottom:8px}#menuClose{position:absolute;right:18px;top:14px;font-size:28px;cursor:pointer}
-  @media(max-width:1100px),(max-height:760px){#lnav{gap:5px;font-size:13px;overflow-x:auto}#lnav .tab{padding:6px 8px;white-space:nowrap}#lnav .box{font-size:16px;padding:2px 7px}#lpanel{top:85px;height:calc(100vh - 130px);width:min(360px,38vw);padding:16px 22px;overflow:auto}#lpanel h1{font-size:38px}#lpanel .sec{margin-top:22px;font-size:21px}.medals{grid-template-columns:repeat(5,42px);gap:7px}.medal{width:42px;height:42px}#rpanel{top:auto;bottom:44px;width:min(350px,40vw);height:300px}#rpanel .solo{font-size:38px}#rpanel .play{width:80%;font-size:38px;padding:12px}#rpanel .change{width:72%}#nametag{top:92px}.plus{display:none}}
-  @media(max-width:680px){#lnav .tab:nth-of-type(n+5){display:none}#lpanel{display:none}#nametag{left:20px;transform:none}#rpanel{left:5%;right:5%;width:90%;height:260px}#menuPage{top:72px;width:92vw;bottom:58px;padding:24px}#mm{width:180px;height:180px}#stats{top:208px}#bars{left:18px;width:56vw}#hotbar{transform:scale(.72);transform-origin:right bottom}#mats,#bld{transform:scale(.75);transform-origin:right bottom}}
+  #menuPage{position:absolute;left:50%;top:70px;bottom:50px;width:min(1120px,94vw);transform:translateX(-50%);background:linear-gradient(150deg,#143a6eee,#081b3cee);border:2px solid #5aa7ff;box-shadow:0 20px 60px #000c;padding:28px 36px;box-sizing:border-box;display:none;overflow-y:auto;pointer-events:auto;border-radius:6px}
+  #menuPage h1{font-family:var(--fn);font-style:italic;font-size:44px;margin:0 0 6px;color:#fff;text-shadow:2px 2px 0 #072a5a}
+  #menuPage .subh{color:var(--cy);font-size:15px;margin-bottom:20px;letter-spacing:1px}
+  #menuClose{position:absolute;right:22px;top:18px;font-size:32px;cursor:pointer;color:#fff;background:#ffffff22;width:38px;height:38px;display:flex;align-items:center;justify-content:center;border-radius:4px}
+  #menuClose:hover{background:#ff4a4a}
+
+  /* Locker grid */
+  .locker-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+  .locker-card{background:linear-gradient(180deg,#1d4e8c,#143460);border:2px solid #5aa7ff;border-radius:6px;padding:14px;display:flex;flex-direction:column;align-items:center;cursor:pointer;transition:transform .15s,box-shadow .15s;position:relative}
+  .locker-card:hover{transform:translateY(-3px);box-shadow:0 8px 20px #0008;border-color:#ffe22e}
+  .locker-card.active{border-color:#ffe22e;box-shadow:0 0 15px #ffe22e88;background:linear-gradient(180deg,#2b6cb8,#18427a)}
+  .locker-card .rarity-tag{font-size:11px;font-weight:900;letter-spacing:1px;padding:2px 8px;border-radius:2px;margin-bottom:8px;text-transform:uppercase}
+  .locker-card .skin-icon{width:80px;height:80px;border-radius:50%;margin:10px 0;display:flex;align-items:center;justify-content:center;font-size:36px;box-shadow:0 4px 12px #0006}
+  .locker-card b{font-family:var(--fn);font-size:22px;color:#fff;margin-bottom:4px;text-align:center}
+  .locker-card .btn-equip{margin-top:auto;width:100%;padding:8px;background:#ffe22e;color:#123;border:none;font-family:var(--fn);font-size:18px;font-style:italic;font-weight:900;cursor:pointer;border-radius:3px;transform:skew(-5deg)}
+  .locker-card.active .btn-equip{background:#5ee0ff;color:#0b2a55}
+
+  /* Battle Pass */
+  .bp-header{display:flex;justify-content:space-between;align-items:center;background:#0d2850;padding:14px 22px;border-radius:6px;margin-bottom:20px;border:1px solid #4a8ad4}
+  .bp-tiers{display:flex;gap:12px;overflow-x:auto;padding-bottom:14px}
+  .bp-tier-card{min-width:140px;background:#153866;border:1px solid #4582cb;border-radius:4px;padding:12px;display:flex;flex-direction:column;align-items:center;text-align:center}
+  .bp-tier-card.unlocked{border-color:#5ee0ff;background:linear-gradient(180deg,#1e5294,#12345e)}
+  .bp-tier-card .num{font-family:var(--fn);font-size:28px;color:#ffe22e;font-style:italic}
+  .bp-tier-card .rew{font-size:13px;color:#cfe;margin:8px 0}
+  .bp-tier-card .claim-btn{padding:6px 12px;background:#ffe22e;color:#123;font-family:var(--fn);font-size:15px;font-style:italic;font-weight:900;border:none;border-radius:3px;cursor:pointer;margin-top:auto}
+
+  /* Item shop */
+  .shop-section{margin-bottom:28px}
+  .shop-section h2{font-family:var(--fn);font-style:italic;color:#ffe22e;font-size:26px;margin:0 0 12px;letter-spacing:1px}
+  .shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:18px}
+  .shop-card{background:linear-gradient(180deg,#1c4d8a,#113057);border:2px solid #5aa7ff;border-radius:6px;padding:16px;display:flex;flex-direction:column;align-items:center;text-align:center;cursor:pointer;transition:transform .15s}
+  .shop-card:hover{transform:scale(1.03);border-color:#ffe22e}
+  .shop-card .price{font-family:var(--fn);font-size:22px;color:#ffe22e;margin:10px 0}
+  .shop-card .buy-btn{width:100%;padding:9px;background:#ffe22e;color:#123;font-family:var(--fn);font-size:20px;font-style:italic;font-weight:900;border:none;border-radius:3px;cursor:pointer;transform:skew(-5deg)}
+
+  /* Career & Stats */
+  .career-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+  .stat-tile{background:#11325c;border:1px solid #4a8ad4;padding:18px;border-radius:4px;text-align:center}
+  .stat-tile .val{font-family:var(--fn);font-size:42px;color:#ffe22e;font-style:italic;line-height:1}
+  .stat-tile .lbl{font-size:13px;color:#cfe;letter-spacing:1px;margin-top:6px;text-transform:uppercase}
+  .match-table{width:100%;border-collapse:collapse;margin-top:14px}
+  .match-table th,.match-table td{padding:10px 14px;text-align:left;border-bottom:1px solid #28558a}
+  .match-table th{background:#0e294d;color:var(--cy);font-family:var(--fn);font-size:16px;letter-spacing:1px}
+
+  /* Challenges */
+  .quest-item{background:#11325c;border:1px solid #4a8ad4;border-radius:6px;padding:14px 20px;margin-bottom:12px;display:flex;align-items:center;gap:18px}
+  .quest-info{flex:1}
+  .quest-info b{font-size:16px;color:#fff}
+  .quest-bar{height:8px;background:#091d36;border-radius:4px;margin-top:8px;overflow:hidden;position:relative}
+  .quest-bar i{display:block;height:100%;background:linear-gradient(90deg,#5ee0ff,#3aa2ff)}
+  .quest-xp{font-family:var(--fn);font-size:22px;color:#c46bff;font-style:italic}
+  .quest-claim{padding:8px 16px;background:#ffe22e;color:#123;border:none;font-family:var(--fn);font-size:17px;font-style:italic;font-weight:900;border-radius:3px;cursor:pointer}
+
+  /* Settings */
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  .setting-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #234f82}
+  .setting-row span{font-size:15px;color:#eaf4ff}
+  .setting-row input[type=range]{width:160px;accent-color:#ffe22e}
+
+
+  #lobby .ui{width:1600px;height:900px;transform-origin:0 0;left:0;top:0;right:auto;bottom:auto}
+  #settings{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(960px,94vw);max-height:90vh;overflow:auto;background:linear-gradient(150deg,#143a6ef4,#081b3cf4);border:2px solid #5aa7ff;box-shadow:0 20px 60px #000c;padding:26px 34px;box-sizing:border-box;display:none;z-index:9;color:#fff;font-family:"Segoe UI",Arial}
+  #settings h1{font-family:var(--fn);font-style:italic;font-size:40px;margin:0 0 10px}
+  #settings .tabs{display:flex;gap:6px;margin-bottom:14px}#settings .tabs div{padding:8px 18px;background:#0b3a7a;cursor:pointer;font-family:var(--fn);font-style:italic;font-size:18px;border:1px solid #5aa7ff66}#settings .tabs div.on{background:#ffe22e;color:#12305a}
+  #settings .page:not(.on){display:none!important}#settings .page.on{display:block}#settings .page.keys.on{display:grid}
+  #settings .x{position:absolute;right:18px;top:18px;width:36px;height:36px;border:1px solid #fff8;display:flex;align-items:center;justify-content:center;font-size:22px;cursor:pointer}
+  #settings select,#settings button{background:#0b3a7a;color:#fff;border:1px solid #5aa7ff;padding:6px 10px;font-size:14px}
+  #settings .keys{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:14px}#settings .keys div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #234f82}#settings kbd{background:#fff2;padding:1px 8px;border-radius:3px;min-width:60px;text-align:center}
+  #settings .val{display:inline-block;width:46px;text-align:right;color:var(--cy);margin-left:8px}
+  #settings .apply{margin-top:16px;background:#ffe22e;color:#12305a;font-family:var(--fn);font-style:italic;font-size:20px;padding:10px 26px;border:0;cursor:pointer}
+  #pause .btns{display:flex;gap:12px;margin-top:10px}#pause .btns div{background:#ffe22e;color:#12305a;padding:10px 26px;font-size:20px;cursor:pointer}#pause .btns div.sec{background:#3ddcf5}
+  #emoteWheel{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;gap:10px;z-index:8}#emoteWheel div{width:110px;height:110px;background:#0b3a7acc;border:2px solid #5aa7ff;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;font-family:var(--fn);font-style:italic;font-size:16px;cursor:pointer}#emoteWheel div b{font-size:34px;font-style:normal}#emoteWheel div:hover{background:#ffe22e;color:#12305a}
 </style>
 </head>
 <body>
@@ -176,7 +244,7 @@
 <svg id="lobbybg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" viewBox="0 0 100 60"></svg>
 <div id="lobby">
   <div class="ui">
-    <div id="lnav"><div class="box">👤 0</div><div class="tab on">PLAY</div><div class="tab">BATTLE PASS</div><div class="tab">CHALLENGES</div><div class="tab">COMPETE</div><div class="tab">LOCKER</div><div class="tab">ITEM SHOP</div><div class="tab">CAREER</div><div class="tab">STORE</div><div class="box vb" id="wallet">Ⓥ 2,765</div><div class="menu">≡</div></div>
+    <div id="lnav"><div class="box">👤 0</div><div class="tab on">PLAY</div><div class="tab">BATTLE PASS</div><div class="tab">CHALLENGES</div><div class="tab">COMPETE</div><div class="tab">LOCKER</div><div class="tab">ITEM SHOP</div><div class="tab">CAREER</div><div class="tab">STORE</div><div class="box vb" id="wallet">Ⓥ 2,765</div><div class="menu" id="lobbySettings">⚙</div></div>
     <div id="local">LOCAL</div>
     <div id="lpanel"><h1>CHAPTER 2</h1><h2>SEASON 1</h2><div class="lvl">LEVEL 29</div><div class="xp"><i></i></div><div class="card"></div>
       <div class="sec">MEDAL PUNCHCARD</div><div class="sub">3H 11M</div>
@@ -223,8 +291,44 @@
 <h2>PROGRESSION &amp; RECORDING</h2><button data-a="cosm">Unlock all cosmetics</button><button data-a="xp">Grant 80,000 XP</button><button data-a="win">Test victory</button><button data-a="die">Test elimination</button><button data-a="clear">Clear builds</button>
 <h2>PLAYGROUND</h2><button data-a="siege">Fortress Siege · Defenders vs Raiders</button><button data-a="meteor">Meteor Shower</button><button data-a="edit">Build an edit practice run</button><button data-a="stop">Stop playground event</button><button data-a="supply">Supply Drop Party · 6</button><button data-a="skydive">Skydive from 300 meters</button></div>
 </div></div>
+
+<div id="settings"><div class="x" id="setX">×</div><h1>SETTINGS</h1>
+<div class="tabs"><div class="on" data-p="input">INPUT</div><div data-p="audio">AUDIO</div><div data-p="video">VIDEO</div><div data-p="keys">KEYBINDS</div></div>
+<div class="page on" data-p="input">
+  <div class="setting-row"><span>Mouse sensitivity X</span><span><input type="range" min="0.2" max="3" step="0.05" data-s="sensX"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Mouse sensitivity Y</span><span><input type="range" min="0.2" max="3" step="0.05" data-s="sensY"><i class="val"></i></span></div>
+  <div class="setting-row"><span>ADS sensitivity</span><span><input type="range" min="0.2" max="1.5" step="0.05" data-s="adsSens"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Scope sensitivity</span><span><input type="range" min="0.2" max="1.5" step="0.05" data-s="scopeSens"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Invert Y axis</span><input type="checkbox" data-s="invertY"></div>
+  <div class="setting-row"><span>Toggle sprint</span><input type="checkbox" data-s="toggleSprint"></div>
+  <div class="setting-row"><span>Turbo build</span><input type="checkbox" data-s="turbo"></div>
+  <div class="setting-row"><span>Controller look sensitivity</span><span><input type="range" min="0.3" max="2.5" step="0.05" data-s="padSens"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Controller vibration</span><input type="checkbox" data-s="rumble"></div>
+</div>
+<div class="page" data-p="audio">
+  <div class="setting-row"><span>Master volume</span><span><input type="range" min="0" max="1" step="0.05" data-s="master"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Sound effects</span><span><input type="range" min="0" max="1" step="0.05" data-s="sfx"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Voice lines</span><span><input type="range" min="0" max="1" step="0.05" data-s="voice"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Music</span><span><input type="range" min="0" max="1" step="0.05" data-s="music"><i class="val"></i></span></div>
+</div>
+<div class="page" data-p="video">
+  <div class="setting-row"><span>Field of view</span><span><input type="range" min="60" max="110" step="1" data-s="fov"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Render scale</span><span><input type="range" min="0.5" max="1" step="0.05" data-s="scale"><i class="val"></i></span></div>
+  <div class="setting-row"><span>Shadows</span><select data-s="shadows"><option value="0">Off</option><option value="1">Medium</option><option value="2">Epic</option></select></div>
+  <div class="setting-row"><span>Grass</span><select data-s="grass"><option value="0">Off</option><option value="1">Near</option><option value="2">Far</option></select></div>
+  <div class="setting-row"><span>View distance</span><select data-s="viewDist"><option value="0">Near</option><option value="1">Medium</option><option value="2">Epic</option></select></div>
+  <div class="setting-row"><span>Show FPS</span><input type="checkbox" data-s="showFps"></div>
+  <div class="setting-row"><span>Streamer mode (hide names)</span><input type="checkbox" data-s="streamer"></div>
+</div>
+<div class="page keys" data-p="keys">
+  <div><span>Move</span><kbd>W A S D</kbd></div><div><span>Jump / glider</span><kbd>Space</kbd></div><div><span>Sprint</span><kbd>Shift</kbd></div><div><span>Crouch</span><kbd>Ctrl</kbd></div><div><span>Interact</span><kbd>E</kbd></div><div><span>Reload</span><kbd>R</kbd></div>
+  <div><span>Pickaxe</span><kbd>`</kbd></div><div><span>Weapon slots</span><kbd>1 – 5</kbd></div><div><span>Build mode</span><kbd>Z</kbd></div><div><span>Wall / Floor / Stairs / Roof</span><kbd>Q G F Alt</kbd></div><div><span>Edit</span><kbd>X</kbd></div><div><span>Rotate piece</span><kbd>R</kbd></div>
+  <div><span>Material</span><kbd>RMB</kbd></div><div><span>Aim / Scope</span><kbd>RMB</kbd></div><div><span>Emote</span><kbd>B</kbd></div><div><span>Map</span><kbd>M</kbd></div><div><span>Camera</span><kbd>T</kbd></div><div><span>Local testing</span><kbd>F8</kbd></div>
+</div>
+<button class="apply" id="setApply">APPLY</button> <button id="setReset">RESET TO DEFAULTS</button></div>
+<div id="emoteWheel"><div data-e="0"><b>💃</b>Dance</div><div data-e="1"><b>👋</b>Wave</div><div data-e="2"><b>🕺</b>Floss</div><div data-e="3"><b>🙌</b>Take the L</div></div>
 <div id="bigmap"><canvas width="600" height="600"></canvas></div>
-<div id="pause"><h1>PAUSED</h1><p><b>Click to resume</b><br><kbd>WASD</kbd> / <kbd>L-Stick</kbd> move · <kbd>Shift</kbd> / <kbd>L3</kbd> sprint · <kbd>Space</kbd> / <kbd>A</kbd> jump · <kbd>Ctrl</kbd> / <kbd>R3</kbd> crouch · <kbd>E</kbd> / <kbd>X</kbd> interact · <kbd>R</kbd> reload · <kbd>RT</kbd> fire · <kbd>LT</kbd> ADS · <kbd>RB</kbd>/<kbd>LB</kbd> switch slot/piece · <kbd>Z</kbd>/<kbd>B</kbd> build mode · <kbd>X</kbd>/<kbd>Y</kbd> edit mode · <kbd>M</kbd> map<br><i style="color:#5ee0ff">🎮 Regular Controller Controls &amp; Rumble Supported!</i></p></div>
-<script type="module" src="dist/main.js"></script>
+<div id="pause"><h1>PAUSED</h1><div class="btns"><div id="pResume">RESUME</div><div class="sec" id="pSettings">SETTINGS</div><div class="sec" id="pLobby">LEAVE MATCH</div></div><p><b>Click to resume</b><br><kbd>WASD</kbd> / <kbd>L-Stick</kbd> move · <kbd>Shift</kbd> / <kbd>L3</kbd> sprint · <kbd>Space</kbd> / <kbd>A</kbd> jump · <kbd>Ctrl</kbd> / <kbd>R3</kbd> crouch · <kbd>E</kbd> / <kbd>X</kbd> interact · <kbd>R</kbd> reload · <kbd>RT</kbd> fire · <kbd>LT</kbd> ADS · <kbd>RB</kbd>/<kbd>LB</kbd> switch slot/piece · <kbd>Z</kbd>/<kbd>B</kbd> build mode · <kbd>X</kbd>/<kbd>Y</kbd> edit mode · <kbd>M</kbd> map<br><i style="color:#5ee0ff">🎮 Regular Controller Controls &amp; Rumble Supported!</i></p></div>
+<script src="game.js"></script>
 </body>
 </html>
