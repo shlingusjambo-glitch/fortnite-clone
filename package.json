@@ -1,0 +1,12 @@
+{
+  "name": "fortnite-clone",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "serve": "python3 -m http.server 8765 --bind 0.0.0.0",
+    "serve:lan": "python3 -m http.server 8765 --bind 0.0.0.0"
+  },
+  "devDependencies": { "typescript": "^5.6.0" }
+}
