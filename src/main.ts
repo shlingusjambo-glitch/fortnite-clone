@@ -596,7 +596,7 @@ const yawToDir = (yaw: number) => ((Math.round(yaw / (Math.PI / 2)) % 4) + 4) % 
 function botMat(b: Bot): Mat { return b.mats > 260 ? 'metal' : b.mats > 120 ? 'stone' : 'wood'; }
 function botPlace(b: Bot, type: PieceType, pos: V3, dir: number): Piece | null {
   if (b.mats < 10 && !D.infMats) return null;
-  const p = W.place(type, botMat(b), pos, dir); if (p) { b.mats -= 10; b.buildCd = lerp(0.42, 0.09, b.skill); }
+  const p = W.place(type, botMat(b), pos, dir); if (p) { b.mats -= 10; b.buildCd = lerp(0.42, 0.09, b.skill); if (Math.random() < 0.1) botHear(pos, 40, b); }
   return p;
 }
 function bestWeaponFor(b: Bot, dist: number): Kind | null {
@@ -680,6 +680,10 @@ function updateBot(b: Bot, dt: number) {
       const acc = clamp(b.accuracy - L / (rng * 3.4) - (Math.hypot(b.vel[0], b.vel[2]) > 4 ? 0.08 : 0), 0.06, 0.7) * (b.weapon === 'sniper' ? 0.8 : 1) * (b.enemy === 'player' ? 1 : 0.55);
       if (Math.random() < 0.2) b.aimDrift = [rand(-1.5, 1.5), rand(-.75, .75), rand(-1.5, 1.5)];
       const from = add(b.pos, [0, 1.5, 0]), to = add(add(ep!, [0, 1.2 + rand(-0.45, 0.45), 0]), scale(b.aimDrift, clamp(L / 45, .15, 1)));
+      if (ep![1] > b.pos[1] + 3 && L < 22 && b.skill > 0.45 && Math.random() < 0.35) {   // enemy above: shoot out the piece holding them up
+        let low: Piece | null = null; for (const p of W.pieces.values()) if ((p.type === 'ramp' || p.type === 'floor') && len(sub(p.pos, ep!)) < 4.5 && (!low || p.pos[1] < low.pos[1])) low = p;
+        if (low) { W.damagePiece(low, dmg * 1.5); fx.push({ kind: 'tracer', t: 0.06, pos: from, to: add(low.pos, [0, 0.5, 0]) }); botHear(b.pos, 60, b); return; }
+      }
       if (b.weapon === 'rpg') { nades.push({ pos: add(from, scale(norm(sub(to, from)), 1.2)), vel: scale(norm(add(to, [rand(-2, 2) * (1 - b.accuracy), 0, rand(-2, 2) * (1 - b.accuracy)]).map((v, i) => v - from[i]) as V3), 34), t: 6, by: b.name, rocket: true }); botHear(b.pos, 80, b); return; }
       const hit = Math.random() < acc && los(from, to);
       const tto = hit ? to : add(to, [rand(-3, 3), rand(-2, 2), rand(-3, 3)]); fx.push({ kind: 'tracer', t: 0.06, pos: from, to: tto }); if (len(sub(tto, P.pos)) < 30) { const hh = W.raycast(from, norm(sub(tto, from)), len(sub(tto, from)) + 4); if (hh) fx.push({ kind: 'puff', t: 0.22, pos: hh.p, col: [0.75, 0.65, 0.5] }); }
@@ -1001,7 +1005,7 @@ function frame(now: number) {
     else if (P.swim) { /* no weapons while swimming */ }
     else if (P.build) {
       const bt = buildTarget();
-      if (mouse.l && P.fireCd <= 0 && (P.mats[P.mat] >= 10 || D.infMats) && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir))) { W.place(bt.type, P.mat, bt.pos, bt.dir); if (!D.infMats) P.mats[P.mat] -= 10; P.fireCd = 0.12; beep(700, 0.05, 'square', 0.04); }
+      if (mouse.l && P.fireCd <= 0 && (P.mats[P.mat] >= 10 || D.infMats) && !W.pieces.has(World.key(bt.type, bt.pos, bt.dir))) { W.place(bt.type, P.mat, bt.pos, bt.dir); if (!D.infMats) P.mats[P.mat] -= 10; P.fireCd = 0.12; beep(700, 0.05, 'square', 0.04); if (Math.random() < 0.15) botHear(bt.pos, 40, 'player'); }
     } else if (P.slot < 0 || !it) { if (mouse.l && P.swing <= 0.05 && P.fireCd <= 0) { swingPickaxe(); P.fireCd = 0.45; } }
     else if (isWeapon(it.kind)) {
       const w = WEAPONS[it.kind];
