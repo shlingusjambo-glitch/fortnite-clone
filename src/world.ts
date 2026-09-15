@@ -121,6 +121,8 @@ export class World {
       const cs = per * STEP; this.terrainChunks.push({ mesh: b.build(r), c: [-SIZE / 2 + (ci + 0.5) * cs, 0, -SIZE / 2 + (cj + 0.5) * cs], r: cs * 0.71 });
     }
     this.terrain = this.terrainChunks[0].mesh;
+    // wooden bridges where roads cross water
+    for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 4; t < L - 4; t += 8) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L; if (terrainH(x, z) < 0.6) { const c = Math.cos(yaw), sn = Math.sin(yaw); this.statics.push({ mesh: 'bridge', pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] }); } } }
     // road center dashes
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z); for (let t = 0; t < L; t += 7) { const x = A.x + (B.x - A.x) * t / L, z = A.z + (B.z - A.z) * t / L, y = terrainH(x, z); if (y > 0.5) this.statics.push({ mesh: 'dash', pos: [x, y, z], yaw, boxes: [] }); } }
     const rotBox = (bx: LBox, k: number, o: V3): Box => {   // rotate local AABB by k*90deg around Y then offset

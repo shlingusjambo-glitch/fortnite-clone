@@ -21,7 +21,7 @@ const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600
 // ---------------- baked static clutter ----------------
 // Small indestructible street/yard props (hedges, fences, dashes, crates, benches...) are merged per 48m cell into one
 // mesh each: ~600 draw calls become ~40. Cars, houses and lamps stay individual (they can be harvested / shake).
-const BAKE = new Set(['dash', 'hedge', 'fence', 'mailbox', 'bench', 'crate', 'dumpster', 'fountain']);
+const BAKE = new Set(['dash', 'hedge', 'fence', 'mailbox', 'bench', 'crate', 'dumpster', 'fountain', 'bridge']);
 const baked: { mesh: Mesh; c: V3 }[] = [];
 {
   const cells = new Map<string, { data: number[]; c: V3 }>();

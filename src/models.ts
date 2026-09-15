@@ -1117,6 +1117,7 @@ export function buildModels(r: Renderer): Models {
     let seed = 7; const rr = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
     for (let i = 0; i < 44; i++) { const a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50; b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(0x6f8a6a) : rgb(0x8a8f86), 5, false, false); if (h > 85) b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(0xf0f4f8), 5, false, false); }
   });
+  M.bridge = mk(b => { const w = rgb(0x9a7a50); for (let i = 0; i < 16; i++) b.plank([0, 0.3, -3.75 + i * 0.5], [4.4, 0.16, 0.46], w, 0.02); for (const sx of [-2.1, 2.1]) { b.box([sx, 0.15, 0], [0.25, 0.4, 8], dk(w, 0.7)); b.box([sx, 1.1, 0], [0.08, 0.08, 8], dk(w, 0.8)); for (let k = -3; k <= 3; k++) b.box([sx, 0.7, k * 1.2], [0.1, 0.9, 0.1], dk(w, 0.8)); } for (const sz of [-3, 0, 3]) for (const sx of [-1.8, 1.8]) b.cyl([sx, -2, sz], 0.2, 0.2, 2.5, dk(w, 0.6), 8, true, true); });
   M.beam = mk(b => b.cyl([0, 0, 0], 0.18, 0.05, 2.4, C.white, 8, false, true));
   M.glow = mk(b => b.sphere([0, 0.4, 0], 1.0, rgb(0xffd23a), 12, 0.9, true));
   M.chest = mk(b => {

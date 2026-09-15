@@ -795,6 +795,14 @@ void main(){
         let a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50;
         b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(7309930) : rgb(9080710), 5, !1, !1), h > 85 && b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(15791352), 5, !1, !1);
       }
+    }), M2.bridge = mk((b) => {
+      let w = rgb(10123856);
+      for (let i = 0; i < 16; i++) b.plank([0, 0.3, -3.75 + i * 0.5], [4.4, 0.16, 0.46], w, 0.02);
+      for (let sx of [-2.1, 2.1]) {
+        b.box([sx, 0.15, 0], [0.25, 0.4, 8], dk(w, 0.7)), b.box([sx, 1.1, 0], [0.08, 0.08, 8], dk(w, 0.8));
+        for (let k = -3; k <= 3; k++) b.box([sx, 0.7, k * 1.2], [0.1, 0.9, 0.1], dk(w, 0.8));
+      }
+      for (let sz of [-3, 0, 3]) for (let sx of [-1.8, 1.8]) b.cyl([sx, -2, sz], 0.2, 0.2, 2.5, dk(w, 0.6), 8, !0, !0);
     }), M2.beam = mk((b) => b.cyl([0, 0, 0], 0.18, 0.05, 2.4, C.white, 8, !1, !0)), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);
       for (let sx of [-0.52, 0.52]) {
@@ -1305,6 +1313,16 @@ void main(){
       this.terrain = this.terrainChunks[0].mesh;
       for (let [ia, ib] of ROADS) {
         let A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z);
+        for (let t2 = 4; t2 < L - 4; t2 += 8) {
+          let x = A.x + (B.x - A.x) * t2 / L, z = A.z + (B.z - A.z) * t2 / L;
+          if (terrainH(x, z) < 0.6) {
+            let c = Math.cos(yaw), sn = Math.sin(yaw);
+            this.statics.push({ mesh: "bridge", pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] });
+          }
+        }
+      }
+      for (let [ia, ib] of ROADS) {
+        let A = POIS[ia], B = POIS[ib], L = Math.hypot(B.x - A.x, B.z - A.z), yaw = Math.atan2(B.x - A.x, B.z - A.z);
         for (let t2 = 0; t2 < L; t2 += 7) {
           let x = A.x + (B.x - A.x) * t2 / L, z = A.z + (B.z - A.z) * t2 / L, y = terrainH(x, z);
           y > 0.5 && this.statics.push({ mesh: "dash", pos: [x, y, z], yaw, boxes: [] });
@@ -1705,7 +1723,7 @@ void main(){
     }
     svg.innerHTML = '<rect width="100" height="60" fill="#3b8fc4"/>' + s + '<ellipse cx="50" cy="52" rx="40" ry="10" fill="#e8f6ff" opacity="0.55"/>';
   }
-  var BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain"]), baked = [];
+  var BAKE = /* @__PURE__ */ new Set(["dash", "hedge", "fence", "mailbox", "bench", "crate", "dumpster", "fountain", "bridge"]), baked = [];
   {
     let cells = /* @__PURE__ */ new Map();
     for (let s of W.statics) {
