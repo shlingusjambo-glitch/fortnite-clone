@@ -779,7 +779,7 @@ void main(){
         let a = i / 44 * 6.283 + rr() * 0.1, rad = 470 + rr() * 90, h = 40 + rr() * 70, w = 45 + rr() * 50;
         b.cyl([Math.cos(a) * rad, -5, Math.sin(a) * rad], w, w * 0.08, h, i % 3 ? rgb(7309930) : rgb(9080710), 5, !1, !1), h > 85 && b.cyl([Math.cos(a) * rad, h * 0.62 - 5, Math.sin(a) * rad], w * 0.36, w * 0.08, h * 0.38, rgb(15791352), 5, !1, !1);
       }
-    }), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mk((b) => {
+    }), M2.beam = mk((b) => b.cyl([0, 0, 0], 0.18, 0.05, 2.4, C.white, 8, !1, !0)), M2.glow = mk((b) => b.sphere([0, 0.4, 0], 1, rgb(16765498), 12, 0.9, !0)), M2.chest = mk((b) => {
       b.rbox([0, 0.35, 0], [1.44, 0.7, 0.94], C.woodDark, 0.04), b.rbox([0, 0.86, 0], [1.48, 0.34, 0.98], C.wood, 0.05);
       for (let sx of [-0.52, 0.52]) {
         b.box([sx, 0.52, 0], [0.1, 1.06, 1.02], rgb(3814962));
@@ -2921,8 +2921,13 @@ void main(){
     }
     for (let c of chests)
       R.draw(c.open ? M.chestOpen : M.chest, trs(c.pos, c.yaw), c.open ? [1, 1, 1] : [1.15, 1.1, 0.9]), !c.open && len(sub(c.pos, camPos)) < 60 && R.draw(M.glow, trs(c.pos, 0, 0, 1 + Math.sin(t * 3) * 0.08), [1, 0.85, 0.3], 0.16, 7, !1);
+    let RAR_COL = [[0.7, 0.7, 0.7], [0.3, 0.9, 0.3], [0.3, 0.6, 1], [0.75, 0.35, 1], [1, 0.75, 0.2]];
     for (let g of items)
-      g.item.kind === "ammo" ? R.draw(M.ammo, trs(g.pos, 0.6, 0, 1.6)) : R.draw(M[g.item.kind], trs(add(g.pos, [0, 0.6 + Math.sin(t * 3) * 0.1, 0]), t * 1.5, 0, 1.3));
+      if (g.item.kind === "ammo") R.draw(M.ammo, trs(g.pos, 0.6, 0, 1.6));
+      else if (R.draw(M[g.item.kind], trs(add(g.pos, [0, 0.6 + Math.sin(t * 3) * 0.1, 0]), t * 1.5, 0, 1.3)), len(sub(g.pos, camPos)) < 45) {
+        let rc = RAR_COL[g.item.rar] ?? RAR_COL[0];
+        R.draw(M.glow, trs(g.pos, 0, 0, [0.7, 0.35, 0.7]), rc, 0.22, 7, !1), R.draw(M.beam, trs(g.pos), rc, 0.12, 7, !1);
+      }
     for (let f of fx) f.kind === "puff" && R.draw(M.glow, trs(f.pos, 0, 0, 0.12 + (0.22 - f.t) * 2.2), f.col ?? [1, 1, 1], f.t * 2.5, 7, !1);
     for (let f of fx) if (f.kind === "tracer" && f.to) {
       let d = sub(f.to, f.pos), L = len(d);
