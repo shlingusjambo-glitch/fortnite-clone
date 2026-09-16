@@ -64,14 +64,9 @@ function propCell(key: string) {
 }
 
 // ---------------- audio ----------------
-let AC: AudioContext | null = null;
-function beep(f: number, dur: number, type: OscillatorType = 'square', vol = 0.08, slide = 0) {
-  if (!AC) return; vol *= S.master * S.sfx; if (vol <= 0.0005) return; const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f;
-  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(20, f + slide), AC.currentTime + dur);
-  g.gain.value = vol; g.gain.exponentialRampToValueAtTime(0.001, AC.currentTime + dur); o.connect(g).connect(AC.destination); o.start(); o.stop(AC.currentTime + dur);
-}
+import { beep, unlockAudio, setVolumes, voiceAt, setListener } from './audio';
 const BOT_VOICES = ['smak-mouth.mp3','ninjalaughing.mp3','ninja-your-trash-kid.mp3','ninja_zkaek6l.mp3','ninja-why-you-getting-so-mad.mp3'];
-function botVoice(b: Bot) { if (b.voiceCd > 0 || len(sub(b.pos, P.pos)) > 55) return; b.voiceCd = rand(12, 25); const a = new Audio('assets/Audio/' + BOT_VOICES[Math.floor(rand(0, BOT_VOICES.length))]); a.volume = clamp(1 - len(sub(b.pos, P.pos)) / 65, .08, .55) * S.master * S.voice; if (a.volume > 0.01) a.play().catch(() => {}); }
+function botVoice(b: Bot) { if (b.voiceCd > 0 || len(sub(b.pos, P.pos)) > 55) return; b.voiceCd = rand(12, 25); voiceAt(BOT_VOICES[Math.floor(rand(0, BOT_VOICES.length))]!, b.pos, 0.6); }
 
 // ---------------- items & weapons ----------------
 type Kind = 'ar' | 'burst' | 'smg' | 'shotgun' | 'sniper' | 'pistol' | 'tac' | 'hunting' | 'scar' | 'rpg' | 'revolver' | 'silenced' | 'shieldPot' | 'miniShield' | 'chug' | 'grenade' | 'boogie' | 'impulse' | 'launchpad' | 'bushItem' | 'medkit' | 'bandage' | 'fish' | 'rod' | 'ammo';
@@ -308,7 +303,7 @@ addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
 });
 
 canvas.addEventListener('mousedown', () => { if (P.state !== 'lobby' && document.pointerLockElement !== canvas) canvas.requestPointerLock(); });
-$('btnPlay').onclick = () => { if (NET.active() && !NET.isHost()) return toast('Waiting for the party leader to start'); AC ??= new AudioContext(); startMatch(); };
+$('btnPlay').onclick = () => { if (NET.active() && !NET.isHost()) return toast('Waiting for the party leader to start'); void unlockAudio(); startMatch(); };
 NET.on('members', () => { if (P.state === 'lobby' && menuPage.style.display === 'block' && menuTitle.textContent === 'PARTY') openPage('PARTY'); document.querySelector('#lnav .box')!.textContent = '👤 ' + Math.max(0, NET.members.length - 1); });
 $('btnSkin').onclick = () => { PR.mode = (PR.mode + 1) % MODES.length; refreshLobby(); };
 const menuPage = $('menuPage'), menuTitle = menuPage.querySelector('h1')!, menuCards = menuPage.querySelector('.cards')!;
@@ -690,7 +685,7 @@ function dbgAction(a: string) {
   info(a.toUpperCase() + ' ✓');
 }
 function explode(pos: V3, by: string, kind: Kind = 'grenade', visual = false) {
-  if (visual) { beep(50, 0.5, 'sawtooth', 0.25, -30); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); return; }
+  if (visual) { beep(50, 0.5, 'sawtooth', 0.25, -30, pos); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); return; }
   if (kind === 'boogie') {   // everyone nearby dances for 5s
     beep(600, 0.4, 'triangle', 0.1, 400); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOGIE', head: true });
     if (len(sub(P.pos, pos)) < 6 && !P.dead) { P.emote = 0; P.emoteT = 5; P.stunT = 5; }
@@ -703,7 +698,7 @@ function explode(pos: V3, by: string, kind: Kind = 'grenade', visual = false) {
     push(P); for (const b of bots) if (!b.dead) push(b);
     return;
   }
-  beep(50, 0.5, 'sawtooth', 0.25, -30); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); rumble(300, 0.8, 1);
+  beep(50, 0.5, 'sawtooth', 0.25, -30, pos); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); rumble(300, 0.8, 1);
   const dmg = (d: number) => Math.round(100 * clamp(1 - d / 5, 0, 1));
   const dp = len(sub(P.pos, pos)); if (dp < 5 && dmg(dp) > 0 && !(NET.active() && !NET.isHost())) damage(dmg(dp), by);
   for (const b of bots) if (!b.dead) { const d = len(sub(b.pos, pos)); if (d < 5 && dmg(d) > 0) { botDamage(b, dmg(d), by); if (by === 'Player') P.dmg += dmg(d); } }
@@ -734,7 +729,7 @@ function updateEvents(dt: number) {
   for (let i = meteors.length - 1; i >= 0; i--) {
     const m = meteors[i]; m!.pos = add(m!.pos, scale(m!.vel, dt));
     if (m!.pos[1] <= W.groundH(m!.pos[0], m!.pos[2], m!.pos[1]) + 0.5) {
-      meteors.splice(i, 1); beep(60, 0.5, 'sawtooth', 0.2, -30); fx.push({ kind: 'dmg', t: 1, pos: add(m!.pos, [0, 2, 0]), text: 'BOOM', head: true });
+      meteors.splice(i, 1); beep(60, 0.5, 'sawtooth', 0.2, -30, m!.pos); fx.push({ kind: 'dmg', t: 1, pos: add(m!.pos, [0, 2, 0]), text: 'BOOM', head: true });
       if (len(sub(P.pos, m!.pos)) < 8) damage(40, 'A meteor');
       for (const b of bots) if (!b.dead && len(sub(b.pos, m!.pos)) < 8) botDamage(b, 60, 'A meteor');
       for (const p of [...W.pieces.values()]) if (len(sub(p.pos, m!.pos)) < 8) W.removePiece(p);
@@ -865,7 +860,7 @@ function updateBot(b: Bot, dt: number) {
       if (hit) { const head = Math.random() < b.skill * 0.18, n = Math.round(dmg * rand(0.8, 1.1) * (head ? 1.5 : 1)); if (b.enemy === 'player') { damage(n, b.name); if (head) info('Headshot!'); } else botDamage(b.enemy as Bot, n, b.name); }
       else if (!hit && !los(from, to)) { const h = W.raycast(from, norm(sub(to, from)), L); if (h && h.kind === 'piece') W.damagePiece(h.ref as Piece, dmg); }
       botHear(b.pos, 60, b);
-      if (len(sub(b.pos, P.pos)) < 90) beep(200, 0.08, 'sawtooth', 0.03, -60);
+      if (len(sub(b.pos, P.pos)) < 140) beep(200, 0.08, 'sawtooth', 0.05, -60, b.pos);
     };
     if (fleeing || (ep && hpTotal < 30 && b.heals <= 0 && b.mode !== 'box' && b.aggression < 0.85)) { /* fleeing handled above */ }
     else if (b.mode === 'fight' && ep) {
@@ -1005,7 +1000,7 @@ function frame(now: number) {
   if (key('PadTool')) { if (P.build) IN.system.setVirtualAction('Edit', 1); else if (P.state !== 'lobby') { P.slot = P.slot === -1 ? 0 : -1; P.build = false; rumble(40, 0.2, 0.2); } }
   if (key('RotateRamp') && P.build) { P.rampRot = (P.rampRot + 1) % 4; rumble(40, 0.2, 0.2); }
   if (key('Menu')) { if (P.state === 'lobby') $('btnPlay').click(); else toggleDbg(); }
-  if (P.state === 'lobby' && IN.lastDevice === 'gamepad') { if (key('Jump')) { AC ??= new AudioContext(); startMatch(); rumble(180, 0.5, 0.5); } if (key('Build') || key('PadTool')) { $('btnSkin').click(); rumble(80, 0.3, 0.3); } }
+  if (P.state === 'lobby' && IN.lastDevice === 'gamepad') { if (key('Jump')) { void unlockAudio(); startMatch(); rumble(180, 0.5, 0.5); } if (key('Build') || key('PadTool')) { $('btnSkin').click(); rumble(80, 0.3, 0.3); } }
   if (P.state === 'lobby' && GALLERY) {   // ?gallery=<name>,<name>... — model review lineup for art passes
     const names = GALLERY.split(','), n = names.length, sp = 6, ang = +(new URLSearchParams(location.search).get('ang') || 0.6);
     const dist = (5 + n * 2.2) / Math.min(1, aspect), cam: V3 = [Math.sin(ang) * dist, 3 + n * 0.4, Math.cos(ang) * dist];
@@ -1266,7 +1261,7 @@ function frame(now: number) {
       if (it) R.draw(M[it.kind], trs(hp, P.yaw, -P.pitch), [1, 1, 1], 1, 0, false); else R.draw(M.pickaxe, mul(trs(hp, P.yaw, -P.pitch), rotX(1.0 + (P.swing > 0 ? Math.sin(P.swing * 6.3) * 1.2 : 0))), [1, 1, 1], 1, 0, false);
     }
   }
-  R.shadows = S.shadows; R.scale = S.scale;
+  R.shadows = S.shadows; R.scale = S.scale; setListener(camPos, camFwd); setVolumes(S);
   const pf2 = performance.now(); PROF.submit += pf2 - pf1;
   R.flush({ pos: camPos, fwd: camFwd, fov, aspect }, VP, sun, P.pos, t, true, P.state === 'play' ? (S.shadows > 1 ? 62 : 40) : 180);
   const pf3 = performance.now(); PROF.flush += pf3 - pf2;
@@ -1306,7 +1301,7 @@ function netTick(dt: number) {
 }
 const remoteOf = (id: number) => bots.find(b => b.remote === id);
 function applyRemote(b: Bot, m: any) { b.netPos = m.p; b.netYaw = m.yaw; b.netPitch = m.pitch; b.netHeld = m.held; b.netPose = m.pose; b.weapon = m.held && m.held !== 'pickaxe' ? m.held : null; b.emote = m.pose >> 4; b.emoteT = m.pose & 4 ? 1 : 0; if (m.skin !== undefined) b.skin = m.skin; if (m.dead && !b.dead) { b.dead = true; dying.push({ skin: b.skin, pos: [...b.pos] as V3, yaw: b.yaw, t: 1.4 }); } }
-NET.on('start', m => { if (NET.isHost()) return; PR.mode = m.mode ?? PR.mode; AC ??= new AudioContext(); startMatch(m.seed, true); });
+NET.on('start', m => { if (NET.isHost()) return; PR.mode = m.mode ?? PR.mode; void unlockAudio(); startMatch(m.seed, true); });
 NET.on('in', m => { const b = remoteOf(m.from); if (!b) return; applyRemote(b, m); if (m.hp !== undefined && m.hp > b.hp) { b.hp = m.hp; b.shield = m.sh; } if (P.state !== 'island' && b.state === 'island') b.state = 'ground'; });   // heals are trusted; damage is ours
 NET.on('snap', m => {
   if (NET.isHost()) return;
@@ -1352,4 +1347,4 @@ NET.on('closed', () => { if (P.state !== 'lobby') info('Disconnected from party'
     }, 600);
   }, 1500);
 }
-(window as any).G = { NET, H, mmBg: () => mmBg, PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+(window as any).G = { NET, H, beep, unlockAudio, IN, mmBg: () => mmBg, PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
