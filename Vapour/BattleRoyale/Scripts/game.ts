@@ -8,9 +8,9 @@ import { IN, REBINDABLE, bindLabel, rebind } from './input';
 import { bakeWorldNav, navBlock, navFrame, navPath } from './nav';
 import { perceiveVision, selectTarget } from '@vapour/engine';
 import { fxDust, fxSpark, fxChip, fxExplosion, updateFx } from './fx';
-import { PH, moveCapsule, stepPhysics, syncWorld } from './physics';
+import { PH, moveCapsule, physicsRay, stepPhysics, syncHitboxes, syncWorld } from './physics';
 import { UI_PROF, C, after, box, button, clicked, fill, gap, image, label, render, slider, textField, toggle, uiHot, uiMouse, uiReady, type RGBA } from './eui';
-import type { SpriteAsset, UiNodeDefinition } from '@vapour/engine';
+import { SnapshotBuffer, type SpriteAsset, type UiNodeDefinition } from '@vapour/engine';
 
 // ---------------- setup ----------------
 export const canvas = document.getElementById('vapour-game') as HTMLCanvasElement;
@@ -59,7 +59,7 @@ bakeStatics();
 /** Regenerates the whole map from a seed so every party member plays the identical world. */
 function rebuildWorld(seed: number) {
   if (seed === matchSeed) return; matchSeed = seed; setSeed(seed);
-  W = new World(R); bakeStatics(); propCells.clear(); drawMaps(); hookWorld(); bakeWorldNav(W); syncWorld(W);
+  W = new World(R); bakeStatics(); propCells.clear(); drawMaps(); hookWorld(); bakeWorldNav(W); syncWorld(W); W.rayHook = PH ? physicsRay : null;
 }
 function hookWorld() { W.onRemove = p => { navBlock(p.key, p.pos, false); if (matchLive && NET.active() && NET.isHost()) NET.send({ t: 'piece', op: 'del', key: p.key }); }; W.onPlace = p => navBlock(p.key, p.pos, true); }
 hookWorld();
@@ -122,7 +122,7 @@ interface GroundItem { item: Item; pos: V3; id: number; }
 let nextItemId = 1, matchLive = false;
 type BotMode = 'loot' | 'rotate' | 'hunt' | 'fight' | 'box' | 'crank' | 'heal' | 'rush';
 interface Crank { c: V3; L: number; d: number; t: number; steps: number; }
-interface Bot { navPts?: V3[] | undefined; navI?: number; navT?: number; navGoal?: V3; name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'island' | 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; joinT: number; joinedFeed?: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; nades: number; stunT: number; shots: number; remote: number; team: number; netPos: V3; netYaw: number; netPitch: number; netHeld: string | null; netPose: number; cracked: boolean; ammo: Record<Ammo, number>; farmT: number; farmRef: Prop | null; ignore: Set<any>; tryRef: any; tryT: number; }
+interface Bot { snaps?: SnapshotBuffer<{ p: V3; yaw: number; pitch: number }>; navPts?: V3[] | undefined; navI?: number; navT?: number; navGoal?: V3; name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'island' | 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; joinT: number; joinedFeed?: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; nades: number; stunT: number; shots: number; remote: number; team: number; netPos: V3; netYaw: number; netPitch: number; netHeld: string | null; netPose: number; cracked: boolean; ammo: Record<Ammo, number>; farmT: number; farmRef: Prop | null; ignore: Set<any>; tryRef: any; tryT: number; }
 interface Fx { kind: 'dmg' | 'tracer' | 'puff'; t: number; pos: V3; text?: string; head?: boolean; to?: V3; col?: V3; }
 const ICON: Record<string, string> = {
   pickaxe: '<svg viewBox="0 0 64 64"><path d="M14 52 L44 22" stroke="#7a5a3a" stroke-width="6" stroke-linecap="round"/><path d="M30 12 Q46 8 56 26" stroke="#dfe6ee" stroke-width="8" fill="none" stroke-linecap="round"/></svg>',
@@ -482,7 +482,8 @@ function drawMinimap() {
   const u0 = performance.now(); uploadCanvas('t:mm', mmCv); PROF.mmUp += performance.now() - u0;
 }
 const texDefined = new Set<string>();
-function uploadCanvas(id: string, cv: HTMLCanvasElement) { const g = R.ctx; if (!g) return; const d = cv.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, cv.width, cv.height); g.uploadTexture(id, { width: cv.width, height: cv.height, pixels: new Uint8Array(d.data.buffer), colorSpace: 'srgb' }); if (!texDefined.has(id)) { texDefined.add(id); g.defineMaterial('m:' + id, { textures: { baseColor: id }, alphaMode: 'blend', depthWrite: false, doubleSided: true, filter: 'linear' }); } }
+function uploadCanvas(id: string, cv: HTMLCanvasElement) { const g = R.ctx; if (!g) return; const d = cv.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, cv.width, cv.height), rowB = cv.width * 4, px = new Uint8Array(d.data.length); for (let y = 0; y < cv.height; y++) px.set(d.data.subarray(y * rowB, (y + 1) * rowB), (cv.height - 1 - y) * rowB);   // sprites sample bottom-up
+  g.uploadTexture(id, { width: cv.width, height: cv.height, pixels: px, colorSpace: 'srgb' }); if (!texDefined.has(id)) { texDefined.add(id); g.defineMaterial('m:' + id, { textures: { baseColor: id }, alphaMode: 'blend', depthWrite: false, doubleSided: true, filter: 'linear' }); } }
 const SPR_MM: SpriteAsset = { id: 'mm', material: 'm:t:mm', textureSize: [300, 300], rect: [0, 0, 300, 300] };
 const SPR_BIG: SpriteAsset = { id: 'big', material: 'm:t:big', textureSize: [600, 600], rect: [0, 0, 600, 600] };
 function drawHud() {
@@ -905,7 +906,7 @@ function frameInner(now: number) {
     // adaptive quality: step down when the match runs slow (Chromebooks); session-only, saved settings untouched
     if (P.state === 'play') { lowT = fpsV < 30 ? lowT + 0.5 : 0; if (lowT >= 3) { lowT = 0; const step = S.shadows > 1 ? (S.shadows = 1) : S.grass > 0 ? (S.grass = 0) : S.scale > 0.75 ? (S.scale = 0.75) : S.shadows > 0 ? (S.shadows = 0) : S.scale > 0.6 ? (S.scale = 0.6) : S.viewDist > 0 ? (S.viewDist = 0) : -1; if (step !== -1) info('Low FPS: quality lowered (Settings > Video)'); } }
   }
-  IN.update(navigator.getGamepads ? Array.from(navigator.getGamepads()) : []); navFrame(); stepPhysics(W, dt);
+  IN.update(navigator.getGamepads ? Array.from(navigator.getGamepads()) : []); navFrame(); syncHitboxes(bots); stepPhysics(W, dt);
   const key = (a: string) => IN.justPressed(a), down = (a: string) => IN.pressed(a);
   const sun = norm([0.55, 0.62, 0.35] as V3), aspect = innerWidth / innerHeight;
   const locked = document.pointerLockElement === canvas, padSens = 650 * dt * S.padSens * (P.scoped ? 0.4 : P.ads ? 0.6 : 1.0);
@@ -1188,7 +1189,7 @@ function frameInner(now: number) {
 }
 export { frame as tick, R as renderer };
 /** Called once the engine physics world exists (after the first world was generated at import time). */
-export const physicsReady = () => syncWorld(W);
+export const physicsReady = () => { syncWorld(W); W.rayHook = physicsRay; };
 // ---------------- multiplayer glue ----------------
 const netPose = (build: boolean, crouch: boolean, emoteT: number, emote: number, dead: boolean) => (build ? 1 : 0) | (crouch ? 2 : 0) | (emoteT > 0 ? 4 : 0) | (dead ? 8 : 0) | (emote << 4);
 function netPiece(msg: Record<string, unknown>) { if (!NET.active()) return; NET.send(NET.isHost() ? { t: 'piece', ...msg } : { t: 'act', k: 'piece', ...msg }); }
@@ -1200,10 +1201,13 @@ function applyPiece(m: any) {
   else if (m.op === 'dmg') { const p = W.pieces.get(m.key); if (p) { W.damagePiece(p, m.d); if (!W.pieces.has(m.key) && NET.isHost()) NET.send({ t: 'piece', op: 'del', key: m.key }); } }
 }
 /** network-driven entities glide toward their last reported position */
+/** Remote entities render 120 ms behind the newest snapshot, interpolating between the two engine SnapshotBuffer samples around that time. */
+const NET_DELAY = 0.12;
+function netPush(b: Bot, p: V3, yaw: number, pitch: number) { b.netPos = p; b.netYaw = yaw; b.netPitch = pitch; (b.snaps ??= new SnapshotBuffer(32)).push(performance.now() / 1000, { p, yaw, pitch }); }
 function netInterp(b: Bot, dt: number) {
-  const k = 1 - Math.exp(-14 * dt), prev: V3 = [...b.pos] as V3;
-  b.pos[0] += (b.netPos[0] - b.pos[0]) * k; b.pos[1] += (b.netPos[1] - b.pos[1]) * k; b.pos[2] += (b.netPos[2] - b.pos[2]) * k;
-  const dy = Math.atan2(Math.sin(b.netYaw - b.yaw), Math.cos(b.netYaw - b.yaw)); b.yaw += dy * k; b.pitch += (b.netPitch - b.pitch) * k;
+  const prev: V3 = [...b.pos] as V3, s = b.snaps?.sample(performance.now() / 1000 - NET_DELAY);
+  if (s) { const a = s.alpha, f = s.from, t = s.to; b.pos = [f.p[0] + (t.p[0] - f.p[0]) * a, f.p[1] + (t.p[1] - f.p[1]) * a, f.p[2] + (t.p[2] - f.p[2]) * a]; const dy = Math.atan2(Math.sin(t.yaw - f.yaw), Math.cos(t.yaw - f.yaw)); b.yaw = f.yaw + dy * a; b.pitch = f.pitch + (t.pitch - f.pitch) * a; }
+  else { const k = 1 - Math.exp(-14 * dt); b.pos[0] += (b.netPos[0] - b.pos[0]) * k; b.pos[1] += (b.netPos[1] - b.pos[1]) * k; b.pos[2] += (b.netPos[2] - b.pos[2]) * k; b.yaw = b.netYaw; b.pitch = b.netPitch; }
   const sp = len(sub(b.pos, prev)) / Math.max(dt, 1e-3); b.vel = [(b.pos[0] - prev[0]) / dt, 0, (b.pos[2] - prev[2]) / dt]; b.anim += dt * sp * 1.6; b.grounded = true;
   if (b.emoteT > 0) b.emoteT -= dt;
 }
@@ -1220,13 +1224,13 @@ function netTick(dt: number) {
   NET.send({ t: 'snap', tick: snapTick++, players, bots: bs, storm: { c: storm.c, r: +storm.r.toFixed(1), phase: storm.phase, phaseT: +storm.phaseT.toFixed(1), shrinking: storm.shrinking, from: storm.from, to: storm.to, shrinkT: storm.shrinkT }, alive: P.alive, islandT: +P.islandT.toFixed(2), busT: +bus.t.toFixed(2), state: P.state, matchT: +P.matchT.toFixed(1) });
 }
 const remoteOf = (id: number) => bots.find(b => b.remote === id);
-function applyRemote(b: Bot, m: any) { b.netPos = m.p; b.netYaw = m.yaw; b.netPitch = m.pitch; b.netHeld = m.held; b.netPose = m.pose; b.weapon = m.held && m.held !== 'pickaxe' ? m.held : null; b.emote = m.pose >> 4; b.emoteT = m.pose & 4 ? 1 : 0; if (m.skin !== undefined) b.skin = m.skin; if (m.dead && !b.dead) { b.dead = true; dying.push({ skin: b.skin, pos: [...b.pos] as V3, yaw: b.yaw, t: 1.4 }); } }
+function applyRemote(b: Bot, m: any) { netPush(b, m.p, m.yaw, m.pitch); b.netHeld = m.held; b.netPose = m.pose; b.weapon = m.held && m.held !== 'pickaxe' ? m.held : null; b.emote = m.pose >> 4; b.emoteT = m.pose & 4 ? 1 : 0; if (m.skin !== undefined) b.skin = m.skin; if (m.dead && !b.dead) { b.dead = true; dying.push({ skin: b.skin, pos: [...b.pos] as V3, yaw: b.yaw, t: 1.4 }); } }
 NET.on('start', m => { if (NET.isHost()) return; PR.mode = m.mode ?? PR.mode; void unlockAudio(); startMatch(m.seed, true); });
 NET.on('in', m => { const b = remoteOf(m.from); if (!b) return; applyRemote(b, m); if (m.hp !== undefined && m.hp > b.hp) { b.hp = m.hp; b.shield = m.sh; } if (P.state !== 'island' && b.state === 'island') b.state = 'ground'; });   // heals are trusted; damage is ours
 NET.on('snap', m => {
   if (NET.isHost()) return;
   for (const pl of m.players) { if (pl.id === NET.id) { if (!P.dead && pl.dead) {} } else { const b = remoteOf(pl.id); if (b) applyRemote(b, pl); } }
-  for (const a of m.bots) { const b = bots[a[0]]; if (!b || b.remote) continue; b.netPos = [a[1], a[2], a[3]]; b.netYaw = a[4]; b.hp = a[5]; b.shield = a[6]; if (a[7] && !b.dead) { b.dead = true; dying.push({ skin: b.skin, pos: [...b.pos] as V3, yaw: b.yaw, t: 1.4 }); } b.weapon = a[8]; b.emote = a[9] >= 0 ? a[9] : b.emote; b.emoteT = a[9] >= 0 ? 1 : 0; b.state = (['island', 'bus', 'sky', 'glide', 'ground'] as const)[a[10]] ?? 'ground'; b.mode = a[11] ? 'crank' : (b.weapon ? 'fight' : 'loot'); if (b.state === 'bus') b.pos = [...bus.pos] as V3; if (Math.abs(b.pos[0] - a[1]) + Math.abs(b.pos[2] - a[3]) > 40) b.pos = [a[1], a[2], a[3]]; }
+  for (const a of m.bots) { const b = bots[a[0]]; if (!b || b.remote) continue; netPush(b, [a[1], a[2], a[3]], a[4], b.netPitch); b.hp = a[5]; b.shield = a[6]; if (a[7] && !b.dead) { b.dead = true; dying.push({ skin: b.skin, pos: [...b.pos] as V3, yaw: b.yaw, t: 1.4 }); } b.weapon = a[8]; b.emote = a[9] >= 0 ? a[9] : b.emote; b.emoteT = a[9] >= 0 ? 1 : 0; b.state = (['island', 'bus', 'sky', 'glide', 'ground'] as const)[a[10]] ?? 'ground'; b.mode = a[11] ? 'crank' : (b.weapon ? 'fight' : 'loot'); if (b.state === 'bus') b.pos = [...bus.pos] as V3; if (Math.abs(b.pos[0] - a[1]) + Math.abs(b.pos[2] - a[3]) > 40) b.pos = [a[1], a[2], a[3]]; }
   Object.assign(storm, m.storm); P.alive = m.alive; P.matchT = m.matchT;
   if (P.state === 'island') { P.islandT = m.islandT; if (m.state !== 'island' && m.state !== 'lobby') P.islandT = 99; }
   if (P.state === 'bus' && m.busT >= 0) bus.t = m.busT;
@@ -1267,7 +1271,7 @@ NET.on('closed', () => { if (P.state !== 'lobby') info('Disconnected from party'
     }, 600);
   }, 1500);
 }
-(window as any).G = { NET, UI, UI_PROF, beep, unlockAudio, IN, fxExplosion, fxDust, explode, moveCapsule, PH: () => PH, stepPhysics, mmBg: () => mmBg, PROF, nades, chests, P, get W() { return W; }, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+(window as any).G = { NET, UI, UI_PROF, shoot, cam: () => ({ camPos, camFwd }), beep, unlockAudio, IN, fxExplosion, fxDust, explode, moveCapsule, PH: () => PH, stepPhysics, mmBg: () => mmBg, PROF, nades, chests, P, get W() { return W; }, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
 
 const DBG_ITEMS = Object.keys(WEAPONS).concat(Object.keys(CONS)) as Kind[];
 const RAR_COL: RGBA[] = [[0.6, 0.6, 0.62, 0.9], [0.35, 0.75, 0.3, 0.9], [0.25, 0.55, 0.95, 0.9], [0.65, 0.35, 0.9, 0.9], [0.95, 0.6, 0.2, 0.9]];
@@ -1298,10 +1302,10 @@ function lobbyUi(roots: UiNodeDefinition[], vw: number, vh: number) {
   const tsz = vw > 1400 ? 17 : vw > 1100 ? 14 : 12, narrow = vw < 1250, topY = narrow ? 58 : 9;
   roots.push(abs('lnav', 0, 0, vw, narrow ? 100 : 54, [row('lnavr', TABS.map(t => button('tab:' + t, t, { height: 36 }, { on: UI.page === t, bg: [0.06, 0.12, 0.28, 0.85], fg: C.white, size: tsz })), 4, { padding: [9, 0, 0, 12] })], [0.03, 0.06, 0.16, 0.9]));
   for (const t of TABS) if (clicked('tab:' + t)) openPage(t);
+  if (UI.page !== 'PLAY') { pageUi(roots, vw, vh); return; }
   roots.push(abs('wallet', -260, topY, 130, 36, [label('walletT', 'V ' + PR.vbucks.toLocaleString(), 20, C.yellow, { width: 126, height: 30 }, 'center')], [0.06, 0.12, 0.28, 0.85], 1, 0));
   roots.push(abs('lset', -120, topY - 2, 104, 40, [button('btnSettings', 'SETTINGS', { width: 104, height: 40 }, { bg: [0.06, 0.12, 0.28, 0.85], fg: C.white, size: 16 })], undefined, 1, 0));
   if (clicked('btnSettings')) settingsOpen(true);
-  if (UI.page !== 'PLAY') { pageUi(roots, vw, vh); return; }
   // left: progression
   const lv = level(), into = PR.xp % 1000, m1 = Math.min(POIS.length, PR.discovered.length), m2 = Math.min(3, PR.kills);
   roots.push(abs('lpanel', 16, narrow ? 116 : 80, 300, 250, [col('lpc', [
@@ -1448,14 +1452,14 @@ function settingsUi(roots: UiNodeDefinition[], vw: number, vh: number) {
 }
 function dbgUi(roots: UiNodeDefinition[], vw: number, vh: number) {
   const rows: UiNodeDefinition[] = [];
-  const flags = Object.keys(D) as (keyof typeof D)[]; rows.push(row('dFlags', flags.map(f => { const r = toggle('df:' + f, D[f]); D[f] = r.value; return row('dfr:' + f, [r.def, label('dfl:' + f, f, 13, C.white)], 4); }), 10, { wrap: true, width: 700 }));
+  const flags = Object.keys(D) as (keyof typeof D)[]; const flagRows = flags.map(f => { const r = toggle('df:' + f, D[f]); D[f] = r.value; return row('dfr:' + f, [r.def, label('dfl:' + f, f, 13, C.white, { width: 110 })], 4); }); for (let i = 0; i < flagRows.length; i += 4) rows.push(row('dFlags' + i, flagRows.slice(i, i + 4), 10));
   const hp = slider('dHp', UI.dbgHp, 1, 100, 1, 160), sh = slider('dSh', UI.dbgSh, 0, 100, 1, 160), al = slider('dAlive', UI.dbgAlive, 1, 100, 1, 160); UI.dbgHp = hp.value; UI.dbgSh = sh.value; UI.dbgAlive = al.value;
   rows.push(row('dHpR', [label('dHpL', `HP ${UI.dbgHp}`, 14, C.white, { width: 70 }), hp.def, label('dShL', `Shield ${UI.dbgSh}`, 14, C.white, { width: 80 }), sh.def, button('da:sethp', 'SET', { height: 30 }, { size: 14 })], 8));
   rows.push(row('dAlR', [label('dAlL', `Alive ${UI.dbgAlive}`, 14, C.white, { width: 70 }), al.def, button('da:alive', 'SET', { height: 30 }, { size: 14 })], 8));
   rows.push(row('dGive', [button('dItemPrev', '<', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), label('dItemL', itemName(DBG_ITEMS[UI.dbgItem % DBG_ITEMS.length]!), 14, C.white, { width: 160 }, 'center'), button('dItemNext', '>', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), button('dRar', RARITIES[UI.dbgRar]!.toUpperCase(), { width: 110, height: 30 }, { size: 13, bg: RAR_COL[UI.dbgRar]!, fg: C.white }), button('da:give', 'GIVE', { height: 30 }, { size: 14 })], 6));
   rows.push(row('dTp', [button('dPoiPrev', '<', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), label('dPoiL', POIS[UI.dbgPoi % POIS.length]!.name, 14, C.white, { width: 200 }, 'center'), button('dPoiNext', '>', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), button('da:tp', 'TELEPORT', { height: 30 }, { size: 14 })], 6));
   const acts = ['refill', 'loadout', 'bus', 'storm', 'bot', 'peter', 'nobots', 'win', 'die', 'clear', 'siege', 'meteor', 'edit', 'skydive', 'cosm', 'xp'];
-  rows.push(row('dActs', acts.map(a => button('da:' + a, a.toUpperCase(), { height: 30 }, { size: 13, bg: [0.1, 0.2, 0.4, 1], fg: C.white })), 6, { wrap: true, width: 700 }));
+  for (let i = 0; i < acts.length; i += 8) rows.push(row('dActs' + i, acts.slice(i, i + 8).map(a => button('da:' + a, a.toUpperCase(), { height: 30 }, { size: 13, bg: [0.1, 0.2, 0.4, 1], fg: C.white })), 6));
   rows.push(row('dBottom', [button('dbgLobby', 'RETURN TO LOBBY', { height: 34 }, { size: 14, bg: [0.5, 0.15, 0.15, 1], fg: C.white }), button('dbgX', 'CLOSE (F8)', { height: 34 }, { size: 14 })], 8));
   roots.push(abs('dbg', vw / 2 - 370, 60, 740, Math.min(vh - 80, 480), [col('dbgC', [label('dbgT', 'LOCAL TESTING (F8)', 24, C.yellow), ...rows], 8, { padding: 14 })], C.panel));
   if (clicked('dItemPrev')) UI.dbgItem = (UI.dbgItem + DBG_ITEMS.length - 1) % DBG_ITEMS.length; if (clicked('dItemNext')) UI.dbgItem = (UI.dbgItem + 1) % DBG_ITEMS.length; if (clicked('dRar')) UI.dbgRar = (UI.dbgRar + 1) % 5;

@@ -361,7 +361,10 @@ export class World {
     const n: V3 = [0, 0, 0]; if (ax >= 0) n[ax] = d[ax]! > 0 ? -1 : 1;
     return { t: t0, n };
   }
+  /** When set, the engine physics world answers rays (extra boxes = bot hitboxes, which live there as sensors). */
+  rayHook: ((o: V3, d: V3, maxT: number, withBots: boolean) => Hit | null) | null = null;
   raycast(o: V3, d: V3, maxT: number, extra: Box[] = []): Hit | null {
+    if (this.rayHook) return this.rayHook(o, d, maxT, extra.length > 0);
     let best: Hit | null = null;
     const consider = (h: Hit | null) => { if (h && (!best || h.t < best.t)) best = h; };
     let prev = o[1] - terrainH(o[0], o[2]);
