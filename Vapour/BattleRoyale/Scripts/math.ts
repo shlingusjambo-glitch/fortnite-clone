@@ -15,7 +15,10 @@ export const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b
 // World generation must be identical on every machine in a party, so `rand` draws from the engine's deterministic
 // SeededRandom; `setSeed` is called with the match seed before the world is (re)built.
 let rng = new SeededRandom(1);
-export function setSeed(seed: number) { rng = new SeededRandom((seed >>> 0) || 1); }
+let seed0 = 1;
+export function setSeed(seed: number) { seed0 = (seed >>> 0) || 1; rng = new SeededRandom(seed0); }
+/** The seed the current world was built from (for engine generators that take their own seed). */
+export const seedOf = () => seed0;
 export function srand() { return rng.next(); }
 export const rand = (a = 0, b = 1) => a + rng.next() * (b - a);
 

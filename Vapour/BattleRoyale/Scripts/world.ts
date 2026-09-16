@@ -1,9 +1,9 @@
-import { V3, add, scale, sub, clamp, rand, norm, cross } from './math';
+import { V3, add, scale, sub, clamp, rand, norm, cross, seedOf } from './math';
 import { MB, rgb, dk, Col, LBox, C } from './models';
 import { BUILDERS, BuildingKind } from './buildings';
 import { Renderer, Mesh } from './renderer';
-import { buildTerrain } from './terrain';
-import type { MeshUpload } from '@vapour/engine';
+import { buildTerrain, scatterProps } from './terrain';
+import type { MeshUpload, TerrainHeightfield } from '@vapour/engine';
 const srgbLin = (v: number) => Math.pow(v, 2.2);
 
 // ---------------- terrain (authored: broad hills + mesas with cliff walls + river valleys) ----------------
@@ -94,7 +94,7 @@ export interface Box { min: V3; max: V3; ref?: any; }
 export interface Hit { t: number; p: V3; n: V3; kind: 'terrain' | 'prop' | 'piece' | 'box' | 'static'; ref?: any; }
 
 export class World {
-  terrain!: Mesh; island!: Mesh; terrainChunks: { mesh: Mesh; lod: Mesh; c: V3; r: number }[] = []; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
+  terrain!: Mesh; island!: Mesh; field!: TerrainHeightfield; terrainChunks: { mesh: Mesh; lod: Mesh; c: V3; r: number }[] = []; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
   lootSpots: V3[] = []; chestSpots: V3[] = []; footprints: [number, number, number][] = [];
   /** 32m spatial hash of props + statics so collision/raycast only touch nearby objects */
   grid = new Map<number, { props: Prop[]; statics: Static[] }>();
@@ -118,7 +118,8 @@ export class World {
     // engine heightfield terrain: splat-painted chunks with a fine and a coarse LOD mesh each
     const paint = (x: number, z: number, y: number, slope: number) => y < 1.4 ? 3 : slope > 1.6 && y > 3 ? 2 : roadDist(x, z) < 3.2 ? 4 : roadDist(x, z) < 4.6 || vnoise(x * 0.09 + 50, z * 0.09 + 12) > 0.86 ? 1 : 0;
     const tint = (m: MeshUpload) => { const c = m.colors!, p = m.positions; for (let i = 0; i < c.length / 4; i++) { const col = terrainColor(p[i * 3]!, p[i * 3 + 2]!, p[i * 3 + 1]!); c[i * 4] = srgbLin(col[0]); c[i * 4 + 1] = srgbLin(col[1]); c[i * 4 + 2] = srgbLin(col[2]); } };
-    for (const ch of buildTerrain(0, 0, SIZE, STEP, terrainH, paint, 40).chunks) { tint(ch.fine); tint(ch.coarse); this.terrainChunks.push({ mesh: r.uploadRaw(ch.fine), lod: r.uploadRaw(ch.coarse), c: ch.c, r: ch.r }); }
+    const terrain = buildTerrain(0, 0, SIZE, STEP, terrainH, paint, 40); this.field = terrain.field;
+    for (const ch of terrain.chunks) { tint(ch.fine); tint(ch.coarse); this.terrainChunks.push({ mesh: r.uploadRaw(ch.fine), lod: r.uploadRaw(ch.coarse), c: ch.c, r: ch.r }); }
     this.terrain = this.terrainChunks[0]!.mesh;
     { const isl = buildTerrain(ISLAND[0], ISLAND[2], 150, STEP, terrainH, paint, 50).chunks[0]!; tint(isl.fine); this.island = r.uploadRaw(isl.fine); }
     for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283, rr = 30 + (k % 3) * 8; this.props.push({ type: k % 3 ? 'tree' : 'pine', pos: [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.2, ISLAND[2] + Math.sin(a) * rr], yaw: a, s: 1.5, hp: 250, r: 0.6, h: 9, dead: 0 }); }
@@ -204,11 +205,9 @@ export class World {
     for (let i = 1; i < MESAS.length; i += 2) { const [mx, mz] = MESAS[i]!; placeBuilding(i % 4 === 1 ? 'tower' : 'cottage', mx, mz, i % 4, i, i); this.chestSpots.push([mx + 6, terrainH(mx + 6, mz + 6), mz + 6]); }   // hilltop lookouts on the mesas
     // vegetation: authored clusters (woods, tree lines along roads/rivers) + sparse fill
     const put = (x: number, z: number, type: Prop['type'], s: number) => { const y = terrainH(x, z); if (y < 2.2) return; for (const f of footprints) if (Math.hypot(f[0] - x, f[1] - z) < f[2] + 1) return; if (roadDist(x, z) < 6) return; this.props.push({ type, pos: [x, y - 0.2, z], yaw: rand(0, 6.28), s, hp: type === 'bush' ? 30 : 250, r: (type === 'rock' ? 1.4 : type === 'bush' ? 0.7 : 0.4) * s, h: (type === 'rock' ? 1.2 : type === 'bush' ? 1 : 6) * s, dead: 0 }); };
-    for (let k = 0; k < 1500; k++) {   // sparse fill
-      const x = rand(-SIZE / 2, SIZE / 2), z = rand(-SIZE / 2, SIZE / 2), rv = rand();
-      let ok = true; for (const p of POIS) if (Math.hypot(x - p.x, z - p.z) < p.r * 0.7 && p.layout !== 'scatter') ok = false; if (!ok) continue;
-      const type: Prop['type'] = rv < 0.4 ? 'tree' : rv < 0.55 ? 'tree2' : rv < 0.72 ? 'pine' : rv < 0.9 ? 'rock' : 'bush';
-      put(x, z, type, type === 'pine' ? rand(1.1, 1.7) : type === 'rock' ? rand(0.9, 1.8) : type === 'bush' ? rand(1.2, 1.8) : rand(1.3, 1.9));
+    for (const q of scatterProps(this.field, 0, 0, seedOf())) {   // open-country fill: engine scatter, slope/height aware
+      let ok = true; for (const p of POIS) if (Math.hypot(q.x - p.x, q.z - p.z) < p.r * 0.7 && p.layout !== 'scatter') ok = false; if (!ok) continue;
+      put(q.x, q.z, q.type, q.s);
     }
     for (const [cx, cz, cr, pineK] of [[215, -195, 60, 0.85], [265, -40, 55, 0.9], [235, 240, 60, 0.2], [-120, 40, 50, 0.6], [-300, -60, 45, 0.5], [120, 10, 40, 0.4]] as [number, number, number, number][]) {   // woods
       for (let k = 0; k < 220; k++) { const a = rand(0, 6.28), rr = Math.sqrt(rand()) * cr; const x = cx + Math.cos(a) * rr, z = cz + Math.sin(a) * rr; const pine = rand() < pineK; put(x, z, pine ? 'pine' : rand() < 0.7 ? 'tree' : 'tree2', pine ? rand(1.3, 2.0) : rand(1.4, 2.0)); }

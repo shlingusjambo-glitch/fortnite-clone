@@ -1,7 +1,7 @@
 // Engine terrain: the analytic height function becomes a Vapour heightfield, painted with a splat map
 // (grass / dirt / rock / sand / asphalt) and meshed by the engine's chunk grid at two LOD steps. Detail
 // textures are baked from engine gradient noise so every layer has albedo grain and a normal map.
-import { GradientNoise, TerrainChunkGrid, TerrainHeightfield, TerrainMaterial, TerrainSplatMap, type MeshUpload, type TextureUpload } from '@vapour/engine';
+import { GradientNoise, TerrainChunkGrid, TerrainHeightfield, TerrainMaterial, TerrainSplatMap, scatterVegetation, type MeshUpload, type TextureUpload, type VegetationScatterRule } from '@vapour/engine';
 import type { V3 } from './math';
 
 export const LAYERS = ['grass', 'dirt', 'rock', 'sand', 'asphalt'] as const;
@@ -9,7 +9,7 @@ export const TERRAIN_MATERIAL = new TerrainMaterial({ layers: LAYERS.map(name =>
 export const TERRAIN_STYLE = 5;
 
 export interface TerrainChunkOut { fine: MeshUpload; coarse: MeshUpload; c: V3; r: number; }
-export interface TerrainBuild { chunks: TerrainChunkOut[]; }
+export interface TerrainBuild { chunks: TerrainChunkOut[]; field: TerrainHeightfield; }
 
 /** Builds a chunked, splat-painted terrain over `size` metres centred on (cx, cz). `cellM` metres per sample. */
 export function buildTerrain(cx: number, cz: number, size: number, cellM: number, height: (x: number, z: number) => number, paint: (x: number, z: number, y: number, slope: number) => number, chunkCells: number): TerrainBuild {
@@ -29,7 +29,7 @@ export function buildTerrain(cx: number, cz: number, size: number, cellM: number
     for (const m of [fine, coarse]) for (let i = 0; i < m.positions.length; i += 3) { m.positions[i] = m.positions[i]! + cx; m.positions[i + 2] = m.positions[i + 2]! + cz; }
     chunks.push({ fine, coarse, c: [ch.bounds.center[0] + cx, ch.bounds.center[1], ch.bounds.center[2] + cz], r: ch.bounds.radius });
   }
-  return { chunks };
+  return { chunks, field };
 }
 
 /** Bakes the layer atlas (one cell per layer) as an sRGB albedo and a tangent-space normal map. */
@@ -61,4 +61,17 @@ export function bakeTerrainTextures(cell = 192): { base: TextureUpload; normal: 
     }
   }
   return { base: { width: W, height: H, pixels: base, colorSpace: 'srgb', mipmaps: true }, normal: { width: W, height: H, pixels: normal, colorSpace: 'linear', mipmaps: true } };
+}
+
+/** Engine slope/height-aware scatter for the open-country trees, rocks and bushes. Positions come back in world space. */
+export function scatterProps(field: TerrainHeightfield, cx: number, cz: number, seed: number) {
+  const proto = (id: string, minScale: number, maxScale: number) => ({ id, meshId: id, material: 'm:default', footprintRadius: 1, minScale, maxScale });
+  const rules: VegetationScatterRule[] = [
+    { prototype: proto('tree', 1.3, 1.9), density: 0.0012, minHeight: 2.2, maxSlopeDegrees: 28 },
+    { prototype: proto('tree2', 1.3, 1.9), density: 0.00045, minHeight: 2.2, maxSlopeDegrees: 28 },
+    { prototype: proto('pine', 1.1, 1.7), density: 0.0005, minHeight: 6, maxSlopeDegrees: 34 },
+    { prototype: proto('rock', 0.9, 1.8), density: 0.0006, minHeight: 2.2 },
+    { prototype: proto('bush', 1.2, 1.8), density: 0.0003, minHeight: 2.2, maxSlopeDegrees: 22 },
+  ];
+  return scatterVegetation(field, { seed, rules }).map(i => ({ type: i.prototypeId as 'tree' | 'tree2' | 'pine' | 'rock' | 'bush', x: i.position[0] + cx, z: i.position[2] + cz, yaw: i.rotationY, s: i.scale }));
 }
