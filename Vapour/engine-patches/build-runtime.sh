@@ -9,3 +9,4 @@ out=$(mktemp -d)
 wasm-bindgen --target web --out-dir "$out" --out-name vapour_runtime EngineSource/target/wasm32-unknown-unknown/release/vapour_wasm.wasm
 cp "$out/vapour_runtime_bg.wasm" vapour-engine-0.2.5-alpha/runtime/vapour_runtime_bg.wasm
 echo "installed $(wc -c < vapour-engine-0.2.5-alpha/runtime/vapour_runtime_bg.wasm) bytes"
+cp engine-patches/text-layout-cache/text-2d.ts vapour-engine-0.2.5-alpha/sdk/engine-src/text/text-2d.ts

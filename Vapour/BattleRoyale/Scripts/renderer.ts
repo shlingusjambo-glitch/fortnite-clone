@@ -83,6 +83,8 @@ export class Renderer {
   /** Skinned draw: `bones` is the palette (16 column-major floats per bone) in the instance's local space. */
   drawSkinned(m: Mesh, mat: M4, bones: Float32Array, style = 0, tint: V3 = [1, 1, 1]) { if (m.n === 0) return; this.items.push({ m, mat, tint, alpha: 1, style, shadow: true, two: false, bones }); }
   get itemCount() { return this.items.length; }
+  /** The engine context once bound (texture/material uploads for UI rasters). */
+  get ctx() { return this.game; }
   /** Submits everything queued this frame. `sky` false = lobby/gallery lighting. */
   flush(cam: Cam, _vp: M4, sun: V3, _focus: V3, _t: number, sky = true, _shadowRange = 90) {
     const g = this.game; if (!g) { this.items.length = 0; return; }

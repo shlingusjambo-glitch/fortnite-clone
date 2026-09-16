@@ -16,3 +16,7 @@ Rebuild the runtime (Rust 1.98 + wasm32 target + wasm-bindgen 0.2.127, both inst
 
 It copies the patched files into `EngineSource`, builds `vapour-wasm` for wasm32, runs wasm-bindgen and
 installs `vapour_runtime_bg.wasm` into `vapour-engine-0.2.5-alpha/runtime/` (the JS bindings are unchanged).
+
+`text-layout-cache/text-2d.ts` (sdk/engine-src/text, the source the CLI bundles) caches each font atlas's validated glyph table and reuses one
+grapheme segmenter: `layoutText2D` validated the whole atlas — allocating an `Intl.Segmenter` per glyph — on every
+call, which made a 40-label HUD cost ~60 ms per frame. Copy it over `vapour-engine-0.2.5-alpha/sdk/engine-src/text/`.

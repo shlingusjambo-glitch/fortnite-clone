@@ -9,6 +9,8 @@ import { bakeWorldNav, navBlock, navFrame, navPath } from './nav';
 import { perceiveVision, selectTarget } from '@vapour/engine';
 import { fxDust, fxSpark, fxChip, fxExplosion, updateFx } from './fx';
 import { PH, moveCapsule, stepPhysics, syncWorld } from './physics';
+import { UI_PROF, C, after, box, button, clicked, fill, gap, image, label, render, slider, textField, toggle, uiHot, uiMouse, uiReady, type RGBA } from './eui';
+import type { SpriteAsset, UiNodeDefinition } from '@vapour/engine';
 
 // ---------------- setup ----------------
 export const canvas = document.getElementById('vapour-game') as HTMLCanvasElement;
@@ -18,7 +20,6 @@ const editCache = new Map<string, ReturnType<typeof editedPiece>>();
 const editedMesh = (type: 'wall' | 'floor', mat: Mat, mask: number) => { const k = `${type}_${mat}_${mask}`; let m = editCache.get(k); if (!m) { m = editedPiece(R, type, mat, mask); editCache.set(k, m); } return m; };
 const CHARS: CharMesh[] = SKINS.map(s => buildCharacter(R, s));
 const LOBBY_CHAR = buildCharacter(R, SKINS[0]!, 1.35);
-const $ = (id: string) => document.getElementById(id)!;
 /** Pointer lock with raw (unadjusted) mouse deltas: on Linux Firefox with fractional display scaling, slow motion
  * otherwise rounds to movementX = 0 and small aims are swallowed. Browsers/devices that reject the option fall back. */
 function lockPointer() {
@@ -28,12 +29,10 @@ function lockPointer() {
   } catch { try { canvas.requestPointerLock(); } catch {} }
 }
 
-const H = { fade: $('fade'), lobby: $('lobby'), hud: $('hud'), hp: $('hp'), sh: $('sh'), mats: $('mats'), bld: $('bld'), ammo: $('ammo'), wname: $('wname'), hotbar: $('hotbar'), info: $('info'), fx: $('fx'), cross: $('cross'), weak: $('weak'), hitm: $('hitm'), prog: $('prog'), flash: $('flash'), scope: $('scope'), pause: $('pause'), comp: $('comp'), fps: $('fps'), mm: $('mm'), stats: $('stats'), feed: $('feed'), banner: $('banner'), elim: $('elim'), bigmap: $('bigmap'), pl: $('pl'), end: $('end'), dbg: $('dbg'), tgt: $('tgt') };
-const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600;
-function drawMaps() { W.drawMap(mapCv); const big = H.bigmap.querySelector('canvas') as HTMLCanvasElement; big.getContext('2d')!.drawImage(mapCv, 0, 0); W.drawLabels(big); }
+const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600; mapCv.getContext('2d', { willReadFrequently: true });   // CPU-backed: it is blitted into the minimap texture
+const bigCv = document.createElement('canvas'); bigCv.width = bigCv.height = 600; bigCv.getContext('2d', { willReadFrequently: true }); let bigDirty = true;
+function drawMaps() { W.drawMap(mapCv); bigCv.getContext('2d')!.drawImage(mapCv, 0, 0); W.drawLabels(bigCv); bigDirty = true; }
 drawMaps();
-// lobby crystal background
-{ const svg = $('lobbybg'); let s = ''; const pts: [number, number][] = []; for (let i = 0; i < 60; i++) pts.push([rand(-10, 110), rand(-10, 70)]); for (let i = 0; i < 60; i++) { const a = pts[i], b = pts[(i * 7 + 3) % 60], c = pts[(i * 13 + 5) % 60]; const l = 35 + rand(0, 35); s += `<polygon points="${a![0]},${a![1]} ${b![0]},${b![1]} ${c![0]},${c![1]}" fill="hsl(${198 + rand(-6, 6)},${60 + rand(0, 20)}%,${l}%)" opacity="0.7"/>`; } svg.innerHTML = `<rect width="100" height="60" fill="#3b8fc4"/>` + s + `<ellipse cx="50" cy="52" rx="40" ry="10" fill="#e8f6ff" opacity="0.55"/>`; }
 
 // ---------------- baked static clutter ----------------
 // Small indestructible street/yard props (hedges, fences, dashes, crates, benches...) are merged per 48m cell into one
@@ -170,7 +169,7 @@ const SDEF = { sensX: 1, sensY: 1, adsSens: 0.7, scopeSens: 0.5, invertY: false,
 // low-end defaults (Chromebooks: few cores / little RAM / no discrete GPU) unless the player saved their own settings
 const lowEnd = (navigator.hardwareConcurrency || 8) <= 4 || ((navigator as any).deviceMemory || 8) <= 4;
 const S: typeof SDEF = { ...SDEF, ...(lowEnd ? { shadows: 1, grass: 1, scale: 0.8, viewDist: 0 } : {}), ...JSON.parse(localStorage.getItem('fn-settings') || '{}') };
-const GALLERY = new URLSearchParams(location.search).get('gallery'); if (GALLERY) { document.getElementById('lobby')!.style.display = 'none'; document.getElementById('lobbybg')!.style.display = 'none'; }
+const GALLERY = new URLSearchParams(location.search).get('gallery');
 const D = { aimbot: false, esp: false, invuln: false, infMats: false, infAmmo: false, fly: false, lowGrav: false, pauseBots: false };
 // persistent local profile: progression, wallet, unlocks, stats
 let lastEmote = 0;
@@ -182,21 +181,11 @@ const MODES = [['SOLO', 'BATTLE ROYALE'], ['PETERBOT GAUNTLET', 'ALL 32 BOTS ARE
 const teamSize = () => (PR.mode === 4 ? 2 : PR.mode === 5 ? 4 : PR.mode === 2 ? 16 : 1);
 const teamOf = (id: number) => { const i = NET.members.findIndex(m => m.id === id); return i < 0 ? -1 : Math.floor(i / teamSize()); };
 const sameTeam = (a: number, b: number) => teamSize() > 1 && a >= 0 && teamOf(a) === teamOf(b);
-function updateWallet() { $('wallet').textContent = 'Ⓥ ' + PR.vbucks.toLocaleString(); saveProfile(); }
-function refreshLobby() {
-  updateWallet(); const lv = level(), into = PR.xp % 1000;
-  $('lpanel').querySelector('.lvl')!.textContent = 'LEVEL ' + lv; ($('lpanel').querySelector('.xp i') as HTMLElement).style.width = into / 10 + '%';
-  $('nametag').querySelector('small')!.textContent = String(lv); ($('nametag').children[1] as HTMLElement).innerHTML = `${PR.name}<div class="nr">${PR.matches ? PR.wins + ' wins · ' + PR.kills + ' elims' : 'Not Ready'}</div>`;
-  const ms = $('lpanel').querySelectorAll<HTMLElement>('.mission');
-  const m1 = Math.min(POIS.length, PR.discovered.length), m2 = Math.min(3, PR.kills);
-  ms[0]!.innerHTML = `Discover Named Locations<div class="bar"><i style="width:${m1 / POIS.length * 100}%"></i><b>${m1} / ${POIS.length}</b></div>`;
-  ms[1]!.innerHTML = `Eliminate 3 opponents<div class="bar"><i style="width:${m2 / 3 * 100}%"></i><b>${m2} / 3</b></div>`;
-  $('lpanel').querySelector('.sub')!.textContent = `${Math.floor(PR.matches * 4 / 60)}H ${(PR.matches * 4) % 60}M`;
-  const md = $('lpanel').querySelectorAll<HTMLElement>('.medal'); md.forEach((m, i) => m.classList.toggle('gold', i < Math.min(10, Math.floor(PR.kills / 5))));
-  document.querySelector('#rpanel .solo')!.textContent = MODES[PR.mode]![0]!; document.querySelector('#rpanel .br')!.textContent = MODES[PR.mode]![1]!;
-  $('lbot').firstChild!.textContent = 'CHAPTER 1 · SEASON 1';
-}
-function toast(msg: string) { const e = $('toast'); e.textContent = msg; e.style.display = 'block'; clearTimeout((e as any)._t); (e as any)._t = setTimeout(() => (e.style.display = 'none'), 2200); }
+function updateWallet() { saveProfile(); }
+function refreshLobby() { updateWallet(); }
+function toast(msg: string) { UI.toast = msg; UI.toastT = 2.2; }
+// ---------------- engine UI: lobby, menus, settings and HUD are Vapour UiDocuments on the overlay layer ----------------
+const UI = { page: 'PLAY', settings: false, setTab: 'input', dbg: false, emoteWheel: false, bigmap: false, join: '', joinFocus: false, nameEdit: null as string | null, nameFocus: false, rebind: null as string | null, rebindArmT: 0, toast: '', toastT: 0, bannerH: '', bannerP: '', infoTxt: '', elimT: 0, elimName: '', hitT: 0, hitHead: false, flashT: 0, end: null as null | { win: boolean; by: string; xp: number }, hud: true, poi: '', tgt: '', tgtHp: -1, dbgHp: 100, dbgSh: 0, dbgAlive: 10, dbgItem: 0, dbgRar: 2, dbgPoi: 0 };
 const height = () => (P.crouch ? 1.2 : 1.75);
 const eyeH = () => height() - 0.15;
 const fwd = (): V3 => [Math.sin(P.yaw), 0, Math.cos(P.yaw)];
@@ -221,8 +210,8 @@ function nextStormPhase() {
   const fast = PR.mode === 3 ? 0.45 : 1; storm.shrinking = true; storm.shrinkT = ph![1]! * fast; storm.phaseT = ph![1]! * fast; storm.phase++; banner('STORM EYE SHRINKING', '', 4);
 }
 let siegeUp = false;
-let fadeT = 0, fadeDur = 1; function fade(d: number) { fadeT = d; fadeDur = d; H.fade.style.opacity = '1'; }
-let bannerT = 0; function banner(h: string, p: string, t: number) { H.banner.querySelector('h1')!.textContent = h; (H.banner.querySelector('p') as HTMLElement).textContent = p; (H.banner.querySelector('p') as HTMLElement).style.display = p ? 'block' : 'none'; H.banner.style.display = 'block'; bannerT = t; }
+let fadeT = 0, fadeDur = 1; function fade(d: number) { fadeT = d; fadeDur = d; }
+let bannerT = 0; function banner(h: string, p: string, t: number) { UI.bannerH = h; UI.bannerP = p; bannerT = t; }
 const NAMES1 = ['Misty', 'Coastal', 'Storm', 'Quiet', 'Frenzy', 'Slurp', 'Salty', 'Lazy', 'Sweaty', 'Dusty'], NAMES2 = ['Runner', 'Scout', 'Ranger', 'Nomad', 'Camper', 'Hunter', 'Rider', 'Drifter'];
 const botName = () => NAMES1[Math.floor(rand(0, 10))]! + NAMES2[Math.floor(rand(0, 8))]! + Math.floor(rand(10, 99));
 function addFeed(html: string, fromNet = false) { feed.push({ html, t: 12 }); if (feed.length > 5) feed.shift(); if (!fromNet && matchLive && NET.active() && NET.isHost()) NET.send({ t: 'feed', html }); }
@@ -251,8 +240,8 @@ function startMatch(seed = Math.floor(Math.random() * 1e9), remoteStart = false)
   for (let i = 0; i < 32; i++) { const b = spawnBot(undefined, PR.mode === 1 || i < 15 ? (i % 2 ? 4 : 5) : Math.floor(rand(0, 4))); b.joinT = rand(1, 18); b.state = 'island'; b.pos = [ISLAND[0] + rand(-25, 25), 8, ISLAND[2] + rand(-25, 25)]; const ab = sub(bus.b, bus.a), k = clamp(((b.land[0] - bus.a[0]) * ab[0] + (b.land[2] - bus.a[2]) * ab[2]) / (ab[0] * ab[0] + ab[2] * ab[2]), 0.08, 0.95); b.dropT = k * bus.dur + rand(-3, 3) - (1 - b.skill) * 4; }   // jump when the bus passes closest to the chosen POI
   P.nextDrop = 90; drops.length = 0;
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.6, z = p.z + rand(-p.r, p.r) * 0.6, y = terrainH(x, z); if (y > 1) dropItem(mkItem('ammo'), [x, y, z]); }
-  P.dead = false; P.over = false; P.dmg = 0; storm.phase = 0; storm.shrinking = false; H.end.style.display = 'none';
-  H.lobby.style.display = 'none'; H.hud.style.display = 'block'; try { lockPointer(); } catch {}
+  P.dead = false; P.over = false; P.dmg = 0; storm.phase = 0; storm.shrinking = false; UI.end = null; UI.page = 'PLAY'; UI.settings = false;
+  try { lockPointer(); } catch {}
   fade(1.2); banner('SPAWN ISLAND', 'WAITING FOR PLAYERS · PRACTICE WHILE THE LOBBY FILLS', 5);
   // multiplayer: other party members are player entities (moved by the network, never by AI); the host announces the match
   if (NET.active()) { for (const m of NET.members) if (m.id !== NET.id) addRemotePlayer(m); if (NET.isHost() && !remoteStart) NET.send({ t: 'start', seed, mode: PR.mode }); }
@@ -276,7 +265,7 @@ function spawnBot(at?: V3, profileIdx = -1): Bot {
   const b: Bot = { name: cracked ? 'Peterbot' + Math.floor(rand(10, 99)) : botName(), pos, vel: [0, 0, 0], yaw: rand(0, 6.28), pitch: 0, hp: 100, shield: at ? 50 : 0, skin: Math.floor(rand(0, SKINS.length)), state: at ? 'ground' : 'bus', dead: false, anim: 0, weapon: at ? 'ar' : null, weapons: at ? ['ar'] : [], heals: at ? 2 : 0, mats: at ? 500 : 0, target: null, retarget: 0, fireCd: 1, buildCd: 0, lastHit: -9, grounded: false, dropT: rand(6, 50), land, enemy: null, strafe: 1, mode: 'loot', profile: pr!.name, skill, aggression, accuracy: cracked ? 0.3 + skill * 0.35 : 0.14 + skill * 0.3, reaction: lerp(0.9, 0.2, skill), seenAt: 0, lastSeen: -9, memory: null, memoryT: 0, crank: null, healT: 0, stuckT: 0, lastPos: [...pos] as V3, voiceCd: rand(0, 5), interactT: 0, interactRef: null, aimDrift: [rand(-1, 1), rand(-.5, .5), rand(-1, 1)], peekT: 0, peekWall: null, wanderT: 0, boxAt: null, lootT: 0, emoteT: 0, emote: 0, probeT: 0, probeDir: null, nades: at ? 3 : 0, stunT: 0, shots: 0, remote: 0, team: -1, netPos: [0, 0, 0], netYaw: 0, netPitch: 0, netHeld: null, netPose: 0, cracked: profileIdx >= 4 || pr!.skill[0] >= 0.7, ammo: { light: at ? 90 : 0, medium: at ? 90 : 0, heavy: at ? 10 : 0, shells: at ? 20 : 0 }, farmT: 0, farmRef: null, ignore: new Set(), tryRef: null, tryT: 0, joinT: 0 };
   bots.push(b); return b;
 }
-function toLobby() { refreshLobby(); P.state = 'lobby'; H.end.style.display = 'none'; P.over = false; H.lobby.style.display = 'block'; H.hud.style.display = 'none'; document.exitPointerLock(); }
+function toLobby() { refreshLobby(); P.state = 'lobby'; UI.end = null; P.over = false; UI.bigmap = false; UI.emoteWheel = false; document.exitPointerLock(); }
 
 // ---------------- input & controller ----------------
 const mouse = { l: false, r: false, dx: 0, dy: 0 };   // filled from engine actions each frame
@@ -315,59 +304,22 @@ addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
   }
 });
 
-canvas.addEventListener('mousedown', () => { if (P.state !== 'lobby' && document.pointerLockElement !== canvas) lockPointer(); });
-$('btnPlay').onclick = () => { if (NET.active() && !NET.isHost()) return toast('Waiting for the party leader to start'); void unlockAudio(); startMatch(); };
-NET.on('members', () => { if (P.state === 'lobby' && menuPage.style.display === 'block' && menuTitle.textContent === 'PARTY') openPage('PARTY'); document.querySelector('#lnav .box')!.textContent = '👤 ' + Math.max(0, NET.members.length - 1); });
-$('btnSkin').onclick = () => { PR.mode = (PR.mode + 1) % MODES.length; refreshLobby(); };
-const menuPage = $('menuPage'), menuTitle = menuPage.querySelector('h1')!, menuCards = menuPage.querySelector('.cards')!;
-const SHOP = [4, 5, 6, 7, 8, 9, 10, 11].map((i, k) => ({ skin: i, price: [800, 1200, 1500, 2000][k % 4] }));
+canvas.addEventListener('mousedown', () => { if (P.state !== 'lobby' && !UI.settings && !UI.dbg && !UI.emoteWheel && !UI.bigmap && !P.over && document.pointerLockElement !== canvas) lockPointer(); });
+function playClick() { if (NET.active() && !NET.isHost()) return toast('Waiting for the party leader to start'); void unlockAudio(); startMatch(); }
+NET.on('members', () => { /* the PARTY page reads NET.members every frame */ });
+const SHOP = [4, 5, 6, 7, 8, 9, 10, 11].map((i, k) => ({ skin: i, price: [800, 1200, 1500, 2000][k % 4]! }));
 const PASS = Array.from({ length: 20 }, (_, i) => ({ tier: i + 1, reward: i % 5 === 4 ? { skin: 12 + Math.floor(i / 5) } : { vbucks: 100 + (i % 5) * 50 } }));
-const CHALLENGES = [['Eliminate 10 opponents', () => PR.kills, 10, 500], ['Deal 2,500 damage', () => Math.round(PR.dmg), 2500, 500], ['Place 250 structures', () => PR.builds, 250, 400], ['Open 25 chests', () => PR.chests, 25, 300], ['Discover every named location', () => PR.discovered.length, POIS.length, 800], ['Win a Victory Royale', () => PR.wins, 1, 1500], ['Play 10 matches', () => PR.matches, 10, 300]] as [string, () => number, number, number][];
-const skinTile = (i: number, sub: string, cls = '') => `<div class="tile skin ${cls}" data-skin="${i}"><canvas width="64" height="64"></canvas><b>${SKINS[i]!.name}</b>${sub}</div>`;
-function paintSkins() { menuCards.querySelectorAll<HTMLCanvasElement>('.tile.skin canvas').forEach(cv => { const sk = SKINS[+cv.parentElement!.dataset.skin!], c = cv.getContext('2d')!, col = (v: V3) => `rgb(${v.map(x => x * 255 | 0).join(',')})`; c.fillStyle = col(sk!.top); c.fillRect(12, 34, 40, 30); c.fillStyle = col(sk!.pants); c.fillRect(16, 56, 32, 8); c.fillStyle = col(sk!.skin); c.fillRect(18, 10, 28, 26); c.fillStyle = col(sk!.hair); c.fillRect(16, 4, 32, 10); c.fillStyle = '#000'; c.fillRect(24, 20, 4, 4); c.fillRect(36, 20, 4, 4); }); }
-function openPage(name: string) {
-  document.querySelectorAll('#lnav .tab').forEach(x => x.classList.toggle('on', x.textContent === name));
-  if (name === 'PLAY') { menuPage.style.display = 'none'; return; }
-  menuTitle.textContent = name; let html = '';
-  if (name === 'BATTLE PASS') { const lv = level(); html = `<div class="tile"><b>LEVEL ${lv}</b>${PR.xp % 1000} / 1000 XP to next level · earn XP from eliminations, damage and survival</div>` + PASS.map(t => { const ok = lv >= t.tier, done = PR.claimed.includes(t.tier); const r = 'skin' in t.reward ? SKINS[t.reward.skin!]!.name : `Ⓥ ${t.reward.vbucks}`; return `<div class="tile ${ok ? '' : 'locked'}"><b>TIER ${t.tier}</b>${r}<br>${done ? '✔ CLAIMED' : ok ? `<button data-claim="${t.tier}">CLAIM</button>` : `Reach level ${t.tier}`}</div>`; }).join(''); }
-  else if (name === 'CHALLENGES') html = CHALLENGES.map(([n, f, goal, xp], i) => { const v = Math.min(goal, f()), done = v >= goal; return `<div class="tile"><b>${n}</b><div class="bar"><i style="width:${v / goal * 100}%"></i><b>${v} / ${goal}</b></div>${done ? '✔ +' + xp + ' XP' : '+' + xp + ' XP'}</div>`; }).join('');
-  else if (name === 'COMPETE') html = MODES.map((m, i) => `<div class="tile"><b>${m[0]}</b>${m[1]}<br><button data-mode="${i}">LAUNCH</button></div>`).join('') + `<div class="tile"><b>SPAWN BOT LOBBY</b>Practice on the spawn island with the whole lobby before the bus leaves.<br><button data-mode="0">PLAY</button></div>`;
-  else if (name === 'LOCKER') html = `<div class="tile" style="grid-column:1/-1"><b>EMOTE (B)</b>${EMOTES.map((e, i) => `<button data-emote="${i}" ${PR.emote === i ? 'style="background:#ffe22e;color:#12305a"' : ''}>${e}</button>`).join(' ')}</div>` + SKINS.map((sk, i) => skinTile(i, PR.unlocked.includes(i) ? (i === P.skin ? 'EQUIPPED' : 'Click to equip') : '🔒 Item Shop / Battle Pass', i === P.skin ? 'on' : PR.unlocked.includes(i) ? '' : 'locked')).join('');
-  else if (name === 'ITEM SHOP') html = SHOP.map(o => skinTile(o.skin, PR.unlocked.includes(o.skin) ? 'OWNED' : `Ⓥ ${o.price} <button data-buy="${o.skin}" data-price="${o.price}">BUY</button>`)).join('');
-  else if (name === 'CAREER') html = `<div class="tile"><b>${PR.name}</b>Level ${level()} · ${PR.xp.toLocaleString()} XP</div><div class="tile"><b>${PR.matches}</b>MATCHES</div><div class="tile"><b>${PR.wins}</b>VICTORY ROYALES</div><div class="tile"><b>${PR.kills}</b>ELIMINATIONS</div><div class="tile"><b>${Math.round(PR.dmg).toLocaleString()}</b>DAMAGE</div><div class="tile"><b>${PR.builds}</b>STRUCTURES</div><div class="tile"><b>${PR.chests}</b>CHESTS</div><div class="tile"><b>${PR.discovered.length} / ${POIS.length}</b>LOCATIONS<br>${PR.discovered.join(', ') || '—'}</div><div class="tile"><b>RESET</b><button data-act="reset">Wipe local profile</button></div>`;
-  else if (name === 'STORE') html = [1000, 2800, 5000, 13500].map(v => `<div class="tile"><b>Ⓥ ${v.toLocaleString()}</b>Free in this local build<br><button data-vb="${v}">GET</button></div>`).join('');
-  else if (name === 'PARTY') {
-    const me = NET.id;
-    html = NET.connected()
-      ? `<div class="tile" style="grid-column:1/-1"><b>PARTY CODE: ${NET.code}</b>Share this code — friends join from their PARTY page. ${NET.isHost() ? 'You are the party leader: your PLAY starts the match for everyone.' : 'Waiting for the party leader to press PLAY.'} Ping ${Math.round(NET.rtt)}ms<br><button data-party="leave">LEAVE PARTY</button></div>` + NET.members.map((m, i) => `<div class="tile ${m.id === me ? 'on' : ''}"><b>${m.name}${m.id === NET.hostId ? ' 👑' : ''}${m.id === me ? ' (you)' : ''}</b>${SKINS[m.skin % SKINS.length]!.name}${teamSize() > 1 ? ` · Team ${Math.floor(i / teamSize()) + 1}` : ''}</div>`).join('')
-      : `<div class="tile"><b>CREATE PARTY</b>Get a 5-letter code your friends can join. The leader's mode (Solo / Duos / Squads…) applies to everyone.<br><button data-party="create">CREATE</button></div><div class="tile"><b>JOIN PARTY</b><input id="joinCode" maxlength="5" placeholder="CODE" style="text-transform:uppercase;width:90px;padding:6px;font-size:16px"> <button data-party="join">JOIN</button></div><div class="tile"><b>${PR.name} (you)</b>Level ${level()} · ${MODES[PR.mode]![0]}<br>Bots fill the rest of the lobby.</div>`;
-  }
-  menuCards.innerHTML = html; paintSkins(); menuPage.style.display = 'block';
-  menuCards.querySelectorAll<HTMLElement>('.tile.skin').forEach(card => card.onclick = () => { const i = +card.dataset.skin!; if (name === 'LOCKER' && PR.unlocked.includes(i)) { P.skin = i; PR.mode = PR.mode; saveProfile(); openPage(name); } });
-  menuCards.querySelectorAll<HTMLButtonElement>('[data-buy]').forEach(b => b.onclick = e => { e.stopPropagation(); const i = +b.dataset.buy!, pr = +b.dataset.price!; if (PR.vbucks < pr) return toast('Not enough V-Bucks'); PR.vbucks -= pr; PR.unlocked.push(i); updateWallet(); toast('Purchased ' + SKINS[i]!.name); openPage(name); });
-  menuCards.querySelectorAll<HTMLButtonElement>('[data-claim]').forEach(b => b.onclick = () => { const t = PASS[+b.dataset.claim! - 1]; PR.claimed.push(t!.tier); if ('skin' in t!.reward) { PR.unlocked.push(t!.reward.skin!); toast('Unlocked ' + SKINS[t!.reward.skin!]!.name); } else { PR.vbucks += t!.reward.vbucks!; toast('+' + t!.reward.vbucks + ' V-Bucks'); } updateWallet(); openPage(name); });
-  menuCards.querySelectorAll<HTMLButtonElement>('[data-vb]').forEach(b => b.onclick = () => { PR.vbucks += +b.dataset.vb!; updateWallet(); toast('+' + b.dataset.vb + ' V-Bucks'); });
-  menuCards.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(b => b.onclick = () => { PR.mode = +b.dataset.mode!; refreshLobby(); menuPage.style.display = 'none'; $('btnPlay').click(); });
-  menuCards.querySelectorAll<HTMLButtonElement>('[data-emote]').forEach(b => b.onclick = () => { PR.emote = +b.dataset.emote!; lastEmote = PR.emote; saveProfile(); openPage(name); });
-  menuCards.querySelectorAll<HTMLButtonElement>('[data-party]').forEach(b => b.onclick = async () => {
-    try {
-      if (b.dataset.party === 'create') { const code = await NET.createRoom(); await NET.join(code, PR.name, P.skin); toast('Party ' + code + ' created'); }
-      else if (b.dataset.party === 'join') { const code = (menuCards.querySelector('#joinCode') as HTMLInputElement).value.trim().toUpperCase(); if (code.length !== 5) return toast('Enter the 5-letter code'); await NET.join(code, PR.name, P.skin); toast('Joined ' + code); }
-      else { NET.leave(); }
-    } catch (e) { toast('Party: ' + (e as Error).message); }
-    openPage('PARTY');
-  });
-  menuCards.querySelectorAll<HTMLButtonElement>('[data-act=reset]').forEach(b => b.onclick = () => { if (confirm('Wipe the local profile?')) { localStorage.removeItem('fn-profile'); location.reload(); } });
+const CHALLENGES: [string, () => number, number, number][] = [['Eliminate 10 opponents', () => PR.kills, 10, 500], ['Deal 2,500 damage', () => Math.round(PR.dmg), 2500, 500], ['Place 250 structures', () => PR.builds, 250, 400], ['Open 25 chests', () => PR.chests, 25, 300], ['Discover every named location', () => PR.discovered.length, POIS.length, 800], ['Win a Victory Royale', () => PR.wins, 1, 1000]];
+function openPage(name: string) { UI.page = name; }
+function buySkin(i: number, pr: number) { if (PR.vbucks < pr) return toast('Not enough V-Bucks'); PR.vbucks -= pr; PR.unlocked.push(i); updateWallet(); toast('Purchased ' + SKINS[i]!.name); }
+function claimTier(tier: number) { const t = PASS[tier - 1]!; PR.claimed.push(t.tier); if ('skin' in t.reward) { PR.unlocked.push(t.reward.skin!); toast('Unlocked ' + SKINS[t.reward.skin!]!.name); } else { PR.vbucks += t.reward.vbucks!; toast('+' + t.reward.vbucks + ' V-Bucks'); } updateWallet(); }
+async function partyAction(a: 'create' | 'join' | 'leave') {
+  try {
+    if (a === 'create') { const code = await NET.createRoom(); await NET.join(code, PR.name, P.skin); toast('Party ' + code + ' created'); }
+    else if (a === 'join') { const code = UI.join.trim().toUpperCase(); if (code.length !== 5) return toast('Enter the 5-letter code'); await NET.join(code, PR.name, P.skin); toast('Joined ' + code); }
+    else NET.leave();
+  } catch (e) { toast('Party: ' + (e as Error).message); }
 }
-document.querySelectorAll<HTMLElement>('#lnav .tab').forEach(el => el.onclick = () => openPage(el.textContent || ''));
-$('menuClose').onclick = () => openPage('PLAY');
-document.querySelector<HTMLElement>('#lnav .box')!.onclick = () => openPage('PARTY');
-document.querySelectorAll<HTMLElement>('#lobby .plus').forEach(el => el.onclick = () => openPage('PARTY'));
-$('local').onclick = () => toast('LOCAL: everything runs in this browser. No account, no servers.');
-$('nametag').onclick = () => { const n = prompt('Display name', PR.name); if (n && n.trim()) { PR.name = n.trim().slice(0, 16); saveProfile(); refreshLobby(); } };
-$('lbot').querySelector('span')!.onclick = e => { const tx = (e.target as HTMLElement).textContent || ''; if (tx.includes('Controls')) { settingsOpen(true); SET.querySelector<HTMLElement>('[data-p=keys]')!.click(); } else openPage('LOCKER'); };
-H.pause.onclick = () => lockPointer();
-document.addEventListener('pointerlockchange', () => { H.pause.style.display = document.pointerLockElement === canvas || P.state === 'lobby' || SET.style.display === 'block' || EW.style.display === 'flex' || dbgOpen() || P.over ? 'none' : 'flex'; });
 
 // ---------------- helpers ----------------
 function botBoxes(): Box[] {
@@ -379,20 +331,16 @@ function damage(n: number, by = 'the storm') {
   if (D.invuln || P.dead || P.over || P.state === 'island') return;
   rumble(Math.min(400, n * 8 + 120), 0.7, 0.95);
   P.bush = false;
-  const s = Math.min(P.shield, n); P.shield -= s; P.hp -= n - s; H.flash.style.opacity = '0.3'; setTimeout(() => (H.flash.style.opacity = '0'), 80); beep(120, 0.2, 'sawtooth', 0.1, -60);
+  const s = Math.min(P.shield, n); P.shield -= s; P.hp -= n - s; UI.flashT = 0.1; beep(120, 0.2, 'sawtooth', 0.1, -60);
   if (P.hp <= 0) { P.hp = 0; P.dead = true; P.dyingT = 1.5; addFeed(`${by} eliminated <span class="me">${PR.name}</span>`); banner('YOU WERE ELIMINATED', 'BY ' + by.toUpperCase(), 4); setTimeout(() => endScreen(false, by), 4000); }
 }
 function endScreen(win: boolean, by = '') {
   P.over = true; document.exitPointerLock();
   const xp = P.kills * 300 + Math.round(P.dmg * 2) + Math.round(P.matchT * 5) + (win ? 1500 : 0);
   PR.xp += xp; PR.matches++; PR.kills += P.kills; PR.dmg += P.dmg; if (win) { PR.vbucks += 250; PR.wins++; rumble(500, 1.0, 1.0); } else rumble(300, 0.6, 0.8); saveProfile();
-  H.end.className = win ? 'win' : 'lose';
-  H.end.querySelector('.title')!.innerHTML = win ? '<span class="n1">#1</span><span>VICTORY<br>ROYALE</span>' : `<span class="n1">#${P.alive}</span><span>ELIMINATED<br><small>by ${by}</small></span>`;
-  H.end.querySelector('.st')!.innerHTML = `<div><b>${P.kills}</b>ELIMINATIONS</div><div><b>${Math.round(P.dmg)}</b>DAMAGE</div><div><b>${xp}</b>MATCH XP</div>`;
-  H.end.style.display = 'flex';
-  if (win) { const c = H.end.querySelector('.confetti')!; c.innerHTML = ''; for (let i = 0; i < 80; i++) c.innerHTML += `<i style="left:${rand(0, 100)}%;animation-delay:${rand(0, 4)}s;background:${['#ff5ab3', '#5ee0ff', '#ffe22e', '#9dff5a'][i % 4]};transform:rotate(${rand(0, 90)}deg)"></i>`; }
+  UI.end = { win, by, xp };
 }
-let infoT = 0; function info(t: string) { H.info.textContent = t; H.info.style.display = 'block'; infoT = 2; }
+let infoT = 0; function info(t: string) { UI.infoTxt = t; infoT = 2; }
 function giveMat(m: Mat, n: number) { P.mats[m] = Math.min(999, P.mats[m] + n); }
 const camPos: V3 = [0, 0, 0]; let camFwd: V3 = [0, 0, 1], fov = 1.15;
 let VP: M4 = perspective(1, 1, 0.1, 10);
@@ -424,7 +372,7 @@ function botDamage(dm: Bot, n: number, by: string, how = 'with a weapon') {
   if (dm.hp > 0) { if (Math.random() < .22) botVoice(dm); return; }
   dm.dead = true; P.alive--; dying.push({ skin: dm.skin, pos: [...dm.pos] as V3, yaw: dm.yaw, t: 1.4 }); fx.push({ kind: 'puff', t: 0.4, pos: add(dm.pos, [0, 1, 0]), col: [0.4, 0.8, 1] }); fxSpark(add(dm.pos, [0, 1, 0]), 30);
   if (Math.random() < 0.35) { const killer = bots.find(x => x.name === by); if (killer && !killer.dead) { killer.emoteT = 3; killer.emote = Math.floor(rand(0, 4)); } }
-  if (by === PR.name) { P.kills++; H.elim.querySelector('b')!.textContent = dm.name; H.elim.style.display = 'block'; setTimeout(() => (H.elim.style.display = 'none'), 2500); addFeed(`Player eliminated <span class="v">${dm.name}</span> ${how}`); beep(600, 0.3, 'square', 0.08, 300); }
+  if (by === PR.name) { P.kills++; UI.elimName = dm.name; UI.elimT = 2.5; addFeed(`Player eliminated <span class="v">${dm.name}</span> ${how}`); beep(600, 0.3, 'square', 0.08, 300); }
   else addFeed(`${by} eliminated <span class="v">${dm.name}</span>`);
   for (const w of dm.weapons) dropItem(mkItem(w), add(dm.pos, [0, 0.2, 0]), 1.2); dropItem(mkItem('bandage', 3), add(dm.pos, [0, 0.2, 0]), 1); if (dm.heals > 1) dropItem(mkItem('shieldPot', 1), add(dm.pos, [0, 0.2, 0]), 1.3);
   if (P.alive <= 1 && !P.dead && !P.over && P.state === 'play') setTimeout(() => endScreen(true), 800);
@@ -462,7 +410,7 @@ function shoot(item: Item) {
   }
   if (client) NET.send({ t: 'act', k: 'shot', o: camPos, d: shotRays, kind: item.kind, rar: item.rar });
   P.bloom = Math.min(P.bloom + w!.bloom, w!.bloom * 4);
-  if (hitAny) { H.hitm.style.opacity = '1'; H.hitm.className = headAny ? 'head' : ''; setTimeout(() => (H.hitm.style.opacity = '0'), 60); beep(headAny ? 1400 : 1000, 0.06, 'sine', 0.1); }
+  if (hitAny) { UI.hitT = 0.08; UI.hitHead = headAny; beep(headAny ? 1400 : 1000, 0.06, 'sine', 0.1); }
 }
 function swingPickaxe() {
   P.swing = 0.5; beep(300, 0.08, 'triangle', 0.05);
@@ -512,67 +460,41 @@ function landed() {
 }
 
 // ---------------- HUD ----------------
-const plIcon = H.pl.querySelector('canvas') as HTMLCanvasElement;
-function drawIcon(skin: Skin) { const c = plIcon.getContext('2d')!; const col = (v: V3) => `rgb(${v.map(x => x * 255 | 0).join(',')})`; c.clearRect(0, 0, 16, 16); c.fillStyle = col(skin.top); c.fillRect(3, 11, 10, 5); c.fillStyle = col(skin.skin); c.fillRect(4, 3, 8, 8); c.fillStyle = col(skin.hair); c.fillRect(3, 1, 10, 3); c.fillStyle = '#000'; c.fillRect(6, 6, 1, 1); c.fillRect(10, 6, 1, 1); }
-const mmCtx = (H.mm.querySelectorAll('canvas')[1] as HTMLCanvasElement).getContext('2d')!;
-const mmBg = (H.mm.querySelectorAll('canvas')[0] as HTMLCanvasElement).getContext('2d')!;
+const mmCv = document.createElement('canvas'); mmCv.width = mmCv.height = 300; const mmCtx = mmCv.getContext('2d', { willReadFrequently: true })!; const mmBg = mmCtx;   // CPU-backed: the pixels are read back into an engine texture
 const HEAD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 let fpsN = 0, fpsT = 0, fpsV = 0, lowT = 0;
 let hudN = 0;
-function drawHud() {
-  const heavy = (++hudN % 3) === 0;   // DOM-heavy parts at 20Hz; bars/crosshair every frame
-  H.hp.querySelector('i')!.style.width = P.hp + '%'; H.hp.nextElementSibling!.textContent = String(Math.ceil(P.hp));
-  H.sh.querySelector('i')!.style.width = P.shield + '%'; H.sh.nextElementSibling!.textContent = String(Math.ceil(P.shield));
-  (H.pl.querySelector('.b i') as HTMLElement).style.width = P.hp + '%';
-  if (heavy) H.mats.innerHTML = (['wood', 'stone', 'metal'] as Mat[]).map(m => `<div class="${P.mat === m && P.build ? 'sel' : ''}">${m === 'wood' ? '<svg viewBox="0 0 40 40"><path d="M6 30 L26 8 L34 14 L14 36 Z" fill="#e6c48a" stroke="#8a6a3a" stroke-width="1.5"/></svg>' : m === 'stone' ? '<svg viewBox="0 0 40 40"><path d="M4 22 L20 12 L36 20 L20 30 Z" fill="#c9c9c9" stroke="#666" stroke-width="1.5"/><path d="M4 22 L20 30 L20 36 L4 28 Z" fill="#a0a0a0" stroke="#666" stroke-width="1.5"/><path d="M36 20 L20 30 L20 36 L36 26 Z" fill="#8a8a8a" stroke="#666" stroke-width="1.5"/></svg>' : '<svg viewBox="0 0 40 40"><path d="M8 8 L30 8 L30 14 L18 14 L32 32 L10 32 L10 26 L22 26 Z" fill="#dfe6ee" stroke="#556" stroke-width="1.5"/></svg>'}${P.mats[m]}</div>`).join('');
-  if (heavy) H.bld.innerHTML = ([['wall', 'Q', '<rect x="10" y="10" width="24" height="24" transform="skewY(-10)"/>'], ['floor', 'G', '<path d="M22 12 L38 22 L22 32 L6 22 Z"/>'], ['ramp', 'F', '<path d="M8 36 L8 30 L14 30 L14 24 L20 24 L20 18 L26 18 L26 12 L32 12 L32 8 L38 8 L38 36 Z"/>'], ['pyramid', 'Alt', '<path d="M22 8 L40 26 L22 36 L4 26 Z"/><path d="M22 8 L22 36"/>']] as [PieceType, string, string][]).map(([t, k, s]) => `<div class="${P.build && P.piece === t ? 'on' : ''}"><kbd>${k}</kbd><svg viewBox="0 0 44 44">${s}</svg></div>`).join('');
-  const it = curItem();
-  const slots = [`<div class="slot ${P.slot < 0 ? 'sel' : ''}">${ICON.pickaxe}<span class="k">BACKQUOTE</span></div>`].concat(P.inv.map((s, i) => {
-    const rar = s ? RARITIES[s.rar] : '';
-    return `<div class="slot ${rar} ${P.slot === i ? 'sel ' + (s && isWeapon(s.kind) ? 'w' : '') : ''}">${s ? ICON[s.kind] + `<span class="cnt">${isWeapon(s.kind) ? s.mag : s.count}</span>` : ''}<span class="k">${['1', '2', '3', 'MOUSE4', 'MOUSE3'][i]}</span></div>`;
-  }));
-  if (heavy) H.hotbar.innerHTML = slots.join('');
-  H.wname.textContent = P.swim ? 'Swimming' : P.editing ? 'Editing' : it ? (isWeapon(it.kind) ? WEAPONS[it.kind]!.name : CONS[it.kind]!.name) : P.slot < 0 ? 'Pickaxe' : '';
-  H.ammo.innerHTML = it && isWeapon(it.kind) ? `${P.reload > 0 ? '<small>RELOADING</small>' : it.mag} <small>/ ${P.ammo[WEAPONS[it.kind]!.ammo]}</small><span class="mg"></span>` : '';
-  H.cross.className = P.build ? 'build' : ''; H.cross.style.display = (P.state === 'play' || P.state === 'island') && !P.scoped ? 'block' : 'none'; H.scope.style.display = P.scoped && !P.over ? 'block' : 'none'; H.hud.style.opacity = P.over ? '0' : '1';
-  H.prog.style.display = P.useT > 0 ? 'block' : 'none'; if (P.useT > 0) H.prog.querySelector('i')!.style.width = (100 - P.useT / P.useDur * 100) + '%';
-  // compass
-  const deg = ((-(P.yaw * 180 / Math.PI) + 180) % 360 + 360) % 360; let ch = `<div class="hd">${Math.round(deg)}</div>`;
-  for (let d = -90; d <= 90; d += 15) { const a = ((Math.round(deg / 15) * 15 + d) % 360 + 360) % 360, x = 410 + (a - deg + 540) % 360 - 180; const px = 410 + ((a - deg + 540) % 360 - 180) * 4.2; if (Math.abs(px - 410) > 420) continue; const big = a % 45 === 0; ch += `<div class="tk ${big ? 'big' : ''}" style="left:${px}px">${big ? HEAD[a / 45] : a}</div>`; }
-  if (heavy) H.comp.innerHTML = ch;
-  // minimap: 300px window on the 600px map (world 720 → 1.2 units/px on the big map, we zoom 2x)
-  const zoom = P.state === 'play' ? 1.7 : 0.5, sx = (P.pos[0] + SIZE / 2) / SIZE * 600, sz = (P.pos[2] + SIZE / 2) / SIZE * 600, vw = 300 / zoom;
-  if (heavy || hudN % 3 === 1) {
-  mmBg.clearRect(0, 0, 300, 300); mmBg.fillStyle = '#7bbde9'; mmBg.fillRect(0, 0, 300, 300);
-  if (P.state === 'island') { mmBg.fillStyle = '#8fd44e'; mmBg.beginPath(); mmBg.arc(150 + (ISLAND[0] - P.pos[0]) * zoom * 600 / SIZE, 150 + (ISLAND[2] - P.pos[2]) * zoom * 600 / SIZE, 62 * zoom * 600 / SIZE, 0, 6.28); mmBg.fill(); } else mmBg.drawImage(mapCv, sx - vw / 2, sz - vw / 2, vw, vw, 0, 0, 300, 300);
-  const g = mmCtx; g.clearRect(0, 0, 300, 300); const toMM = (x: number, z: number): [number, number] => [150 + ((x + SIZE / 2) / SIZE * 600 - sx) * zoom, 150 + ((z + SIZE / 2) / SIZE * 600 - sz) * zoom];
+/** Minimap raster (2D canvas offscreen) → engine texture; the HUD draws it as an image node. */
+function drawMinimap() {
+  const g = mmCtx, zoom = P.state === 'play' ? 1.7 : 0.5, sx = (P.pos[0] + SIZE / 2) / SIZE * 600, sz = (P.pos[2] + SIZE / 2) / SIZE * 600, vw = 300 / zoom;
+  g.globalCompositeOperation = 'source-over'; g.clearRect(0, 0, 300, 300); g.fillStyle = '#7bbde9'; g.fillRect(0, 0, 300, 300);
+  if (P.state === 'island') { g.fillStyle = '#8fd44e'; g.beginPath(); g.arc(150 + (ISLAND[0] - P.pos[0]) * zoom * 600 / SIZE, 150 + (ISLAND[2] - P.pos[2]) * zoom * 600 / SIZE, 62 * zoom * 600 / SIZE, 0, 6.28); g.fill(); } else g.drawImage(mapCv, sx - vw / 2, sz - vw / 2, vw, vw, 0, 0, 300, 300);
+  const toMM = (x: number, z: number): [number, number] => [150 + ((x + SIZE / 2) / SIZE * 600 - sx) * zoom, 150 + ((z + SIZE / 2) / SIZE * 600 - sz) * zoom];
   g.setLineDash([6, 6]); g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(...toMM(bus.a[0], bus.a[2])); g.lineTo(...toMM(bus.b[0], bus.b[2])); g.stroke(); g.setLineDash([]);
   const sc = toMM(storm.c[0], storm.c[1]), sr = storm.r / SIZE * 600 * zoom;
   if (P.state !== 'island') {
-  g.fillStyle = 'rgba(150,80,200,0.45)'; g.fillRect(0, 0, 300, 300); g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(sc[0], sc[1], sr, 0, 6.28); g.fill(); g.globalCompositeOperation = 'source-over';
-  g.strokeStyle = '#fff'; g.lineWidth = 3; g.beginPath(); g.arc(sc[0], sc[1], sr, 0, 6.28); g.stroke();
+    g.fillStyle = 'rgba(150,80,200,0.45)'; g.fillRect(0, 0, 300, 300); g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(sc[0], sc[1], sr, 0, 6.28); g.fill(); g.globalCompositeOperation = 'source-over';
+    g.strokeStyle = '#fff'; g.lineWidth = 3; g.beginPath(); g.arc(sc[0], sc[1], sr, 0, 6.28); g.stroke();
   }
   if (P.state === 'bus') { const [bx, bz] = toMM(bus.pos[0], bus.pos[2]); g.fillStyle = '#4fa8ff'; g.strokeStyle = '#fff'; g.beginPath(); g.rect(bx - 9, bz - 6, 18, 12); g.fill(); g.stroke(); }
   g.save(); g.translate(150, 150); g.rotate(-P.yaw + Math.PI); g.fillStyle = '#fff'; g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(0, -9); g.lineTo(7, 7); g.lineTo(0, 3); g.lineTo(-7, 7); g.closePath(); g.fill(); g.stroke(); g.restore();
-  }
-  let poi = ''; for (const p of POIS) if (Math.hypot(P.pos[0] - p.x, P.pos[2] - p.z) < p.r + 20) poi = p.name; H.mm.querySelector('.poi')!.textContent = poi;
+  const u0 = performance.now(); uploadCanvas('t:mm', mmCv); PROF.mmUp += performance.now() - u0;
+}
+const texDefined = new Set<string>();
+function uploadCanvas(id: string, cv: HTMLCanvasElement) { const g = R.ctx; if (!g) return; const d = cv.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, cv.width, cv.height); g.uploadTexture(id, { width: cv.width, height: cv.height, pixels: new Uint8Array(d.data.buffer), colorSpace: 'srgb' }); if (!texDefined.has(id)) { texDefined.add(id); g.defineMaterial('m:' + id, { textures: { baseColor: id }, alphaMode: 'blend', depthWrite: false, doubleSided: true, filter: 'linear' }); } }
+const SPR_MM: SpriteAsset = { id: 'mm', material: 'm:t:mm', textureSize: [300, 300], rect: [0, 0, 300, 300] };
+const SPR_BIG: SpriteAsset = { id: 'big', material: 'm:t:big', textureSize: [600, 600], rect: [0, 0, 600, 600] };
+function drawHud() {
+  const heavy = (++hudN % 6) === 0;
+  if ((heavy || !texDefined.has('t:mm')) && !(UI as any).noMm) drawMinimap();
+  let poi = ''; for (const p of POIS) if (Math.hypot(P.pos[0] - p.x, P.pos[2] - p.z) < p.r + 20) poi = p.name; UI.poi = poi;
   if (poi && P.state === 'play' && !PR.discovered.includes(poi)) { PR.discovered.push(poi); banner(poi, 'DISCOVERED · +100 XP', 3); PR.xp += 100; saveProfile(); }
-  H.stats.innerHTML = `<span>🕒 ${fmt(storm.phaseT)}</span><span>👤 ${P.alive}</span><span>⚔ ${P.kills}</span>`;
-  if (heavy) H.feed.innerHTML = feed.map(f => `<div style="opacity:${Math.min(1, f.t)}">${f.html}</div>`).join('');
   if (P.state === 'bus' && bus.t > 4) banner('SPACE TO JUMP', `EVERYBODY OFF. LAST STOP IN ${Math.ceil(bus.dur - bus.t)}s`, 0.2);
-  H.fps.textContent = S.showFps ? fpsV + ' FPS' : '';
-  let html = '';
-  for (const d of bots) if (d.remote && !d.dead && d.state !== 'bus') { const s = project(add(d.pos, [0, 2.4, 0])); if (s) html += `<div class="nm" style="left:${s[0]}px;top:${s[1]}px;color:${sameTeam(NET.id, d.remote) ? '#7cf23a' : '#fff'}">${d.name}</div>`; }
-  if (D.esp && !S.streamer) for (const d of bots) if (!d.dead && d.state !== 'bus') { const s = project(add(d.pos, [0, 2.4, 0])); if (s) html += `<div class="nm" style="left:${s[0]}px;top:${s[1]}px;color:#ff8">${d.name} · ${Math.ceil(d.hp + d.shield)} · ${Math.round(len(sub(d.pos, P.pos)))}m</div>`; }
   const th = P.state === 'play' ? W.raycast(camPos, camFwd, 200, botBoxes()) : null;
-  if (th && th.kind === 'box') { const dm = (th.ref as { d: Bot }).d; H.tgt.textContent = `${dm.name} · ${Math.ceil(dm.hp + dm.shield)} HP · ${Math.round(th.t)}m`; H.tgt.style.display = 'block'; }
-  else if (th && th.kind === 'piece' && th.t < 12) { const pc = th.ref as Piece; H.tgt.innerHTML = P.editing ? 'LMB select tiles · X / RMB confirm · R reset' : `<i style="display:inline-block;width:80px;height:6px;background:#0008;vertical-align:middle;margin-right:8px"><i style="display:block;height:100%;width:${pc.hp / pc.maxHp * 100}%;background:#7cf23a"></i></i>${Math.ceil(pc.hp)} / ${pc.maxHp} · X to edit`; H.tgt.style.display = 'block'; }
-  else H.tgt.style.display = 'none';
-  const cs = 52 + P.bloom * 2600 * (P.ads ? 0.5 : 1); H.cross.style.width = H.cross.style.height = cs + 'px'; H.cross.style.margin = -cs / 2 + 'px';
-  for (const f of fx) if (f.kind === 'dmg') { const s = project(add(f.pos, [0, (0.9 - f.t) * 1.5, 0])); if (s) html += `<div class="dmg ${f.head ? 'head' : ''}" style="left:${s[0]}px;top:${s[1]}px;opacity:${Math.min(1, f.t * 3)}">${f.text}</div>`; }
-  H.fx.innerHTML = html;
-  const ws=P.weakT>0&&P.weakPos?project(P.weakPos):null; H.weak.style.display=ws?'block':'none'; if(ws){H.weak.style.left=ws[0]+'px';H.weak.style.top=ws[1]+'px';}
+  if (th && th.kind === 'box') { const dm = (th.ref as { d: Bot }).d; UI.tgt = `${dm.name} · ${Math.ceil(dm.hp + dm.shield)} HP · ${Math.round(th.t)}m`; UI.tgtHp = -1; }
+  else if (th && th.kind === 'piece' && th.t < 12) { const pc = th.ref as Piece; UI.tgt = P.editing ? 'LMB select tiles · X / RMB confirm · R reset' : `${Math.ceil(pc.hp)} / ${pc.maxHp} · X to edit`; UI.tgtHp = P.editing ? -1 : pc.hp / pc.maxHp; }
+  else { UI.tgt = ''; UI.tgtHp = -1; }
 }
 
 // ---------------- character drawing ----------------
@@ -621,55 +543,21 @@ function drawChar(ch: CharMesh, root: M4, a: AnimIn) {
   if (a.pose === 'glide') R.draw(M.glider, mul(m, translate(0, 2.6, 0.15)));
 }
 
-// ---------------- settings, lobby scaling, emotes ----------------
-const SET = $('settings');
-function settingsOpen(on: boolean) { SET.style.display = on ? 'block' : 'none'; if (on) { document.exitPointerLock(); syncSettingsUI(); } else if (P.state !== 'lobby' && !P.over) lockPointer(); H.pause.style.display = 'none'; }
-function syncSettingsUI() { SET.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-s]').forEach(el => { const k = el.dataset.s as keyof typeof SDEF, v = (S as any)[k]; if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = !!v; else el.value = String(v); const val = el.parentElement?.querySelector('.val'); if (val) val.textContent = typeof v === 'number' ? (v % 1 ? v.toFixed(2) : String(v)) : ''; }); }
-SET.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-s]').forEach(el => el.oninput = () => { const k = el.dataset.s as keyof typeof SDEF; (S as any)[k] = el instanceof HTMLInputElement && el.type === 'checkbox' ? el.checked : +el.value; const val = el.parentElement?.querySelector('.val'); if (val) val.textContent = String((S as any)[k]); });
-SET.querySelectorAll<HTMLElement>('.tabs div').forEach(tb => tb.onclick = () => { SET.querySelectorAll('.tabs div').forEach(x => x.classList.toggle('on', x === tb)); SET.querySelectorAll<HTMLElement>('.page').forEach(pg => pg.classList.toggle('on', pg.dataset.p === tb.dataset.p)); });
-$('setApply').onclick = () => { localStorage.setItem('fn-settings', JSON.stringify(S)); localStorage.setItem('fn-binds', JSON.stringify(IN.overrides())); settingsOpen(false); info('Settings saved'); };
-// key rebinding through the engine action map: click a key cap, press the new key/button; overrides persist separately from settings
+// ---------------- settings, emotes ----------------
+function settingsOpen(on: boolean) { UI.settings = on; if (on) document.exitPointerLock(); else if (P.state !== 'lobby' && !P.over) lockPointer(); }
+function saveSettings() { localStorage.setItem('fn-settings', JSON.stringify(S)); localStorage.setItem('fn-binds', JSON.stringify(IN.overrides())); settingsOpen(false); info('Settings saved'); }
 try { IN.applyOverrides(JSON.parse(localStorage.getItem('fn-binds') || '{}')); } catch {}
-const keysPage = SET.querySelector<HTMLElement>('.page.keys')!;
-function renderKeys() {
-  keysPage.querySelectorAll('div[data-a]').forEach(el => el.remove());
-  for (const [a, label] of REBINDABLE) { const row = document.createElement('div'); row.dataset.a = a; row.innerHTML = `<span>${label}</span><kbd>${bindLabel(a)}</kbd>`; keysPage.append(row); }
-  keysPage.querySelectorAll<HTMLElement>('kbd').forEach(k => k.onclick = () => {
-    keysPage.querySelectorAll('kbd').forEach(x => x.classList.remove('wait')); k.classList.add('wait'); k.textContent = '…';
-    const a = k.parentElement!.dataset.a!;
-    const done = () => { removeEventListener('keydown', onKey, true); removeEventListener('mousedown', onMouse, true); renderKeys(); };
-    const onKey = (e: KeyboardEvent) => { e.preventDefault(); e.stopPropagation(); if (e.code !== 'Escape') rebind(a, { device: 'keyboard', code: e.code }); done(); };
-    const onMouse = (e: MouseEvent) => { if (e.target === k) return; e.preventDefault(); e.stopPropagation(); rebind(a, { device: 'pointer', button: e.button }); done(); };
-    setTimeout(() => { addEventListener('keydown', onKey, true); addEventListener('mousedown', onMouse, true); }, 50);
-  });
-}
-$('keysReset').onclick = () => { IN.resetBindings(); renderKeys(); };
-renderKeys();
-$('setReset').onclick = () => { Object.assign(S, SDEF); syncSettingsUI(); };
-$('setX').onclick = () => settingsOpen(false);
-$('lobbySettings').onclick = () => settingsOpen(true);
-$('pSettings').onclick = (e) => { e.stopPropagation(); settingsOpen(true); };
-$('pResume').onclick = (e) => { e.stopPropagation(); lockPointer(); };
-$('pLobby').onclick = (e) => { e.stopPropagation(); toLobby(); };
-function fitHud() { document.documentElement.style.setProperty('--hs', String(clamp(innerWidth / 1920 * 0.9, 0.5, 0.85))); }
-addEventListener('resize', fitHud); fitHud();
-function fitLobby() { const ui = document.querySelector<HTMLElement>('#lobby .ui'); if (!ui) return; const sc = Math.min(innerWidth / 1600, innerHeight / 900); ui.style.transform = `scale(${sc})`; ui.style.left = (innerWidth - 1600 * sc) / 2 + 'px'; ui.style.top = (innerHeight - 900 * sc) / 2 + 'px'; }
-addEventListener('resize', fitLobby); fitLobby(); refreshLobby(); lastEmote = PR.emote; if (!PR.unlocked.includes(P.skin)) P.skin = 0;
-// emotes: B opens the wheel (or repeats the last emote); bots emote when idle or after a kill
+// key rebinding: the keybinds tab arms `UI.rebind`; the next key or mouse button becomes that action's binding
+addEventListener('keydown', e => { if (!UI.rebind) return; e.preventDefault(); e.stopPropagation(); if (e.code !== 'Escape') rebind(UI.rebind, { device: 'keyboard', code: e.code }); UI.rebind = null; }, true);
+addEventListener('mousedown', e => { if (!UI.rebind || UI.rebindArmT > 0) return; e.preventDefault(); e.stopPropagation(); rebind(UI.rebind, { device: 'pointer', button: e.button }); UI.rebind = null; }, true);
+lastEmote = PR.emote; if (!PR.unlocked.includes(P.skin)) P.skin = 0;
 const EMOTES = ['Dance', 'Wave', 'Floss', 'Take the L'];
-const EW = $('emoteWheel');
-EW.querySelectorAll<HTMLElement>('[data-e]').forEach(el => el.onclick = () => { startEmote(+el.dataset.e!); EW.style.display = 'none'; lockPointer(); });
 function startEmote(i: number) { if (P.state !== 'play' || P.dead) return; lastEmote = i; P.emote = i; P.emoteT = 4.5; P.build = false; P.editing = null; emoteJingle(i); }
 function emoteJingle(i: number) { const notes = [[440, 554, 659, 880], [523, 659], [392, 494, 587, 494], [330, 262]][i]; notes!.forEach((f, n) => setTimeout(() => beep(f, 0.18, 'triangle', 0.06), n * 160)); }
 
 // ---------------- F8 local testing panel ----------------
-const dbgOpen = () => H.dbg.style.display === 'block';
-function toggleDbg(on = !dbgOpen()) { H.dbg.style.display = on ? 'block' : 'none'; if (on) document.exitPointerLock(); else if (P.state !== 'lobby') lockPointer(); H.pause.style.display = 'none'; }
-$('dbgX').onclick = () => toggleDbg(false);
-$('btnRet').onclick = () => toLobby();
-($('dPoi') as HTMLSelectElement).innerHTML = POIS.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
-H.dbg.querySelectorAll<HTMLInputElement>('input[data-f]').forEach(el => { el.onchange = () => ((D as any)[el.dataset.f!] = el.checked); });
-H.dbg.querySelectorAll<HTMLButtonElement>('button[data-a]').forEach(el => el.onclick = () => dbgAction(el.dataset.a!));
+const dbgOpen = () => UI.dbg;
+function toggleDbg(on = !dbgOpen()) { UI.dbg = on; if (on) document.exitPointerLock(); else if (P.state !== 'lobby') lockPointer(); }
 function fortAt(c: V3, mat: Mat, size = 3) {
   const base = Math.floor((c[1] + 1) / 4) * 4, cx = Math.floor(c[0] / 4) * 4 + 2, cz = Math.floor(c[2] / 4) * 4 + 2, h = size === 3 ? 2 : 3;
   for (let lvl = 0; lvl < h; lvl++) for (let i = -1; i <= 1; i++) { const y = base + lvl * 4; W.place('wall', mat, [cx + i * 4, y, cz - 6], 0); W.place('wall', mat, [cx + i * 4, y, cz + 6], 0); W.place('wall', mat, [cx - 6, y, cz + i * 4], 1); W.place('wall', mat, [cx + 6, y, cz + i * 4], 1); if (lvl === 1) W.place('floor', mat, [cx + i * 4, y, cz], 0), W.place('floor', mat, [cx + i * 4, y, cz - 4], 0), W.place('floor', mat, [cx + i * 4, y, cz + 4], 0); }
@@ -679,19 +567,19 @@ function fortAt(c: V3, mat: Mat, size = 3) {
 function dbgAction(a: string) {
   const ahead = add(P.pos, scale(fwd(), 24)); ahead[1] = terrainH(ahead[0], ahead[2]);
   switch (a) {
-    case 'sethp': P.hp = clamp(+($('dHp') as HTMLInputElement).value, 1, 100); P.shield = clamp(+($('dSh') as HTMLInputElement).value, 0, 100); break;
+    case 'sethp': P.hp = clamp(UI.dbgHp, 1, 100); P.shield = clamp(UI.dbgSh, 0, 100); break;
     case 'refill': P.mats = { wood: 999, stone: 999, metal: 999 }; P.ammo = { light: 999, medium: 999, heavy: 999, shells: 999 }; break;
     case 'loadout': P.inv = [mkItem('tac', 1, 4), mkItem('scar', 1, 4), mkItem('hunting', 1, 4), mkItem('chug', 2), mkItem('miniShield', 6)]; P.slot = 0; P.ammo = { light: 999, medium: 999, heavy: 999, shells: 999 }; P.mats = { wood: 999, stone: 999, metal: 999 }; break;
-    case 'give': { const k = ($('dItem') as HTMLSelectElement).value as Kind, r = ($('dRar') as HTMLSelectElement).selectedIndex; let sl = P.inv.indexOf(null); if (sl < 0) sl = Math.max(0, P.slot); P.inv[sl] = mkItem(k, isWeapon(k) ? 1 : 3, r); P.slot = sl; if (isWeapon(k)) P.ammo[WEAPONS[k]!.ammo] += 90; break; }
-    case 'tp': { const p = POIS[+($('dPoi') as HTMLSelectElement).value]; P.pos = [p!.x, terrainH(p!.x, p!.z) + 2, p!.z]; P.vel = [0, 0, 0]; if (P.state !== 'play') P.state = 'play'; break; }
+    case 'give': { const k = DBG_ITEMS[UI.dbgItem % DBG_ITEMS.length]!, r = UI.dbgRar; let sl = P.inv.indexOf(null); if (sl < 0) sl = Math.max(0, P.slot); P.inv[sl] = mkItem(k, isWeapon(k) ? 1 : 3, r); P.slot = sl; if (isWeapon(k)) P.ammo[WEAPONS[k]!.ammo] += 90; break; }
+    case 'tp': { const p = POIS[UI.dbgPoi % POIS.length]; P.pos = [p!.x, terrainH(p!.x, p!.z) + 2, p!.z]; P.vel = [0, 0, 0]; if (P.state !== 'play') P.state = 'play'; break; }
     case 'bus': startMatch(); P.islandT = 27.9; toggleDbg(false); return;
     case 'storm': storm.shrinking = false; nextStormPhase(); break;
     case 'bot': { const b = spawnBot(ahead); b.enemy = 'player'; break; }
     case 'peter': { const b = spawnBot(ahead, 4); b.name = 'Peterbot1'; b.hp = 400; b.ammo = { light: 999, medium: 999, heavy: 99, shells: 99 }; b.shield = 100; b.weapon = 'shotgun'; b.weapons = ['shotgun', 'ar', 'sniper']; b.heals = 5; b.mats = 999; b.enemy = 'player'; b.skill = 1; b.aggression = 1; b.accuracy = .7; b.reaction = .12; b.seenAt = t - 1; b.mode = 'fight'; break; }
-    case 'alive': P.alive = clamp(+($('dAlive') as HTMLInputElement).value, 1, 100); break;
+    case 'alive': P.alive = clamp(UI.dbgAlive, 1, 100); break;
     case 'nobots': for (const b of bots) b.dead = true; bots.length = 0; break;
     case 'cosm': info('All cosmetics unlocked'); break;
-    case 'xp': info('+80,000 XP'); (document.querySelector('#xp .bar') as HTMLElement).style.background = 'linear-gradient(90deg,#c46bff,#c46bff)'; break;
+    case 'xp': PR.xp += 80000; saveProfile(); info('+80,000 XP'); break;
     case 'win': endScreen(true); toggleDbg(false); return;
     case 'die': damage(9999, 'Test'); toggleDbg(false); return;
     case 'clear': W.clearPieces(); break;
@@ -1009,8 +897,9 @@ function updateBot(b: Bot, dt: number) {
 
 // ---------------- main loop ----------------
 let last = performance.now(), t = 0;
-const PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0, items: 0 };
-function frame(now: number) {
+const PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0, items: 0, ui: 0, uiBuild: 0, mmUp: 0 };
+function frame(now: number) { frameInner(now); try { drawUi(); } catch (e) { if (!(window as any)._uiErr) { (window as any)._uiErr = e; console.error('ui', e); } } }
+function frameInner(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
   fpsN++; fpsT += dt; if (fpsT > 0.5) { fpsV = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0;
     // adaptive quality: step down when the match runs slow (Chromebooks); session-only, saved settings untouched
@@ -1028,8 +917,8 @@ function frame(now: number) {
   if (key('NextSlot')) { if (P.build) { const pcs: PieceType[] = ['wall', 'floor', 'ramp', 'pyramid'], i = pcs.indexOf(P.piece); P.piece = pcs[(i + 1) % 4]!; } else { const n = P.inv.length; P.slot = P.slot < 0 ? 0 : (P.slot + 1) % n; P.build = false; } rumble(40, 0.2, 0.2); }
   if (key('PadTool')) { if (P.build) IN.system.setVirtualAction('Edit', 1); else if (P.state !== 'lobby') { P.slot = P.slot === -1 ? 0 : -1; P.build = false; rumble(40, 0.2, 0.2); } }
   if (key('RotateRamp') && P.build) { P.rampRot = (P.rampRot + 1) % 4; rumble(40, 0.2, 0.2); }
-  if (key('Menu')) { if (P.state === 'lobby') $('btnPlay').click(); else toggleDbg(); }
-  if (P.state === 'lobby' && IN.lastDevice === 'gamepad') { if (key('Jump')) { void unlockAudio(); startMatch(); rumble(180, 0.5, 0.5); } if (key('Build') || key('PadTool')) { $('btnSkin').click(); rumble(80, 0.3, 0.3); } }
+  if (key('Menu')) { if (P.state === 'lobby') playClick(); else toggleDbg(); }
+  if (P.state === 'lobby' && IN.lastDevice === 'gamepad') { if (key('Jump')) { void unlockAudio(); startMatch(); rumble(180, 0.5, 0.5); } if (key('Build') || key('PadTool')) { PR.mode = (PR.mode + 1) % MODES.length; rumble(80, 0.3, 0.3); } }
   if (P.state === 'lobby' && GALLERY) {   // ?gallery=<name>,<name>... — model review lineup for art passes
     const names = GALLERY.split(','), n = names.length, sp = 6, ang = +(new URLSearchParams(location.search).get('ang') || 0.6);
     const dist = (5 + n * 2.2) / Math.min(1, aspect), cam: V3 = [Math.sin(ang) * dist, 3 + n * 0.4, Math.cos(ang) * dist];
@@ -1062,16 +951,16 @@ function frame(now: number) {
     if (P.state === 'play' && !P.dead && Math.hypot(P.pos[0] - pd.pos[0], P.pos[2] - pd.pos[2]) < 1.6 && Math.abs(P.pos[1] - pd.pos[1]) < 1.2) { P.state = 'sky'; P.vel = [P.vel[0], 30, P.vel[2]]; P.pos[1] += 0.5; beep(700, 0.3, 'sine', 0.1, 600); rumble(200, 0.5, 0.8); }
     for (const b of bots) if (!b.dead && b.state === 'ground' && Math.hypot(b.pos[0] - pd.pos[0], b.pos[2] - pd.pos[2]) < 1.6 && Math.abs(b.pos[1] - pd.pos[1]) < 1.2) { b.state = 'sky'; b.vel = [b.vel[0], 30, b.vel[2]]; b.pos[1] += 0.5; b.land = b.target ?? b.land; }
   }
-  if (key('Map')) H.bigmap.style.display = H.bigmap.style.display === 'flex' ? 'none' : 'flex';
-  if (key('Emote') && P.state === 'play' && !P.dead) { if (EW.style.display === 'flex') { EW.style.display = 'none'; startEmote(lastEmote); } else { EW.style.display = 'flex'; document.exitPointerLock(); } }
+  if (key('Map')) { UI.bigmap = !UI.bigmap; if (UI.bigmap && bigDirty) { uploadCanvas('t:big', bigCv); bigDirty = false; } }
+  if (key('Emote') && P.state === 'play' && !P.dead) { if (UI.emoteWheel) { UI.emoteWheel = false; startEmote(lastEmote); } else { UI.emoteWheel = true; document.exitPointerLock(); } }
   if (P.stunT > 0) { P.stunT -= dt; P.emoteT = Math.max(P.emoteT, 0.1); mouse.l = false; }
   if (P.emoteT > 0) { P.emoteT -= dt; if (P.stunT <= 0 && (Math.hypot(P.vel[0], P.vel[2]) > 1 || mouse.l)) P.emoteT = 0; }
   if (key('ThirdPerson')) P.thirdPerson = !P.thirdPerson;
   P.matchT += dt; storm.phaseT = Math.max(0, storm.phaseT - dt);
   if (storm.shrinking) { const k = 1 - storm.phaseT / storm.shrinkT; storm.r = lerp(storm.from.r, storm.to.r, k); storm.c = [lerp(storm.from.c[0], storm.to.c[0], k), lerp(storm.from.c[1], storm.to.c[1], k)]; if (storm.phaseT <= 0) { storm.shrinking = false; storm.phaseT = PHASES[Math.min(storm.phase, PHASES.length - 1)]![0]! * (PR.mode === 3 ? 0.45 : 1); } }
   else if (storm.phaseT <= 0 && !(NET.active() && !NET.isHost())) nextStormPhase();
-  if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) H.banner.style.display = 'none'; }
-  if (fadeT > 0) { fadeT -= dt; H.fade.style.opacity = String(clamp(fadeT / fadeDur * 1.6, 0, 1)); if (fadeT <= 0) H.fade.style.opacity = '0'; }
+  if (bannerT > 0) bannerT -= dt;
+  if (fadeT > 0) fadeT -= dt;
   if (P.matchT > 20 && Math.random() < dt * 0.12 && P.alive > bots.filter(b => !b.dead).length + 1) { P.alive--; addFeed(`${botName()} eliminated <span class="v">${botName()}</span>`); }
 
   // --- spawn island: bots "join" over ~18s, then a 10s countdown and everyone boards the bus ---
@@ -1194,8 +1083,8 @@ function frame(now: number) {
     for (let i = items.length - 1; i >= 0; i--) if (items[i]!.item.kind === 'ammo' && len(sub(items[i]!.pos, P.pos)) < 1.6) { P.ammo.light += 18; P.ammo.medium += 12; P.ammo.shells += 4; P.ammo.heavy += 2; items.splice(i, 1); beep(700, 0.06, 'sine', 0.05, 200); info('+ ammo'); }
     let near: GroundItem | null = null, nd = 2.4; for (const g of items) { if (g.item.kind === 'ammo') continue; const d = len(sub(g.pos, P.pos)); if (d < nd) { nd = d; near = g; } }
     let nearChest = null; for (const c of chests) if (!c.open && len(sub(c.pos, P.pos)) < 2.8) nearChest = c;
-    if (near) { H.info.textContent = `[E] ${isWeapon(near.item.kind) ? WEAPONS[near.item.kind]!.name : CONS[near.item.kind]!.name}`; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
-    else if (nearChest) { H.info.textContent = '[E] Open chest'; H.info.style.display = 'block'; infoT = Math.max(infoT, 0.05); }
+    if (near) { UI.infoTxt = `[E] ${isWeapon(near.item.kind) ? WEAPONS[near.item.kind]!.name : CONS[near.item.kind]!.name}`; infoT = Math.max(infoT, 0.05); }
+    else if (nearChest) { UI.infoTxt = '[E] Open chest'; infoT = Math.max(infoT, 0.05); }
     if (key('Interact')) {
       if (nearChest && NET.active() && !NET.isHost()) { NET.send({ t: 'act', k: 'chest', i: chests.indexOf(nearChest) }); nearChest.open = true; PR.chests++; beep(400, 0.4, 'triangle', 0.08, 500); }
       else if (nearChest) { nearChest.open = true; PR.chests++; if (NET.active()) NET.send({ t: 'ev', k: 'chest', i: chests.indexOf(nearChest) }); beep(400, 0.4, 'triangle', 0.08, 500); const pool: Kind[] = ['ar', 'burst', 'smg', 'shotgun', 'sniper', 'tac', 'hunting', 'scar', 'pistol', 'revolver', 'silenced']; dropItem(mkItem(pool[Math.floor(rand(0, pool.length))]!, 1, nearChest.drop ? 4 : -1), add(nearChest.pos, [0, 0.3, 0]), 1); if (nearChest.drop) { dropItem(mkItem('rpg', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.8); dropItem(mkItem('rod'), add(nearChest.pos, [0, 0.3, 0]), 1.4); dropItem(mkItem('sniper', 1, 4), add(nearChest.pos, [0, 0.3, 0]), 1.6); } dropItem(mkItem((['shieldPot', 'bandage', 'miniShield', 'chug', 'grenade', 'boogie', 'impulse'] as Kind[])[Math.floor(rand(0, 7))]!, 3), add(nearChest.pos, [0, 0.3, 0]), 1.2); P.ammo.medium += 30; P.ammo.light += 30; P.ammo.shells += 5; P.ammo.heavy += 3; P.mats.wood += 30; info('+ ammo, +30 wood'); }
@@ -1222,7 +1111,7 @@ function frame(now: number) {
   for (const q of W.props) if (q.dead > 0) { q.dead -= dt; if (q.dead <= 0) { q.dead = 0; q.hp = 250; dirtyProp(q); } }
   for (let i = fx.length - 1; i >= 0; i--) { fx[i]!.t -= dt; if (fx[i]!.t <= 0) fx.splice(i, 1); }
   for (let i = feed.length - 1; i >= 0; i--) { feed[i]!.t -= dt; if (feed[i]!.t <= 0) feed.splice(i, 1); }
-  if (infoT > 0) { infoT -= dt; if (infoT <= 0) H.info.style.display = 'none'; }
+  if (infoT > 0) infoT -= dt;
   P.weakT=Math.max(0,P.weakT-dt); if(P.weakT<=0){P.weakPos=null;P.weakRef=null;}
   for(const s of W.statics) if(s.shake&&s.shake>0)s.shake=Math.max(0,s.shake-dt);
 
@@ -1294,7 +1183,7 @@ function frame(now: number) {
   const pf2 = performance.now(); PROF.submit += pf2 - pf1; PROF.items = R.itemCount;
   R.flush({ pos: camPos, fwd: camFwd, fov, aspect }, VP, sun, P.pos, t, true, P.state === 'play' ? (S.shadows > 1 ? 62 : 40) : 180);
   const pf3 = performance.now(); PROF.flush += pf3 - pf2;
-  try { drawIcon(SKINS[P.skin]!); drawHud(); } catch (e) { if (!(window as any)._hudErr) { (window as any)._hudErr = e; console.error('drawHud', e); } }
+  try { drawHud(); } catch (e) { if (!(window as any)._hudErr) { (window as any)._hudErr = e; console.error('drawHud', e); } }
   PROF.hud += performance.now() - pf3; PROF.frames++;
 }
 export { frame as tick, R as renderer };
@@ -1369,13 +1258,208 @@ NET.on('closed', () => { if (P.state !== 'lobby') info('Disconnected from party'
   if (q.get('auto') === 'play') setTimeout(() => {
     startMatch(); P.islandT = 99;
     setTimeout(() => {
-      bus.t = 54; P.state = 'play'; D.invuln = true; H.pause.style.display = 'none'; fadeT = 0; H.fade.style.opacity = '0';
+      bus.t = 54; P.state = 'play'; D.invuln = true; fadeT = 0;
       const at = (q.get('at') || '40,125').split(',').map(Number); P.pos = [at[0]!, 0, at[1]!]; P.pos[1] = W.groundH(at[0]!, at[1]!, 0) + 0.3; P.vel = [0, 0, 0];
       P.yaw = +(q.get('yaw') || 0.3); P.pitch = +(q.get('pitch') || 0.05); P.inv[0] = mkItem('ar', 1, 2); P.slot = q.get('slot') === 'pick' ? -1 : 0;
-      if (q.get('hud') === '0') H.hud.style.display = 'none';
+      if (q.get('hud') === '0') UI.hud = false;
       if (q.get('bot')) { for (const o of bots) o.dead = true; const b = spawnBot([at[0]! - 7, P.pos[1] + 1, at[1]! - 12], 2); b.state = 'ground'; b.yaw = 2.6; }
       if (q.get('fly')) { D.fly = true; P.pos[1] += +q.get('fly')!; }
     }, 600);
   }, 1500);
 }
-(window as any).G = { NET, H, beep, unlockAudio, IN, fxExplosion, fxDust, explode, moveCapsule, PH: () => PH, stepPhysics, mmBg: () => mmBg, PROF, nades, chests, P, get W() { return W; }, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+(window as any).G = { NET, UI, UI_PROF, beep, unlockAudio, IN, fxExplosion, fxDust, explode, moveCapsule, PH: () => PH, stepPhysics, mmBg: () => mmBg, PROF, nades, chests, P, get W() { return W; }, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+
+const DBG_ITEMS = Object.keys(WEAPONS).concat(Object.keys(CONS)) as Kind[];
+const RAR_COL: RGBA[] = [[0.6, 0.6, 0.62, 0.9], [0.35, 0.75, 0.3, 0.9], [0.25, 0.55, 0.95, 0.9], [0.65, 0.35, 0.9, 0.9], [0.95, 0.6, 0.2, 0.9]];
+const anchorAt = (x: number, y: number, w: number, h: number, ax = 0, ay = 0): { anchor: { min: [number, number]; max: [number, number]; offsets: [number, number, number, number] } } => ({ anchor: { min: [ax, ay], max: [ax, ay], offsets: [x, y, x + w, y + h] } });
+const abs = (id: string, x: number, y: number, w: number, h: number, children: UiNodeDefinition[], bg?: RGBA, ax = 0, ay = 0, extra: Record<string, unknown> = {}): UiNodeDefinition => box(id, { ...anchorAt(x, y, w, h, ax, ay), width: w, height: h, ...extra } as Parameters<typeof box>[1], children, bg);
+const row = (id: string, children: UiNodeDefinition[], gapPx = 8, extra: Record<string, unknown> = {}, bg?: RGBA) => box(id, { direction: 'row', gap: gapPx, width: 'content', height: 'content', align: 'center', ...extra } as Parameters<typeof box>[1], children, bg);
+const col = (id: string, children: UiNodeDefinition[], gapPx = 8, extra: Record<string, unknown> = {}, bg?: RGBA) => box(id, { direction: 'column', gap: gapPx, width: 'content', height: 'content', ...extra } as Parameters<typeof box>[1], children, bg);
+const itemName = (k: Kind) => isWeapon(k) ? WEAPONS[k]!.name : CONS[k]!.name;
+const short = (k: Kind) => ({ pickaxe: 'PICK', ar: 'AR', burst: 'BURST', scar: 'SCAR', smg: 'SMG', tac: 'TAC', shotgun: 'PUMP', sniper: 'SNIPE', hunting: 'HUNT', pistol: 'PISTOL', revolver: 'REVOL', silenced: 'SILNC', rpg: 'RPG', grenade: 'NADE', boogie: 'BOOGIE', impulse: 'IMPLS', bandage: 'BANDG', medkit: 'MEDKT', miniShield: 'MINI', shield: 'SHLD', chug: 'CHUG', slurp: 'SLURP', ammo: 'AMMO', fish: 'FISH', pad: 'PAD' } as Record<string, string>)[k] ?? String(k).slice(0, 5).toUpperCase();
+const stripTags = (h: string) => h.replace(/<[^>]+>/g, '');
+
+function drawUi() {
+  if (!uiReady()) return; const t0 = performance.now();
+  const roots: UiNodeDefinition[] = [], vw = innerWidth, vh = innerHeight, dt = 1 / Math.max(20, fpsV || 60);
+  if (UI.toastT > 0) UI.toastT -= dt; if (UI.elimT > 0) UI.elimT -= dt; if (UI.hitT > 0) UI.hitT -= dt; if (UI.flashT > 0) UI.flashT -= dt; if (UI.rebindArmT > 0) UI.rebindArmT -= dt;
+  const modal = UI.settings || UI.dbg || !!UI.end;
+  if (P.state === 'lobby' && !GALLERY) { if (!modal) lobbyUi(roots, vw, vh); }
+  else if (UI.hud && !P.over) hudUi(roots, vw, vh);
+  if (modal) roots.push(abs('dim', 0, 0, vw, vh, [], [0.02, 0.04, 0.1, 0.6]));
+  overlayUi(roots, vw, vh);
+  const t1 = performance.now(); PROF.uiBuild += t1 - t0;
+  render(roots); PROF.ui += performance.now() - t1;
+}
+
+// ---- lobby ----
+function lobbyUi(roots: UiNodeDefinition[], vw: number, vh: number) {
+  const TABS = ['PLAY', 'BATTLE PASS', 'CHALLENGES', 'COMPETE', 'LOCKER', 'ITEM SHOP', 'CAREER', 'STORE'];
+  const tsz = vw > 1400 ? 17 : vw > 1100 ? 14 : 12, narrow = vw < 1250, topY = narrow ? 58 : 9;
+  roots.push(abs('lnav', 0, 0, vw, narrow ? 100 : 54, [row('lnavr', TABS.map(t => button('tab:' + t, t, { height: 36 }, { on: UI.page === t, bg: [0.06, 0.12, 0.28, 0.85], fg: C.white, size: tsz })), 4, { padding: [9, 0, 0, 12] })], [0.03, 0.06, 0.16, 0.9]));
+  for (const t of TABS) if (clicked('tab:' + t)) openPage(t);
+  roots.push(abs('wallet', -260, topY, 130, 36, [label('walletT', 'V ' + PR.vbucks.toLocaleString(), 20, C.yellow, { width: 126, height: 30 }, 'center')], [0.06, 0.12, 0.28, 0.85], 1, 0));
+  roots.push(abs('lset', -120, topY - 2, 104, 40, [button('btnSettings', 'SETTINGS', { width: 104, height: 40 }, { bg: [0.06, 0.12, 0.28, 0.85], fg: C.white, size: 16 })], undefined, 1, 0));
+  if (clicked('btnSettings')) settingsOpen(true);
+  if (UI.page !== 'PLAY') { pageUi(roots, vw, vh); return; }
+  // left: progression
+  const lv = level(), into = PR.xp % 1000, m1 = Math.min(POIS.length, PR.discovered.length), m2 = Math.min(3, PR.kills);
+  roots.push(abs('lpanel', 16, narrow ? 116 : 80, 300, 250, [col('lpc', [
+    label('lpLvl', 'LEVEL ' + lv, 30, C.yellow), label('lpXp', `${into} / 1000 XP`, 15, C.dim),
+    gap('lpG1', 260, 4), label('lpM', 'DAILY MISSIONS', 16, C.white),
+    label('lpM1', `Discover Named Locations   ${m1} / ${POIS.length}`, 15, C.dim), label('lpM2', `Eliminate 3 opponents   ${m2} / 3`, 15, C.dim),
+    gap('lpG2', 260, 4), label('lpT', `Played ${Math.floor(PR.matches * 4 / 60)}H ${(PR.matches * 4) % 60}M · ${PR.wins} wins · ${PR.kills} elims`, 14, C.dim),
+  ], 6, { padding: 16 })], C.panel));
+  after((doc, s) => { const r = doc.rect('lpXp'); fill(s, { x: r.x, y: r.y + r.height + 2, width: 268, height: 6 }, [0.2, 0.3, 0.5, 1], 40); fill(s, { x: r.x, y: r.y + r.height + 2, width: 268 * into / 1000, height: 6 }, C.cyan, 41); });
+  // right: mode + play + party
+  const mode = MODES[PR.mode]!, partyN = Math.max(0, NET.members.length - 1);
+  roots.push(abs('rpanel', -336, narrow ? 116 : 80, 320, 236, [col('rpc', [
+    label('rpMode', mode[0]!, 30, C.white), label('rpSub', mode[1]!, 15, C.dim),
+    row('rpBtns', [button('btnPlay', NET.active() && !NET.isHost() ? 'WAITING FOR LEADER' : 'PLAY', { width: 190, height: 56 }, { size: 26 }), button('btnSkin', 'CHANGE', { width: 90, height: 56 }, { bg: [0.1, 0.2, 0.4, 1], fg: C.white, size: 16 })], 8),
+    row('rpParty', [button('btnParty', partyN ? `PARTY · ${partyN} friend${partyN > 1 ? 's' : ''}` : '+ INVITE FRIENDS', { width: 288, height: 40 }, { bg: [0.1, 0.2, 0.4, 1], fg: C.white, size: 16 })], 8),
+  ], 10, { padding: 16 })], C.panel, 1, 0));
+  if (clicked('btnPlay')) playClick(); if (clicked('btnSkin')) { PR.mode = (PR.mode + 1) % MODES.length; saveProfile(); } if (clicked('btnParty')) openPage('PARTY');
+  // bottom: name tag + season
+  const nm = UI.nameEdit;
+  if (nm === null) { roots.push(abs('lbot', 16, -60, 420, 44, [row('lbr', [button('nametag', `${PR.name}  ·  LVL ${lv}`, { height: 40 }, { bg: [0.06, 0.12, 0.28, 0.85], fg: C.white, size: 17 }), label('season', 'CHAPTER 1 · SEASON 1  ·  LOCAL', 15, C.dim)], 12)], undefined, 0, 1)); if (clicked('nametag')) { UI.nameEdit = PR.name; UI.nameFocus = true; } }
+  else { const tf = textField('nameField', nm, 'Display name', 16, UI.nameFocus, 220); UI.nameEdit = tf.value; UI.nameFocus = tf.focused; roots.push(abs('lbot', 16, -60, 420, 44, [row('lbr', [tf.def, button('nameOk', 'SAVE', { height: 38 }, { size: 16 })], 8)], undefined, 0, 1)); if (clicked('nameOk')) { if (nm.trim()) { PR.name = nm.trim().slice(0, 16); saveProfile(); } UI.nameEdit = null; } }
+}
+function tile(id: string, title: string, sub: string, btn?: { id: string; text: string; on?: boolean; bg?: RGBA }, w = 300): UiNodeDefinition {
+  const kids = [label(id + '.t', title, 20, C.white, { width: w - 32 }), label(id + '.s', sub, 14, C.dim, { width: w - 32, height: 40 })];
+  if (btn) kids.push(button(btn.id, btn.text, { height: 34 }, { size: 15, ...(btn.on !== undefined ? { on: btn.on } : {}), ...(btn.bg ? { bg: btn.bg, fg: C.white } : {}) }));
+  return col(id, kids, 6, { padding: 14, width: w, height: 'content' }, C.panel2);
+}
+function pageUi(roots: UiNodeDefinition[], vw: number, vh: number) {
+  const name = UI.page, tiles: UiNodeDefinition[] = [], lv = level();
+  if (name === 'BATTLE PASS') { tiles.push(tile('bpLv', `LEVEL ${lv}`, `${PR.xp % 1000} / 1000 XP to next level · earn XP from eliminations, damage and survival`)); for (const t of PASS) { const ok = lv >= t.tier, done = PR.claimed.includes(t.tier); const r = 'skin' in t.reward ? SKINS[t.reward.skin!]!.name : `${t.reward.vbucks} V-Bucks`; tiles.push(tile('bp' + t.tier, `TIER ${t.tier}`, r, ok && !done ? { id: 'claim:' + t.tier, text: 'CLAIM' } : { id: 'bpx' + t.tier, text: done ? 'CLAIMED' : 'LOCKED', bg: [0.15, 0.2, 0.3, 1] }, 200)); if (clicked('claim:' + t.tier)) claimTier(t.tier); } }
+  else if (name === 'CHALLENGES') CHALLENGES.forEach(([n, f, goal, xp], i) => { const v = Math.min(goal, f()); tiles.push(tile('ch' + i, n, `${v} / ${goal} · ${v >= goal ? '✔ ' : ''}+${xp} XP`)); });
+  else if (name === 'COMPETE') { MODES.forEach((m, i) => { tiles.push(tile('md' + i, m[0]!, m[1]!, { id: 'launch:' + i, text: 'LAUNCH' })); if (clicked('launch:' + i)) { PR.mode = i; saveProfile(); openPage('PLAY'); playClick(); } }); }
+  else if (name === 'LOCKER') { tiles.push(col('emoteTile', [label('emT', 'EMOTE (B)', 20, C.white), row('emR', EMOTES.map((e, i) => button('emote:' + i, e, { height: 34 }, { size: 15, on: PR.emote === i, bg: [0.1, 0.2, 0.4, 1], fg: C.white })), 6)], 8, { padding: 14, width: 620 }, C.panel2)); EMOTES.forEach((_, i) => { if (clicked('emote:' + i)) { PR.emote = i; lastEmote = i; saveProfile(); } }); SKINS.forEach((sk, i) => { const own = PR.unlocked.includes(i); tiles.push(tile('sk' + i, sk.name, own ? (i === P.skin ? 'EQUIPPED' : 'OWNED') : 'LOCKED', own && i !== P.skin ? { id: 'equip:' + i, text: 'EQUIP' } : undefined, 200)); if (clicked('equip:' + i)) { P.skin = i; saveProfile(); } }); }
+  else if (name === 'ITEM SHOP') for (const o of SHOP) { const own = PR.unlocked.includes(o.skin); tiles.push(tile('shop' + o.skin, SKINS[o.skin]!.name, own ? 'OWNED' : `V ${o.price}`, own ? undefined : { id: 'buy:' + o.skin, text: 'BUY' }, 200)); if (clicked('buy:' + o.skin)) buySkin(o.skin, o.price); }
+  else if (name === 'CAREER') { tiles.push(tile('cr0', PR.name, `Level ${lv} · ${PR.xp.toLocaleString()} XP`), tile('cr1', String(PR.matches), 'MATCHES', undefined, 200), tile('cr2', String(PR.wins), 'VICTORY ROYALES', undefined, 200), tile('cr3', String(PR.kills), 'ELIMINATIONS', undefined, 200), tile('cr4', String(Math.round(PR.dmg)), 'DAMAGE', undefined, 200), tile('cr5', 'RESET PROFILE', 'Wipes the local profile', { id: 'resetProf', text: 'RESET', bg: [0.5, 0.15, 0.15, 1] }, 200)); if (clicked('resetProf')) { localStorage.removeItem('fn-profile'); location.reload(); } }
+  else if (name === 'STORE') for (const v of [1000, 2800, 5000, 13500]) { tiles.push(tile('st' + v, `V ${v.toLocaleString()}`, 'Free in this local build', { id: 'vb:' + v, text: 'GET' }, 200)); if (clicked('vb:' + v)) { PR.vbucks += v; updateWallet(); toast('+' + v + ' V-Bucks'); } }
+  else if (name === 'PARTY') {
+    if (NET.connected()) {
+      tiles.push(tile('pcode', 'PARTY CODE: ' + NET.code, `Share this code — friends join from their PARTY page. ${NET.isHost() ? 'You are the leader: your PLAY starts the match for everyone.' : 'Waiting for the leader to press PLAY.'} Ping ${Math.round(NET.rtt)}ms`, { id: 'party:leave', text: 'LEAVE PARTY', bg: [0.5, 0.15, 0.15, 1] }, 620));
+      NET.members.forEach((m, i) => tiles.push(tile('pm' + m.id, (m.id === NET.hostId ? 'LEADER · ' : '') + m.name + (m.id === NET.id ? ' (you)' : ''), teamSize() > 1 ? `Team ${Math.floor(i / teamSize()) + 1}` : 'Solo', undefined, 200)));
+      if (clicked('party:leave')) void partyAction('leave');
+    } else {
+      tiles.push(tile('pcreate', 'CREATE PARTY', "Get a 5-letter code your friends can join. The leader's mode applies to everyone.", { id: 'party:create', text: 'CREATE' }));
+      const tf = textField('joinCode', UI.join, 'CODE', 5, UI.joinFocus, 120); UI.join = tf.value.toUpperCase(); UI.joinFocus = tf.focused;
+      tiles.push(col('pjoin', [label('pjT', 'JOIN PARTY', 20, C.white), row('pjR', [tf.def, button('party:join', 'JOIN', { height: 38 }, { size: 16 })], 8)], 8, { padding: 14, width: 300 }, C.panel2));
+      if (clicked('party:create')) void partyAction('create'); if (clicked('party:join')) void partyAction('join');
+    }
+  }
+  const pw = Math.min(vw - 40, 980), ph = Math.min(vh - 120, 640);
+  roots.push(abs('page', (vw - pw) / 2, 70, pw, ph, [col('pageC', [row('pageH', [label('pageT', name, 34, C.yellow, { width: pw - 140 }), button('menuClose', 'X', { width: 44, height: 40 }, { bg: [0.3, 0.1, 0.1, 1], fg: C.white })], 8), box('cards', { direction: 'row', wrap: true, gap: 10, width: pw - 32, height: 'content' } as Parameters<typeof box>[1], tiles)], 12, { padding: 16 })], C.panel));
+  if (clicked('menuClose')) openPage('PLAY');
+}
+
+// ---- HUD ----
+function hudUi(roots: UiNodeDefinition[], vw: number, vh: number) {
+  const it = curItem();
+  // top-left: player + party tiles
+  roots.push(abs('plTile', 16, 12, 220, 34, [row('plR', [label('plName', `${PR.name} (${P.alive})`, 15, C.white, { width: 200 })], 8, { padding: [6, 0, 0, 10] })], C.black));
+  after((doc, s) => { const r = doc.rect('plTile'); fill(s, { x: r.x + 10, y: r.y + r.height - 6, width: 200, height: 4 }, [0.2, 0.2, 0.2, 0.8], 40); fill(s, { x: r.x + 10, y: r.y + r.height - 6, width: 2 * clamp(P.hp, 0, 100), height: 4 }, C.green, 41); });
+  // compass
+  const deg = ((-(P.yaw * 180 / Math.PI) + 180) % 360 + 360) % 360; const ticks: UiNodeDefinition[] = [];
+  for (let d = -90; d <= 90; d += 15) { const a = ((Math.round(deg / 15) * 15 + d) % 360 + 360) % 360, px = ((a - deg + 540) % 360 - 180) * 3.2; if (Math.abs(px) > 300) continue; const big = a % 45 === 0; ticks.push(label('ck' + d, big ? HEAD[a / 45]! : String(a), big ? 16 : 11, big ? C.white : C.dim, { ...anchorAt(300 + px - 16, big ? 6 : 10, 32, 20), width: 32, height: 20 }, 'center')); }
+  roots.push(abs('compass', vw / 2 - 300, 8, 600, 30, ticks.concat([label('cdeg', String(Math.round(deg)), 12, C.yellow, { ...anchorAt(285, 22, 30, 14), width: 30, height: 14 }, 'center')])));
+  // top-right: minimap + stats
+  if (texDefined.has('t:mm')) roots.push(abs('mmBox', -216, 12, 200, 200, [image('mmImg', SPR_MM, 200, 200)], undefined, 1, 0));
+  roots.push(abs('mmPoi', -216, 214, 200, 22, [label('mmPoiT', UI.poi, 14, C.yellow, { width: 200 }, 'center')], undefined, 1, 0));
+  roots.push(abs('stats', -216, 238, 200, 26, [label('statsT', `${fmt(storm.phaseT)}   ${P.alive} alive   ${P.kills} elims`, 15, C.white, { width: 200 }, 'center', C.black)], undefined, 1, 0));
+  if (S.showFps) roots.push(abs('fpsBox', -60, 266, 44, 16, [label('fpsT', fpsV + ' FPS', 11, C.dim, { width: 44 }, 'right')], undefined, 1, 0));
+  // kill feed
+  roots.push(abs('feed', 16, 60, 360, 130, [col('feedC', feed.map((f, i) => label('feed' + i, stripTags(f.html), 14, [1, 1, 1, Math.min(1, f.t)], { width: 350 })), 2)]));
+  // bottom-left: hp / shield
+  roots.push(abs('bars', 16, -64, 320, 48, [col('barsC', [label('shN', String(Math.ceil(P.shield)), 14, C.blue, { width: 40 }), label('hpN', String(Math.ceil(P.hp)), 14, C.green, { width: 40 })], 4)], undefined, 0, 1));
+  after((doc, s) => { const r = doc.rect('bars'); fill(s, { x: r.x + 44, y: r.y + 2, width: 270, height: 14 }, [0.1, 0.1, 0.12, 0.8], 40); fill(s, { x: r.x + 44, y: r.y + 2, width: 2.7 * clamp(P.shield, 0, 100), height: 14 }, C.blue, 41); fill(s, { x: r.x + 44, y: r.y + 24, width: 270, height: 14 }, [0.1, 0.1, 0.12, 0.8], 40); fill(s, { x: r.x + 44, y: r.y + 24, width: 2.7 * clamp(P.hp, 0, 100), height: 14 }, C.green, 41); });
+  // bottom-right: mats, build pieces, hotbar
+  const mats = (['wood', 'stone', 'metal'] as Mat[]).map(m => label('mat:' + m, `${m.toUpperCase()} ${P.mats[m]}`, 13, P.mat === m && P.build ? C.yellow : C.white, { width: 90, height: 22 }, 'center', P.mat === m && P.build ? [0.3, 0.3, 0.1, 0.9] : C.black));
+  const pieces = ([['wall', 'Q'], ['floor', 'G'], ['ramp', 'F'], ['pyramid', 'ALT']] as [PieceType, string][]).map(([t, k]) => label('pc:' + t, `${k} ${t.toUpperCase()}`, 12, P.build && P.piece === t ? C.navy : C.white, { width: 74, height: 26 }, 'center', P.build && P.piece === t ? C.yellow : C.black));
+  const slots: UiNodeDefinition[] = [label('slotPick', 'PICK', 13, P.slot < 0 ? C.navy : C.white, { width: 56, height: 56 }, 'center', P.slot < 0 ? C.yellow : C.black)];
+  P.inv.forEach((sl, i) => { const sel = P.slot === i; slots.push(label('slot' + i, sl ? `${short(sl.kind)}\n${isWeapon(sl.kind) ? sl.mag : sl.count}` : String(i + 1), 13, sel ? C.navy : C.white, { width: 56, height: 56 }, 'center', sel ? C.yellowHi : sl ? RAR_COL[sl.rar]! : C.black)); });
+  const wname = P.swim ? 'Swimming' : P.editing ? 'Editing' : it ? itemName(it.kind) : P.slot < 0 ? 'Pickaxe' : '';
+  const ammo = it && isWeapon(it.kind) ? (P.reload > 0 ? 'RELOADING' : `${it.mag} / ${P.ammo[WEAPONS[it.kind]!.ammo]}`) : '';
+  roots.push(abs('br', -400, -150, 384, 134, [col('brC', [row('matsR', mats, 6, { justify: 'end', width: 384 }), row('piecesR', pieces, 6, { justify: 'end', width: 384 }), row('wnR', [label('wname', wname, 15, C.white, { width: 200 }, 'right'), label('ammo', ammo, 18, C.white, { width: 160 }, 'right')], 8, { justify: 'end', width: 384 }), row('hotbar', slots, 4, { justify: 'end', width: 384 })], 6)], undefined, 1, 1));
+  // crosshair / scope / hitmarker
+  if ((P.state === 'play' || P.state === 'island') && !P.scoped) { const cs = (52 + P.bloom * 2600 * (P.ads ? 0.5 : 1)) / 2, colc: RGBA = P.build ? [0.4, 0.9, 1, 0.9] : [1, 1, 1, 0.9]; after((_d, s) => { const cx = vw / 2, cy = vh / 2; fill(s, { x: cx - 1, y: cy - cs, width: 2, height: cs * 0.55 }, colc, 60); fill(s, { x: cx - 1, y: cy + cs * 0.45, width: 2, height: cs * 0.55 }, colc, 60); fill(s, { x: cx - cs, y: cy - 1, width: cs * 0.55, height: 2 }, colc, 60); fill(s, { x: cx + cs * 0.45, y: cy - 1, width: cs * 0.55, height: 2 }, colc, 60); fill(s, { x: cx - 1.5, y: cy - 1.5, width: 3, height: 3 }, colc, 60); }); }
+  if (P.scoped) after((_d, s) => { const cx = vw / 2, cy = vh / 2, r = Math.min(vw, vh) * 0.42; fill(s, { x: 0, y: 0, width: vw, height: cy - r }, [0, 0, 0, 0.95], 58); fill(s, { x: 0, y: cy + r, width: vw, height: vh - cy - r }, [0, 0, 0, 0.95], 58); fill(s, { x: 0, y: cy - r, width: cx - r, height: 2 * r }, [0, 0, 0, 0.95], 58); fill(s, { x: cx + r, y: cy - r, width: vw - cx - r, height: 2 * r }, [0, 0, 0, 0.95], 58); fill(s, { x: cx - 1, y: cy - r, width: 2, height: 2 * r }, [0, 0, 0, 0.8], 59); fill(s, { x: cx - r, y: cy - 1, width: 2 * r, height: 2 }, [0, 0, 0, 0.8], 59); });
+  if (UI.hitT > 0) { const hc: RGBA = UI.hitHead ? [1, 0.85, 0.2, 1] : [1, 1, 1, 1]; after((_d, s) => { const cx = vw / 2, cy = vh / 2; for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) fill(s, { x: cx + dx! * 12 - 2, y: cy + dy! * 12 - 2, width: 5, height: 5 }, hc, 61); }); }
+  // use progress
+  if (P.useT > 0) { const k = 1 - P.useT / P.useDur; after((_d, s) => { fill(s, { x: vw / 2 - 100, y: vh / 2 + 40, width: 200, height: 10 }, [0, 0, 0, 0.6], 60); fill(s, { x: vw / 2 - 100, y: vh / 2 + 40, width: 200 * k, height: 10 }, C.yellow, 61); }); }
+  // target label
+  if (UI.tgt) roots.push(abs('tgt', vw / 2 - 160, vh / 2 + 56, 320, 24, [label('tgtT', UI.tgt, 14, C.white, { width: 320 }, 'center', C.black)]));
+  if (UI.tgtHp >= 0) { const k = UI.tgtHp; after((_d, s) => { fill(s, { x: vw / 2 - 40, y: vh / 2 + 82, width: 80, height: 6 }, [0, 0, 0, 0.6], 60); fill(s, { x: vw / 2 - 40, y: vh / 2 + 82, width: 80 * k, height: 6 }, C.green, 61); }); }
+  // world-anchored: nameplates, ESP, damage numbers, weak point
+  let n = 0;
+  for (const d of bots) if (d.remote && !d.dead && d.state !== 'bus') { const sp = project(add(d.pos, [0, 2.4, 0])); if (sp) roots.push(abs('np' + n++, sp[0] - 60, sp[1] - 8, 120, 18, [label('npT' + n, d.name, 13, sameTeam(NET.id, d.remote) ? C.green : C.white, { width: 120 }, 'center')])); }
+  if (D.esp && !S.streamer) for (const d of bots) if (!d.dead && d.state !== 'bus') { const sp = project(add(d.pos, [0, 2.4, 0])); if (sp) roots.push(abs('esp' + n++, sp[0] - 80, sp[1] - 8, 160, 18, [label('espT' + n, `${d.name} · ${Math.ceil(d.hp + d.shield)} · ${Math.round(len(sub(d.pos, P.pos)))}m`, 12, C.yellow, { width: 160 }, 'center')])); }
+  for (const f of fx) if (f.kind === 'dmg') { const sp = project(add(f.pos, [0, (0.9 - f.t) * 1.5, 0])); if (sp) roots.push(abs('dmg' + n++, sp[0] - 40, sp[1] - 12, 80, 24, [label('dmgT' + n, f.text ?? '', f.head ? 22 : 18, f.head ? [1, 0.85, 0.2, Math.min(1, f.t * 3)] : [1, 1, 1, Math.min(1, f.t * 3)], { width: 80 }, 'center')])); }
+  const ws = P.weakT > 0 && P.weakPos ? project(P.weakPos) : null; if (ws) after((_d, s) => { fill(s, { x: ws[0] - 9, y: ws[1] - 9, width: 18, height: 18 }, [0.3, 0.8, 1, 0.9], 60); fill(s, { x: ws[0] - 5, y: ws[1] - 5, width: 10, height: 10 }, [0, 0, 0, 0.7], 61); });
+  // emote wheel / big map
+  if (UI.emoteWheel) { roots.push(abs('ew', vw / 2 - 200, vh / 2 - 60, 400, 120, [col('ewC', [label('ewT', 'EMOTE', 20, C.yellow, { width: 368 }, 'center'), row('ewR', EMOTES.map((e, i) => button('ew:' + i, e, { width: 86, height: 40 }, { size: 15 })), 6)], 10, { padding: 16 })], C.panel)); EMOTES.forEach((_, i) => { if (clicked('ew:' + i)) { startEmote(i); UI.emoteWheel = false; lockPointer(); } }); }
+  if (UI.bigmap) { const sz = Math.min(vw, vh) - 80; if (bigDirty || !texDefined.has('t:big')) { uploadCanvas('t:big', bigCv); bigDirty = false; } roots.push(abs('bigmap', (vw - sz) / 2, 40, sz, sz, [image('bigImg', SPR_BIG, sz, sz)], C.panel)); const mx = (vw - sz) / 2 + (P.pos[0] + SIZE / 2) / SIZE * sz, mz = 40 + (P.pos[2] + SIZE / 2) / SIZE * sz; after((_d, s) => { fill(s, { x: mx - 5, y: mz - 5, width: 10, height: 10 }, [1, 1, 1, 1], 61); fill(s, { x: mx - 3, y: mz - 3, width: 6, height: 6 }, [0.1, 0.5, 1, 1], 62); }); }
+}
+
+// ---- overlays shared by lobby and match ----
+function overlayUi(roots: UiNodeDefinition[], vw: number, vh: number) {
+  if (bannerT > 0 && P.state !== 'lobby') roots.push(abs('banner', vw / 2 - 260, 70, 520, UI.bannerP ? 70 : 46, [col('bannerC', [label('bannerH', UI.bannerH, 26, C.white, { width: 500 }, 'center'), ...(UI.bannerP ? [label('bannerP', UI.bannerP, 13, C.yellow, { width: 500 }, 'center')] : [])], 2, { padding: 6 })], [0.1, 0.3, 0.8, 0.85]));
+  if (UI.elimT > 0) roots.push(abs('elim', vw / 2 - 200, vh / 2 - 120, 400, 40, [label('elimT', `ELIMINATED ${UI.elimName}`, 22, C.yellow, { width: 400 }, 'center', C.black)]));
+  if (infoT > 0 && UI.infoTxt && P.state !== 'lobby') roots.push(abs('info', vw / 2 - 200, vh - 210, 400, 28, [label('infoT', UI.infoTxt, 16, C.white, { width: 400 }, 'center', C.black)]));
+  if (UI.toastT > 0) roots.push(abs('toast', vw / 2 - 220, vh - 90, 440, 34, [label('toastT', UI.toast, 16, C.white, { width: 440, height: 30 }, 'center', [0.1, 0.2, 0.4, 0.95])]));
+  if (UI.flashT > 0) after((_d, s) => fill(s, { x: 0, y: 0, width: vw, height: vh }, [1, 0, 0, 0.3 * Math.min(1, UI.flashT * 10)], 70));
+  if (fadeT > 0) after((_d, s) => fill(s, { x: 0, y: 0, width: vw, height: vh }, [0, 0, 0, clamp(fadeT / fadeDur * 1.6, 0, 1)], 90));
+  // pause (pointer not captured during a match)
+  const paused = P.state !== 'lobby' && !P.over && !UI.settings && !UI.emoteWheel && !UI.dbg && !UI.bigmap && !UI.end && document.pointerLockElement !== canvas && !GALLERY && fadeT <= 0;
+  if (paused) { roots.push(abs('pause', vw / 2 - 170, vh / 2 - 90, 340, 180, [col('pauseC', [label('pauseT', 'CLICK TO PLAY', 26, C.yellow, { width: 308 }, 'center'), button('pResume', 'RESUME', { width: 308, height: 40 }, { size: 18 }), button('pSettings', 'SETTINGS', { width: 308, height: 40 }, { size: 16, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), button('pLobby', 'RETURN TO LOBBY', { width: 308, height: 40 }, { size: 16, bg: [0.5, 0.15, 0.15, 1], fg: C.white })], 8, { padding: 16 })], C.panel)); if (clicked('pResume')) lockPointer(); if (clicked('pSettings')) settingsOpen(true); if (clicked('pLobby')) toLobby(); }
+  if (UI.end) endUi(roots, vw, vh);
+  if (UI.settings) settingsUi(roots, vw, vh);
+  if (UI.dbg) dbgUi(roots, vw, vh);
+}
+function endUi(roots: UiNodeDefinition[], vw: number, vh: number) {
+  const e = UI.end!;
+  roots.push(abs('endBg', 0, 0, vw, vh, [], e.win ? [0.05, 0.15, 0.35, 0.75] : [0.2, 0.03, 0.05, 0.75]));
+  roots.push(abs('end', vw / 2 - 260, vh / 2 - 150, 520, 300, [col('endC', [
+    label('endN', e.win ? '#1' : '#' + P.alive, 48, C.yellow, { width: 488 }, 'center'), label('endT', e.win ? 'VICTORY ROYALE' : 'ELIMINATED', 40, C.white, { width: 488 }, 'center'),
+    ...(e.win ? [] : [label('endBy', 'by ' + e.by, 16, C.dim, { width: 488 }, 'center')]),
+    label('endSt', `${P.kills} ELIMINATIONS   ·   ${Math.round(P.dmg)} DAMAGE   ·   ${e.xp} MATCH XP`, 16, C.dim, { width: 488 }, 'center'),
+    row('endB', [button('btnRet', 'RETURN TO LOBBY', { width: 240, height: 48 }, { size: 20 })], 8, { justify: 'center', width: 488 }),
+  ], 10, { padding: 16 })], C.panel));
+  if (clicked('btnRet')) toLobby();
+}
+function settingsUi(roots: UiNodeDefinition[], vw: number, vh: number) {
+  const pw = Math.min(vw - 40, 760), ph = Math.min(vh - 40, 620), rows: UiNodeDefinition[] = [], tabs = ['input', 'audio', 'video', 'keys'];
+  const sl = (k: keyof typeof SDEF, name: string, min: number, max: number, step: number) => { const r = slider('s:' + k, (S as any)[k] as number, min, max, step, 260); (S as any)[k] = r.value; rows.push(row('sr:' + k, [label('sl:' + k, name, 16, C.white, { width: 300 }), r.def, label('sv:' + k, String(+r.value.toFixed(2)), 14, C.dim, { width: 60 })], 12)); };
+  const tg = (k: keyof typeof SDEF, name: string) => { const r = toggle('t:' + k, !!(S as any)[k]); (S as any)[k] = r.value; rows.push(row('tr:' + k, [label('tl:' + k, name, 16, C.white, { width: 300 }), r.def], 12)); };
+  if (UI.setTab === 'input') { sl('sensX', 'Mouse sensitivity X', 0.2, 3, 0.05); sl('sensY', 'Mouse sensitivity Y', 0.2, 3, 0.05); sl('adsSens', 'ADS sensitivity', 0.2, 1.5, 0.05); sl('scopeSens', 'Scope sensitivity', 0.1, 1.5, 0.05); tg('invertY', 'Invert look Y'); tg('toggleSprint', 'Toggle sprint'); tg('turbo', 'Turbo build'); sl('padSens', 'Controller look sensitivity', 0.3, 3, 0.05); tg('rumble', 'Controller vibration'); }
+  else if (UI.setTab === 'audio') { sl('master', 'Master volume', 0, 1, 0.05); sl('sfx', 'Sound effects', 0, 1, 0.05); sl('voice', 'Voice lines', 0, 1, 0.05); sl('music', 'Music', 0, 1, 0.05); }
+  else if (UI.setTab === 'video') { sl('fov', 'Field of view', 60, 110, 1); sl('scale', 'Render scale', 0.5, 1, 0.05); sl('shadows', 'Shadow range', 0, 2, 1); sl('grass', 'Grass density', 0, 2, 1); sl('viewDist', 'View distance', 0, 2, 1); tg('showFps', 'Show FPS'); tg('streamer', 'Streamer mode (hide names)'); }
+  else { rows.push(label('kHint', 'Click a key to rebind it, then press the new key or mouse button.', 14, C.dim, { width: 600 })); for (const [a, nm] of REBINDABLE) { const wait = UI.rebind === a; rows.push(row('kr:' + a, [label('kl:' + a, nm, 16, C.white, { width: 300 }), button('kb:' + a, wait ? '…' : bindLabel(a), { width: 120, height: 32 }, { size: 15, bg: wait ? C.yellow : [0.1, 0.2, 0.4, 1], fg: wait ? C.navy : C.white })], 12)); if (clicked('kb:' + a)) { UI.rebind = a; UI.rebindArmT = 0.3; } } rows.push(button('keysReset', 'RESET ALL KEYS', { height: 34 }, { size: 15, bg: [0.5, 0.15, 0.15, 1], fg: C.white })); if (clicked('keysReset')) IN.resetBindings(); }
+  roots.push(abs('settings', (vw - pw) / 2, (vh - ph) / 2, pw, ph, [col('setC', [
+    row('setH', [label('setT', 'SETTINGS', 34, C.yellow, { width: pw - 120 }), button('setX', 'X', { width: 44, height: 40 }, { bg: [0.3, 0.1, 0.1, 1], fg: C.white })], 8),
+    row('setTabs', tabs.map(t => button('stab:' + t, t.toUpperCase(), { height: 36 }, { size: 16, on: UI.setTab === t, bg: [0.1, 0.2, 0.4, 1], fg: C.white })), 6),
+    col('setRows', rows, 6, { width: pw - 32, height: 'content' }),
+    row('setB', [button('setApply', 'APPLY', { width: 140, height: 44 }, { size: 18 }), button('setReset', 'RESET TO DEFAULTS', { width: 200, height: 44 }, { size: 15, bg: [0.1, 0.2, 0.4, 1], fg: C.white })], 8),
+  ], 12, { padding: 16 })], [0.04, 0.09, 0.22, 0.98]));
+  for (const t of tabs) if (clicked('stab:' + t)) UI.setTab = t;
+  if (clicked('setX')) settingsOpen(false); if (clicked('setApply')) saveSettings(); if (clicked('setReset')) Object.assign(S, SDEF);
+}
+function dbgUi(roots: UiNodeDefinition[], vw: number, vh: number) {
+  const rows: UiNodeDefinition[] = [];
+  const flags = Object.keys(D) as (keyof typeof D)[]; rows.push(row('dFlags', flags.map(f => { const r = toggle('df:' + f, D[f]); D[f] = r.value; return row('dfr:' + f, [r.def, label('dfl:' + f, f, 13, C.white)], 4); }), 10, { wrap: true, width: 700 }));
+  const hp = slider('dHp', UI.dbgHp, 1, 100, 1, 160), sh = slider('dSh', UI.dbgSh, 0, 100, 1, 160), al = slider('dAlive', UI.dbgAlive, 1, 100, 1, 160); UI.dbgHp = hp.value; UI.dbgSh = sh.value; UI.dbgAlive = al.value;
+  rows.push(row('dHpR', [label('dHpL', `HP ${UI.dbgHp}`, 14, C.white, { width: 70 }), hp.def, label('dShL', `Shield ${UI.dbgSh}`, 14, C.white, { width: 80 }), sh.def, button('da:sethp', 'SET', { height: 30 }, { size: 14 })], 8));
+  rows.push(row('dAlR', [label('dAlL', `Alive ${UI.dbgAlive}`, 14, C.white, { width: 70 }), al.def, button('da:alive', 'SET', { height: 30 }, { size: 14 })], 8));
+  rows.push(row('dGive', [button('dItemPrev', '<', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), label('dItemL', itemName(DBG_ITEMS[UI.dbgItem % DBG_ITEMS.length]!), 14, C.white, { width: 160 }, 'center'), button('dItemNext', '>', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), button('dRar', RARITIES[UI.dbgRar]!.toUpperCase(), { width: 110, height: 30 }, { size: 13, bg: RAR_COL[UI.dbgRar]!, fg: C.white }), button('da:give', 'GIVE', { height: 30 }, { size: 14 })], 6));
+  rows.push(row('dTp', [button('dPoiPrev', '<', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), label('dPoiL', POIS[UI.dbgPoi % POIS.length]!.name, 14, C.white, { width: 200 }, 'center'), button('dPoiNext', '>', { width: 30, height: 30 }, { size: 14, bg: [0.1, 0.2, 0.4, 1], fg: C.white }), button('da:tp', 'TELEPORT', { height: 30 }, { size: 14 })], 6));
+  const acts = ['refill', 'loadout', 'bus', 'storm', 'bot', 'peter', 'nobots', 'win', 'die', 'clear', 'siege', 'meteor', 'edit', 'skydive', 'cosm', 'xp'];
+  rows.push(row('dActs', acts.map(a => button('da:' + a, a.toUpperCase(), { height: 30 }, { size: 13, bg: [0.1, 0.2, 0.4, 1], fg: C.white })), 6, { wrap: true, width: 700 }));
+  rows.push(row('dBottom', [button('dbgLobby', 'RETURN TO LOBBY', { height: 34 }, { size: 14, bg: [0.5, 0.15, 0.15, 1], fg: C.white }), button('dbgX', 'CLOSE (F8)', { height: 34 }, { size: 14 })], 8));
+  roots.push(abs('dbg', vw / 2 - 370, 60, 740, Math.min(vh - 80, 480), [col('dbgC', [label('dbgT', 'LOCAL TESTING (F8)', 24, C.yellow), ...rows], 8, { padding: 14 })], C.panel));
+  if (clicked('dItemPrev')) UI.dbgItem = (UI.dbgItem + DBG_ITEMS.length - 1) % DBG_ITEMS.length; if (clicked('dItemNext')) UI.dbgItem = (UI.dbgItem + 1) % DBG_ITEMS.length; if (clicked('dRar')) UI.dbgRar = (UI.dbgRar + 1) % 5;
+  if (clicked('dPoiPrev')) UI.dbgPoi = (UI.dbgPoi + POIS.length - 1) % POIS.length; if (clicked('dPoiNext')) UI.dbgPoi = (UI.dbgPoi + 1) % POIS.length;
+  for (const a of ['sethp', 'alive', 'give', 'tp'].concat(acts)) if (clicked('da:' + a)) dbgAction(a);
+  if (clicked('dbgLobby')) toLobby(); if (clicked('dbgX')) toggleDbg(false);
+}
