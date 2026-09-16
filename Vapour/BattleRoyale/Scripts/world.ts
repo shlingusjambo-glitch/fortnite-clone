@@ -281,10 +281,10 @@ export class World {
     const key = World.key(type, pos, dir);
     if (this.pieces.has(key)) return null;
     const p: Piece = { type, mat, pos, dir, hp: MAT_HP[mat], maxHp: MAT_HP[mat], key, edit: 0, born: performance.now() / 1000 };
-    this.pieces.set(key, p); this.pcAdd(p); return p;
+    this.pieces.set(key, p); this.pcAdd(p); this.onPlace?.(p); return p;
   }
   damagePiece(p: Piece, d: number) { p.hp -= d; if (p.hp <= 0) this.removePiece(p); }
-  onRemove: ((p: Piece) => void) | null = null;
+  onRemove: ((p: Piece) => void) | null = null; onPlace: ((p: Piece) => void) | null = null;
   removePiece(p: Piece) { this.pieces.delete(p.key); this.pcDel(p); this.onRemove?.(p); }
   clearPieces() { this.pieces.clear(); this.pieceCells.clear(); }
   pieceBox(p: Piece): Box {

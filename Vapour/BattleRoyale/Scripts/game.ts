@@ -5,6 +5,7 @@ import { World, terrainH, Piece, PieceType, Mat, Box, Prop, POIS, SIZE, TILES, I
 import { NET, Member } from './net';
 import { setSeed } from './math';
 import { IN, REBINDABLE, bindLabel, rebind } from './input';
+import { bakeWorldNav, navBlock, navFrame, navPath } from './nav';
 
 // ---------------- setup ----------------
 export const canvas = document.getElementById('vapour-game') as HTMLCanvasElement;
@@ -47,9 +48,9 @@ bakeStatics();
 /** Regenerates the whole map from a seed so every party member plays the identical world. */
 function rebuildWorld(seed: number) {
   if (seed === matchSeed) return; matchSeed = seed; setSeed(seed);
-  W = new World(R); bakeStatics(); propCells.clear(); drawMaps(); hookWorld();
+  W = new World(R); bakeStatics(); propCells.clear(); drawMaps(); hookWorld(); bakeWorldNav(W);
 }
-function hookWorld() { W.onRemove = p => { if (matchLive && NET.active() && NET.isHost()) NET.send({ t: 'piece', op: 'del', key: p.key }); }; }
+function hookWorld() { W.onRemove = p => { navBlock(p.key, p.pos, false); if (matchLive && NET.active() && NET.isHost()) NET.send({ t: 'piece', op: 'del', key: p.key }); }; W.onPlace = p => navBlock(p.key, p.pos, true); }
 hookWorld();
 // trees/rocks/bushes baked per 48m cell too; a cell is rebuilt when one of its props is felled or regrows
 const PC = 48, propCells = new Map<string, { mesh: Mesh; c: V3 } | null>();
@@ -110,7 +111,7 @@ interface GroundItem { item: Item; pos: V3; id: number; }
 let nextItemId = 1, matchLive = false;
 type BotMode = 'loot' | 'rotate' | 'hunt' | 'fight' | 'box' | 'crank' | 'heal' | 'rush';
 interface Crank { c: V3; L: number; d: number; t: number; steps: number; }
-interface Bot { name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'island' | 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; joinT: number; joinedFeed?: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; nades: number; stunT: number; shots: number; remote: number; team: number; netPos: V3; netYaw: number; netPitch: number; netHeld: string | null; netPose: number; cracked: boolean; ammo: Record<Ammo, number>; farmT: number; farmRef: Prop | null; ignore: Set<any>; tryRef: any; tryT: number; }
+interface Bot { navPts?: V3[] | undefined; navI?: number; navT?: number; navGoal?: V3; name: string; pos: V3; vel: V3; yaw: number; pitch: number; hp: number; shield: number; skin: number; state: 'island' | 'bus' | 'sky' | 'glide' | 'ground'; dead: boolean; joinT: number; joinedFeed?: boolean; anim: number; weapon: Kind | null; weapons: Kind[]; heals: number; mats: number; target: V3 | null; retarget: number; fireCd: number; buildCd: number; lastHit: number; grounded: boolean; dropT: number; land: V3; enemy: Bot | 'player' | null; strafe: number; mode: BotMode; profile: string; skill: number; aggression: number; accuracy: number; reaction: number; seenAt: number; lastSeen: number; memory: V3 | null; memoryT: number; crank: Crank | null; healT: number; stuckT: number; lastPos: V3; voiceCd: number; interactT: number; interactRef: any; aimDrift: V3; peekT: number; peekWall: Piece | null; wanderT: number; boxAt: V3 | null; lootT: number; emoteT: number; emote: number; probeT: number; probeDir: V3 | null; nades: number; stunT: number; shots: number; remote: number; team: number; netPos: V3; netYaw: number; netPitch: number; netHeld: string | null; netPose: number; cracked: boolean; ammo: Record<Ammo, number>; farmT: number; farmRef: Prop | null; ignore: Set<any>; tryRef: any; tryT: number; }
 interface Fx { kind: 'dmg' | 'tracer' | 'puff'; t: number; pos: V3; text?: string; head?: boolean; to?: V3; col?: V3; }
 const ICON: Record<string, string> = {
   pickaxe: '<svg viewBox="0 0 64 64"><path d="M14 52 L44 22" stroke="#7a5a3a" stroke-width="6" stroke-linecap="round"/><path d="M30 12 Q46 8 56 26" stroke="#dfe6ee" stroke-width="8" fill="none" stroke-linecap="round"/></svg>',
@@ -788,6 +789,11 @@ function updateBot(b: Bot, dt: number) {
     const dx = tgt[0] - b.pos[0], dz = tgt[2] - b.pos[2], L = Math.hypot(dx, dz);
     if (L < 0.5) { b.vel[0] *= 0.8; b.vel[2] *= 0.8; return L; }
     let dir: V3 = [dx / L, 0, dz / L];
+    if (b.state === 'ground' && L > 9) {   // engine navmesh corridor: re-path every 2.5 s or when the goal moves
+      b.navT = (b.navT ?? 0) - dt;
+      if (!b.navPts || b.navT <= 0 || !b.navGoal || len(sub(b.navGoal, tgt)) > 6) { const pts = navPath(b.pos, tgt); if (pts) { b.navPts = pts; b.navI = 1; b.navGoal = [...tgt] as V3; b.navT = 2.5; } else if (b.navT <= 0) { b.navPts = undefined; b.navT = 1; } }
+      if (b.navPts) { while (b.navI! < b.navPts.length - 1 && Math.hypot(b.navPts[b.navI!]![0] - b.pos[0], b.navPts[b.navI!]![2] - b.pos[2]) < 1.6) b.navI!++; const w = b.navPts[b.navI!]!, wx = w[0] - b.pos[0], wz = w[2] - b.pos[2], wl = Math.hypot(wx, wz); if (wl > 0.3) dir = [wx / wl, 0, wz / wl]; }
+    } else b.navPts = undefined;
     if (b.state === 'ground') {   // obstacle probe at chest height (every 0.15s); try 45° left/right, else jump
       b.probeT -= dt;
       if (b.probeT <= 0) {
@@ -993,7 +999,7 @@ function frame(now: number) {
     // adaptive quality: step down when the match runs slow (Chromebooks); session-only, saved settings untouched
     if (P.state === 'play') { lowT = fpsV < 30 ? lowT + 0.5 : 0; if (lowT >= 3) { lowT = 0; const step = S.shadows > 1 ? (S.shadows = 1) : S.grass > 0 ? (S.grass = 0) : S.scale > 0.75 ? (S.scale = 0.75) : S.shadows > 0 ? (S.shadows = 0) : S.scale > 0.6 ? (S.scale = 0.6) : S.viewDist > 0 ? (S.viewDist = 0) : -1; if (step !== -1) info('Low FPS: quality lowered (Settings > Video)'); } }
   }
-  IN.update(navigator.getGamepads ? Array.from(navigator.getGamepads()) : []);
+  IN.update(navigator.getGamepads ? Array.from(navigator.getGamepads()) : []); navFrame();
   const key = (a: string) => IN.justPressed(a), down = (a: string) => IN.pressed(a);
   const sun = norm([0.55, 0.62, 0.35] as V3), aspect = innerWidth / innerHeight;
   const locked = document.pointerLockElement === canvas, padSens = 650 * dt * S.padSens * (P.scoped ? 0.4 : P.ads ? 0.6 : 1.0);
