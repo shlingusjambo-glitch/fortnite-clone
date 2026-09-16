@@ -8,6 +8,23 @@ import { initEui } from './eui';
 mountUi();
 const canvas = document.querySelector<HTMLCanvasElement>('#vapour-game')!;
 const moduleUrl = new URL('vapour_runtime.js', document.baseURI).href;
+
+/** The WebGL build at /legacy/ is the fallback for browsers without WebGPU and for software adapters
+ * (SwiftShader / llvmpipe on Linux), which render this build at a few frames per second. `?force=1` skips the check. */
+export const toLegacy = (why: string) => { try { sessionStorage.setItem('fn-fallback', why); } catch {} location.replace(new URL('legacy/' + location.search, document.baseURI).href); };
+async function gpuUsable(): Promise<boolean> {
+  if (!('gpu' in navigator) || !navigator.gpu) return false;
+  try {
+    const a = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!a) return false;
+    const info = (a as GPUAdapter & { info?: GPUAdapterInfo }).info ?? await (a as GPUAdapter & { requestAdapterInfo?: () => Promise<GPUAdapterInfo> }).requestAdapterInfo?.();
+    const desc = info ? `${info.vendor} ${info.architecture} ${info.device} ${info.description}`.toLowerCase() : '';
+    if ((a as GPUAdapter & { isFallbackAdapter?: boolean }).isFallbackAdapter || /swiftshader|llvmpipe|lavapipe|softpipe|software/.test(desc)) return false;
+    return true;
+  } catch { return false; }
+}
+const forced = new URLSearchParams(location.search).get('force') === '1';
+if (!forced && !(await gpuUsable())) { toLegacy('no-webgpu'); throw new Error('falling back to the WebGL build'); }
 const host = new WebGpuRenderHost(canvas, { moduleUrl });
 
 // The game module builds every mesh at import time through the renderer adapter; the engine uploads them in `start`.

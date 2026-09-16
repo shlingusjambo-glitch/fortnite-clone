@@ -9,6 +9,7 @@ import { bakeWorldNav, navBlock, navFrame, navPath } from './nav';
 import { perceiveVision, selectTarget } from '@vapour/engine';
 import { fxDust, fxSpark, fxChip, fxExplosion, updateFx } from './fx';
 import { PH, moveCapsule, physicsRay, stepPhysics, syncHitboxes, syncWorld } from './physics';
+import { toLegacy } from './main';
 import { UI_PROF, C, after, box, button, clicked, fill, gap, image, label, render, slider, textField, toggle, uiHot, uiMouse, uiReady, type RGBA } from './eui';
 import { SnapshotBuffer, type SpriteAsset, type UiNodeDefinition } from '@vapour/engine';
 
@@ -463,7 +464,7 @@ function landed() {
 const mmCv = document.createElement('canvas'); mmCv.width = mmCv.height = 300; const mmCtx = mmCv.getContext('2d', { willReadFrequently: true })!; const mmBg = mmCtx;   // CPU-backed: the pixels are read back into an engine texture
 const HEAD = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-let fpsN = 0, fpsT = 0, fpsV = 0, lowT = 0;
+let fpsN = 0, fpsT = 0, fpsV = 0, lowT = 0, slowT = 0, upT = 0;
 let hudN = 0;
 /** Minimap raster (2D canvas offscreen) → engine texture; the HUD draws it as an image node. */
 function drawMinimap() {
@@ -902,6 +903,7 @@ const PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0, items: 0, ui: 0,
 function frame(now: number) { frameInner(now); try { drawUi(); } catch (e) { if (!(window as any)._uiErr) { (window as any)._uiErr = e; console.error('ui', e); } } }
 function frameInner(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+  upT += dt; if (P.state === 'lobby' && upT > 3 && upT < 20 && !new URLSearchParams(location.search).get('force')) { slowT = fpsV > 0 && fpsV < 10 ? slowT + dt : 0; if (slowT > 4) { toLegacy('slow-webgpu'); return; } }
   fpsN++; fpsT += dt; if (fpsT > 0.5) { fpsV = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0;
     // adaptive quality: step down when the match runs slow (Chromebooks); session-only, saved settings untouched
     if (P.state === 'play') { lowT = fpsV < 30 ? lowT + 0.5 : 0; if (lowT >= 3) { lowT = 0; const step = S.shadows > 1 ? (S.shadows = 1) : S.grass > 0 ? (S.grass = 0) : S.scale > 0.75 ? (S.scale = 0.75) : S.shadows > 0 ? (S.shadows = 0) : S.scale > 0.6 ? (S.scale = 0.6) : S.viewDist > 0 ? (S.viewDist = 0) : -1; if (step !== -1) info('Low FPS: quality lowered (Settings > Video)'); } }
