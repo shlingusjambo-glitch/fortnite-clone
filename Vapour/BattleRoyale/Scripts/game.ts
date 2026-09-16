@@ -6,6 +6,7 @@ import { NET, Member } from './net';
 import { setSeed } from './math';
 import { IN, REBINDABLE, bindLabel, rebind } from './input';
 import { bakeWorldNav, navBlock, navFrame, navPath } from './nav';
+import { fxDust, fxSpark, fxChip, fxExplosion, updateFx } from './fx';
 
 // ---------------- setup ----------------
 export const canvas = document.getElementById('vapour-game') as HTMLCanvasElement;
@@ -410,7 +411,7 @@ function botDamage(dm: Bot, n: number, by: string, how = 'with a weapon') {
   const att = by === 'Player' ? P.pos : bots.find(x => x.name === by)?.pos;
   if (att) { dm.memory = [...att] as V3; dm.memoryT = t; if (Math.random() < 0.4 + dm.skill * 0.6) { dm.yaw = Math.atan2(att[0] - dm.pos[0], att[2] - dm.pos[2]); dm.retarget = 0; } if (!dm.enemy && dm.weapon && dm.mode !== 'heal') dm.mode = 'hunt'; }
   if (dm.hp > 0) { if (Math.random() < .22) botVoice(dm); return; }
-  dm.dead = true; P.alive--; dying.push({ skin: dm.skin, pos: [...dm.pos] as V3, yaw: dm.yaw, t: 1.4 }); fx.push({ kind: 'puff', t: 0.4, pos: add(dm.pos, [0, 1, 0]), col: [0.4, 0.8, 1] });
+  dm.dead = true; P.alive--; dying.push({ skin: dm.skin, pos: [...dm.pos] as V3, yaw: dm.yaw, t: 1.4 }); fx.push({ kind: 'puff', t: 0.4, pos: add(dm.pos, [0, 1, 0]), col: [0.4, 0.8, 1] }); fxSpark(add(dm.pos, [0, 1, 0]), 30);
   if (Math.random() < 0.35) { const killer = bots.find(x => x.name === by); if (killer && !killer.dead) { killer.emoteT = 3; killer.emote = Math.floor(rand(0, 4)); } }
   if (by === PR.name) { P.kills++; H.elim.querySelector('b')!.textContent = dm.name; H.elim.style.display = 'block'; setTimeout(() => (H.elim.style.display = 'none'), 2500); addFeed(`Player eliminated <span class="v">${dm.name}</span> ${how}`); beep(600, 0.3, 'square', 0.08, 300); }
   else addFeed(`${by} eliminated <span class="v">${dm.name}</span>`);
@@ -440,7 +441,7 @@ function shoot(item: Item) {
     const end = h ? h.p : add(camPos, scale(d, w!.range)); shotRays.push(d);
     fx.push({ kind: 'tracer', t: 0.08, pos: add(add(P.pos, [0, eyeH() - 0.3, 0]), scale(right(), 0.35)), to: end });
     if (!h) continue;
-    fx.push({ kind: 'puff', t: 0.22, pos: h.p, col: h.kind === 'box' ? [1, 0.3, 0.2] : h.kind === 'terrain' ? [0.7, 0.6, 0.45] : h.kind === 'prop' ? [0.5, 0.7, 0.3] : [0.9, 0.85, 0.7] });
+    fx.push({ kind: 'puff', t: 0.22, pos: h.p, col: h.kind === 'box' ? [1, 0.3, 0.2] : h.kind === 'terrain' ? [0.7, 0.6, 0.45] : h.kind === 'prop' ? [0.5, 0.7, 0.3] : [0.9, 0.85, 0.7] }); if (h.kind === 'box') fxSpark(h.p, 6); else { fxDust(h.p, 10); fxSpark(h.p, 4); }
     if (h.kind === 'box') {
       const { d: dm, head } = h.ref as { d: Bot; head: boolean }; const fall = h.t > w!.range * 0.5 ? lerp(1, 0.6, (h.t - w!.range * 0.5) / (w!.range * 0.5)) : 1; const dmg = Math.round(w!.dmg * RAR_MULT[item.rar]! * fall * (head ? w!.hs : 1));
       if (!client && !(dm.remote && sameTeam(NET.id, dm.remote))) botDamage(dm, dmg, 'Player'); P.dmg += dmg; dm.lastHit = t; dm.enemy = 'player'; hitAny = true; headAny ||= head;
@@ -457,7 +458,7 @@ function swingPickaxe() {
   const h = W.raycast(add(P.pos, [0, eyeH(), 0]), camFwd, 4, botBoxes());
   if (!h) return;
   const weak=!!(P.weakRef===h.ref&&P.weakPos&&len(sub(h.p,P.weakPos))<.9), mark=()=>{P.weakRef=h.ref;P.weakPos=add(h.p,[rand(-.45,.45),rand(-.45,.45),rand(-.08,.08)]);P.weakT=4;};
-  if (weak) rumble(120, 0.8, 0.85); else rumble(75, 0.45, 0.45);
+  if (weak) rumble(120, 0.8, 0.85); else rumble(75, 0.45, 0.45); fxChip(h.p, weak ? 22 : 12);
   if (h.kind === 'prop') { const q = h.ref as Prop, dmg=weak?100:50; q.hp -= dmg; const m: Mat = q.type === 'rock' ? 'stone' : 'wood'; const n = q.type === 'bush' ? 3 : weak?24:10; giveMat(m, n); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: weak?'CRITICAL +'+n:'+' + n, head: weak }); beep(weak?950:500, 0.1, 'square', 0.06); if (q.hp <= 0){q.dead = 30;P.weakT=0;dirtyProp(q);}else mark(); }
   else if (h.kind === 'static' && (h.ref as typeof W.statics[number]).baked) { const s = h.ref as typeof W.statics[number]; giveMat(s.mesh === 'crate' || s.mesh === 'fence' || s.mesh === 'bench' ? 'wood' : s.mesh === 'hedge' ? 'wood' : 'metal', 5); fx.push({ kind: 'dmg', t: 0.7, pos: h.p, text: '+5' }); beep(430, .1, 'square', .06); }
   else if (h.kind === 'static') { const s=h.ref as typeof W.statics[number], dmg=weak?100:45, mat:Mat=(s.mesh === 'car'||s.mesh==='truck'||s.mesh==='lamp')?'metal':s.mesh.startsWith('house')?'wood':'stone',n=weak?18:7;s.hp=(s.hp??300)-dmg;s.shake=.28;giveMat(mat,n);fx.push({kind:'dmg',t:.7,pos:h.p,text:weak?'CRITICAL +'+n:'+'+n,head:weak});beep(weak?900:430,.1,'square',.06);if(s.hp<=0){s.dead=true;s.boxes.length=0;P.weakT=0;}else mark(); }
@@ -692,7 +693,7 @@ function dbgAction(a: string) {
   info(a.toUpperCase() + ' ✓');
 }
 function explode(pos: V3, by: string, kind: Kind = 'grenade', visual = false) {
-  if (visual) { beep(50, 0.5, 'sawtooth', 0.25, -30, pos); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); return; }
+  if (visual) { beep(50, 0.5, 'sawtooth', 0.25, -30, pos); fxExplosion(pos); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); return; }
   if (kind === 'boogie') {   // everyone nearby dances for 5s
     beep(600, 0.4, 'triangle', 0.1, 400); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOGIE', head: true });
     if (len(sub(P.pos, pos)) < 6 && !P.dead) { P.emote = 0; P.emoteT = 5; P.stunT = 5; }
@@ -705,7 +706,7 @@ function explode(pos: V3, by: string, kind: Kind = 'grenade', visual = false) {
     push(P); for (const b of bots) if (!b.dead) push(b);
     return;
   }
-  beep(50, 0.5, 'sawtooth', 0.25, -30, pos); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); rumble(300, 0.8, 1);
+  beep(50, 0.5, 'sawtooth', 0.25, -30, pos); fxExplosion(pos); fx.push({ kind: 'dmg', t: 0.8, pos: add(pos, [0, 1.5, 0]), text: 'BOOM', head: true }); rumble(300, 0.8, 1);
   const dmg = (d: number) => Math.round(100 * clamp(1 - d / 5, 0, 1));
   const dp = len(sub(P.pos, pos)); if (dp < 5 && dmg(dp) > 0 && !(NET.active() && !NET.isHost())) damage(dmg(dp), by);
   for (const b of bots) if (!b.dead) { const d = len(sub(b.pos, pos)); if (d < 5 && dmg(d) > 0) { botDamage(b, dmg(d), by); if (by === 'Player') P.dmg += dmg(d); } }
@@ -1273,7 +1274,7 @@ function frame(now: number) {
       if (it) R.draw(M[it.kind], trs(hp, P.yaw, -P.pitch), [1, 1, 1], 1, 0, false); else R.draw(M.pickaxe, mul(trs(hp, P.yaw, -P.pitch), rotX(1.0 + (P.swing > 0 ? Math.sin(P.swing * 6.3) * 1.2 : 0))), [1, 1, 1], 1, 0, false);
     }
   }
-  R.shadows = S.shadows; R.scale = S.scale; setListener(camPos, camFwd); setVolumes(S);
+  R.shadows = S.shadows; R.scale = S.scale; setListener(camPos, camFwd); setVolumes(S); updateFx(dt);
   const pf2 = performance.now(); PROF.submit += pf2 - pf1;
   R.flush({ pos: camPos, fwd: camFwd, fov, aspect }, VP, sun, P.pos, t, true, P.state === 'play' ? (S.shadows > 1 ? 62 : 40) : 180);
   const pf3 = performance.now(); PROF.flush += pf3 - pf2;
@@ -1359,4 +1360,4 @@ NET.on('closed', () => { if (P.state !== 'lobby') info('Disconnected from party'
     }, 600);
   }, 1500);
 }
-(window as any).G = { NET, H, beep, unlockAudio, IN, mmBg: () => mmBg, PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+(window as any).G = { NET, H, beep, unlockAudio, IN, fxExplosion, fxDust, explode, mmBg: () => mmBg, PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
