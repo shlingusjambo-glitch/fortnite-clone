@@ -6,6 +6,7 @@ import { NET, Member } from './net';
 import { setSeed } from './math';
 import { IN, REBINDABLE, bindLabel, rebind } from './input';
 import { bakeWorldNav, navBlock, navFrame, navPath } from './nav';
+import { perceiveVision, selectTarget } from '@vapour/engine';
 import { fxDust, fxSpark, fxChip, fxExplosion, updateFx } from './fx';
 import { PH, moveCapsule, stepPhysics, syncWorld } from './physics';
 
@@ -826,9 +827,13 @@ function updateBot(b: Bot, dt: number) {
     if (b.retarget <= 0) {
       b.retarget = lerp(0.5, 0.15, b.skill); let found: Bot | 'player' | null = null, best = 95;
       const eye = add(b.pos, [0, 1.6, 0]);
-      const visible = (p: V3, d: number) => { const v = norm(sub(p, eye)); const facing = v[0] * fw[0] + v[2] * fw[2]; if (facing < 0.25 && d > 9) return false; if (Math.random() > clamp(1.4 - d / 95, 0.15, 1)) return false; return los(eye, add(p, [0, 1.2, 0])); };
-      if (!P.dead && P.state === 'play') { const d = len(sub(P.pos, b.pos)); if (d < best && !(P.bush && d > 10 && t - lastShot > 3) && visible(P.pos, d)) { best = d; found = 'player'; } }
-      for (const o of bots) if (o !== b && !o.dead && o.state === 'ground') { const d = len(sub(o.pos, b.pos)); if (d < best && visible(o.pos, d)) { best = d; found = o; } }
+      // engine vision sensor: a wide cone at range, all-round awareness up close; occlusion = world line of sight plus a distance-based miss chance
+      const targets: { id: string; position: { x: number; y: number; z: number }; ref: Bot | 'player' }[] = [];
+      if (!P.dead && P.state === 'play' && !(P.bush && len(sub(P.pos, b.pos)) > 10 && t - lastShot > 3)) targets.push({ id: 'player', position: { x: P.pos[0], y: P.pos[1], z: P.pos[2] }, ref: 'player' });
+      for (const o of bots) if (o !== b && !o.dead && o.state === 'ground') targets.push({ id: o.name, position: { x: o.pos[0], y: o.pos[1], z: o.pos[2] }, ref: o });
+      const occluded = (_from: unknown, to: { x: number; y: number; z: number }) => { const d = Math.hypot(to.x - eye[0], to.z - eye[2]); return Math.random() > clamp(1.4 - d / 95, 0.15, 1) || !los(eye, [to.x, to.y + 1.2, to.z]); };
+      const seen = [...perceiveVision(targets, { range: 9, fieldOfView: 360, eye: { x: eye[0], y: eye[1], z: eye[2] }, forward: { x: fw[0], y: 0, z: fw[2] }, occluded }), ...perceiveVision(targets, { range: best, fieldOfView: 150, eye: { x: eye[0], y: eye[1], z: eye[2] }, forward: { x: fw[0], y: 0, z: fw[2] }, occluded })];
+      const pick = selectTarget(seen, 'nearest'); if (pick) { found = targets.find(q => q.id === pick.id)!.ref; best = pick.distance; }
       if (found) { if (b.enemy !== found) { b.seenAt = t; if (Math.random() < .16) botVoice(b); } b.enemy = found; b.lastSeen = t; const q = found === 'player' ? P.pos : found.pos; b.memory = [...q] as V3; b.memoryT = t; if (b.mode !== 'crank' && b.mode !== 'box' && b.mode !== 'heal' && b.mode !== 'rush') b.mode = 'fight'; }
       else if (b.enemy && t - b.lastSeen > lerp(2.5, 5, b.skill)) { b.enemy = null; b.mode = b.memory && b.aggression > 0.35 ? 'hunt' : 'loot'; b.crank = null; }
       if (b.enemy && (b.enemy === 'player' ? P.dead : b.enemy.dead)) { b.enemy = null; b.mode = 'loot'; b.crank = null; }

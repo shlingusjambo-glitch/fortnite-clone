@@ -61,6 +61,7 @@ export class Renderer {
     host.setPostProcess({ exposure: 1.05, toneMapping: 'aces', bloom: { intensity: 0.12, threshold: 1.1, scatter: 0.6 }, saturation: 1.06, contrast: 1.04, vignette: 0.18, antiAliasing: 'fxaa' });
   }
   private gpuUpload(m: Mesh) {
+    if (m.n === 0) return;   // empty builders (a grass cell over water, a fully edited wall) own no GPU mesh and draw nothing
     if (m.raw) { this.game!.uploadMesh(m.id, m.raw); return; }
     const d = m.data!, n = d.length / 9, positions = new Float32Array(n * 3), normals = new Float32Array(n * 3), colors = new Float32Array(n * 4), indices = new Uint32Array(n);
     for (let i = 0; i < n; i++) { const o = i * 9; positions.set([d[o]!, d[o + 1]!, d[o + 2]!], i * 3); normals.set([d[o + 3]!, d[o + 4]!, d[o + 5]!], i * 3); colors.set([srgb(d[o + 6]!), srgb(d[o + 7]!), srgb(d[o + 8]!), 1], i * 4); indices[i] = i; }
@@ -78,9 +79,9 @@ export class Renderer {
     if (this.game) this.gpuUpload(m); else this.pending.push(m);
     return m;
   }
-  draw(m: Mesh, mat: M4, tint: V3 = [1, 1, 1], alpha = 1, style = 0, shadow = true, two = false) { if (!m) { console.error('draw(): undefined mesh'); return; } this.items.push({ m, mat, tint, alpha, style, shadow, two }); }
+  draw(m: Mesh, mat: M4, tint: V3 = [1, 1, 1], alpha = 1, style = 0, shadow = true, two = false) { if (!m) { console.error('draw(): undefined mesh'); return; } if (m.n === 0) return; this.items.push({ m, mat, tint, alpha, style, shadow, two }); }
   /** Skinned draw: `bones` is the palette (16 column-major floats per bone) in the instance's local space. */
-  drawSkinned(m: Mesh, mat: M4, bones: Float32Array, style = 0, tint: V3 = [1, 1, 1]) { this.items.push({ m, mat, tint, alpha: 1, style, shadow: true, two: false, bones }); }
+  drawSkinned(m: Mesh, mat: M4, bones: Float32Array, style = 0, tint: V3 = [1, 1, 1]) { if (m.n === 0) return; this.items.push({ m, mat, tint, alpha: 1, style, shadow: true, two: false, bones }); }
   get itemCount() { return this.items.length; }
   /** Submits everything queued this frame. `sky` false = lobby/gallery lighting. */
   flush(cam: Cam, _vp: M4, sun: V3, _focus: V3, _t: number, sky = true, _shadowRange = 90) {
