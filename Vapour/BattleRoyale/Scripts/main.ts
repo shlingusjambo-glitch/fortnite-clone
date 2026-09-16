@@ -20,6 +20,8 @@ async function gpuUsable(): Promise<boolean> {
     const info = (a as GPUAdapter & { info?: GPUAdapterInfo }).info ?? await (a as GPUAdapter & { requestAdapterInfo?: () => Promise<GPUAdapterInfo> }).requestAdapterInfo?.();
     const desc = info ? `${info.vendor} ${info.architecture} ${info.device} ${info.description}`.toLowerCase() : '';
     if ((a as GPUAdapter & { isFallbackAdapter?: boolean }).isFallbackAdapter || /swiftshader|llvmpipe|lavapipe|softpipe|software/.test(desc)) return false;
+    // Dawn on the OpenGL-ES compatibility backend (Linux Chromium with Vulkan disabled) renders at a few FPS: not usable
+    if (/opengl|angle \(|gles/.test(desc)) { try { sessionStorage.setItem('fn-hint', 'WebGPU is running on the OpenGL compatibility backend. Enable chrome://flags/#enable-vulkan and relaunch for the WebGPU build.'); } catch {} return false; }
     return true;
   } catch { return false; }
 }
