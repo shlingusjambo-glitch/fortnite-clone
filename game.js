@@ -1853,7 +1853,24 @@ void main(){
   var canvas = document.getElementById("c"), R = new Renderer(canvas), M = buildModels(R), W = new World(R), MAT_STYLE = { wood: 2, stone: 3, metal: 4 }, editCache = /* @__PURE__ */ new Map(), editedMesh = (type, mat, mask) => {
     let k = `${type}_${mat}_${mask}`, m = editCache.get(k);
     return m || (m = editedPiece(R, type, mat, mask), editCache.set(k, m)), m;
-  }, CHARS = SKINS.map((s) => buildCharacter(R, s)), LOBBY_CHAR = buildCharacter(R, SKINS[0], 1.35), $ = (id) => document.getElementById(id), H = { fade: $("fade"), lobby: $("lobby"), hud: $("hud"), hp: $("hp"), sh: $("sh"), mats: $("mats"), bld: $("bld"), ammo: $("ammo"), wname: $("wname"), hotbar: $("hotbar"), info: $("info"), fx: $("fx"), cross: $("cross"), weak: $("weak"), hitm: $("hitm"), prog: $("prog"), flash: $("flash"), scope: $("scope"), pause: $("pause"), comp: $("comp"), fps: $("fps"), mm: $("mm"), stats: $("stats"), feed: $("feed"), banner: $("banner"), elim: $("elim"), bigmap: $("bigmap"), pl: $("pl"), end: $("end"), dbg: $("dbg"), tgt: $("tgt") }, mapCv = document.createElement("canvas");
+  }, CHARS = SKINS.map((s) => buildCharacter(R, s)), LOBBY_CHAR = buildCharacter(R, SKINS[0], 1.35), $ = (id) => document.getElementById(id);
+  function lockPointer() {
+    try {
+      let r = canvas.requestPointerLock({ unadjustedMovement: !0 });
+      r && typeof r.catch == "function" && r.catch(() => {
+        try {
+          canvas.requestPointerLock();
+        } catch {
+        }
+      });
+    } catch {
+      try {
+        canvas.requestPointerLock();
+      } catch {
+      }
+    }
+  }
+  var H = { fade: $("fade"), lobby: $("lobby"), hud: $("hud"), hp: $("hp"), sh: $("sh"), mats: $("mats"), bld: $("bld"), ammo: $("ammo"), wname: $("wname"), hotbar: $("hotbar"), info: $("info"), fx: $("fx"), cross: $("cross"), weak: $("weak"), hitm: $("hitm"), prog: $("prog"), flash: $("flash"), scope: $("scope"), pause: $("pause"), comp: $("comp"), fps: $("fps"), mm: $("mm"), stats: $("stats"), feed: $("feed"), banner: $("banner"), elim: $("elim"), bigmap: $("bigmap"), pl: $("pl"), end: $("end"), dbg: $("dbg"), tgt: $("tgt") }, mapCv = document.createElement("canvas");
   mapCv.width = mapCv.height = 600;
   W.drawMap(mapCv);
   H.bigmap.querySelector("canvas").getContext("2d").drawImage(mapCv, 0, 0);
@@ -2090,7 +2107,7 @@ void main(){
     }
     P.dead = !1, P.over = !1, P.dmg = 0, storm.phase = 0, storm.shrinking = !1, H.end.style.display = "none", H.lobby.style.display = "none", H.hud.style.display = "block";
     try {
-      canvas.requestPointerLock();
+      lockPointer();
     } catch {
     }
     fade(1.2), banner("SPAWN ISLAND", "WAITING FOR PLAYERS \xB7 PRACTICE WHILE THE LOBBY FILLS", 5);
@@ -2141,7 +2158,7 @@ void main(){
   canvas.addEventListener("mousedown", (e) => {
     if (P.state !== "lobby") {
       if (document.pointerLockElement !== canvas) {
-        canvas.requestPointerLock();
+        lockPointer();
         return;
       }
       e.button === 0 && (mouse.l = !0, pressed.add("ML")), e.button === 2 && (mouse.r = !0, pressed.add("MR"));
@@ -2224,7 +2241,7 @@ void main(){
   $("lbot").querySelector("span").onclick = (e) => {
     (e.target.textContent || "").includes("Controls") ? (settingsOpen(!0), SET.querySelector("[data-p=keys]").click()) : openPage("LOCKER");
   };
-  H.pause.onclick = () => canvas.requestPointerLock();
+  H.pause.onclick = () => lockPointer();
   document.addEventListener("pointerlockchange", () => {
     H.pause.style.display = document.pointerLockElement === canvas || P.state === "lobby" || SET.style.display === "block" || EW.style.display === "flex" || dbgOpen() || P.over ? "none" : "flex";
   });
@@ -2505,7 +2522,7 @@ void main(){
   }
   var SET = $("settings");
   function settingsOpen(on) {
-    SET.style.display = on ? "block" : "none", on ? (document.exitPointerLock(), syncSettingsUI()) : P.state !== "lobby" && !P.over && canvas.requestPointerLock(), H.pause.style.display = "none";
+    SET.style.display = on ? "block" : "none", on ? (document.exitPointerLock(), syncSettingsUI()) : P.state !== "lobby" && !P.over && lockPointer(), H.pause.style.display = "none";
   }
   function syncSettingsUI() {
     SET.querySelectorAll("[data-s]").forEach((el) => {
@@ -2536,7 +2553,7 @@ void main(){
     e.stopPropagation(), settingsOpen(!0);
   };
   $("pResume").onclick = (e) => {
-    e.stopPropagation(), canvas.requestPointerLock();
+    e.stopPropagation(), lockPointer();
   };
   $("pLobby").onclick = (e) => {
     e.stopPropagation(), toLobby();
@@ -2559,7 +2576,7 @@ void main(){
   PR.unlocked.includes(P.skin) || (P.skin = 0);
   var EMOTES = ["Dance", "Wave", "Floss", "Take the L"], EW = $("emoteWheel");
   EW.querySelectorAll("[data-e]").forEach((el) => el.onclick = () => {
-    startEmote(+el.dataset.e), EW.style.display = "none", canvas.requestPointerLock();
+    startEmote(+el.dataset.e), EW.style.display = "none", lockPointer();
   });
   function startEmote(i) {
     P.state !== "play" || P.dead || (lastEmote = i, P.emote = i, P.emoteT = 4.5, P.build = !1, P.editing = null, emoteJingle(i));
@@ -2569,7 +2586,7 @@ void main(){
   }
   var dbgOpen = () => H.dbg.style.display === "block";
   function toggleDbg(on = !dbgOpen()) {
-    H.dbg.style.display = on ? "block" : "none", on ? document.exitPointerLock() : P.state !== "lobby" && canvas.requestPointerLock(), H.pause.style.display = "none";
+    H.dbg.style.display = on ? "block" : "none", on ? document.exitPointerLock() : P.state !== "lobby" && lockPointer(), H.pause.style.display = "none";
   }
   $("dbgX").onclick = () => toggleDbg(!1);
   $("btnRet").onclick = () => toLobby();

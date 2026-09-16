@@ -12,6 +12,15 @@ const editedMesh = (type: 'wall' | 'floor', mat: Mat, mask: number) => { const k
 const CHARS: CharMesh[] = SKINS.map(s => buildCharacter(R, s));
 const LOBBY_CHAR = buildCharacter(R, SKINS[0], 1.35);
 const $ = (id: string) => document.getElementById(id)!;
+/** Pointer lock with raw (unadjusted) mouse deltas: on Linux Firefox with fractional display scaling, slow motion
+ * otherwise rounds to movementX = 0 and small aims are swallowed. Browsers/devices that reject the option fall back. */
+function lockPointer() {
+  try {
+    const r = (canvas as HTMLCanvasElement & { requestPointerLock(o?: { unadjustedMovement: boolean }): Promise<void> | undefined }).requestPointerLock({ unadjustedMovement: true });
+    if (r && typeof r.catch === 'function') r.catch(() => { try { canvas.requestPointerLock(); } catch {} });
+  } catch { try { canvas.requestPointerLock(); } catch {} }
+}
+
 const H = { fade: $('fade'), lobby: $('lobby'), hud: $('hud'), hp: $('hp'), sh: $('sh'), mats: $('mats'), bld: $('bld'), ammo: $('ammo'), wname: $('wname'), hotbar: $('hotbar'), info: $('info'), fx: $('fx'), cross: $('cross'), weak: $('weak'), hitm: $('hitm'), prog: $('prog'), flash: $('flash'), scope: $('scope'), pause: $('pause'), comp: $('comp'), fps: $('fps'), mm: $('mm'), stats: $('stats'), feed: $('feed'), banner: $('banner'), elim: $('elim'), bigmap: $('bigmap'), pl: $('pl'), end: $('end'), dbg: $('dbg'), tgt: $('tgt') };
 const mapCv = document.createElement('canvas'); mapCv.width = mapCv.height = 600; W.drawMap(mapCv);
 (H.bigmap.querySelector('canvas') as HTMLCanvasElement).getContext('2d')!.drawImage(mapCv, 0, 0); W.drawLabels(H.bigmap.querySelector('canvas') as HTMLCanvasElement);
@@ -227,7 +236,7 @@ function startMatch() {
   P.nextDrop = 90; drops.length = 0;
   for (const p of POIS) for (let i = 0; i < 3; i++) { const x = p.x + rand(-p.r, p.r) * 0.6, z = p.z + rand(-p.r, p.r) * 0.6, y = terrainH(x, z); if (y > 1) items.push({ item: mkItem('ammo'), pos: [x, y, z] }); }
   P.dead = false; P.over = false; P.dmg = 0; storm.phase = 0; storm.shrinking = false; H.end.style.display = 'none';
-  H.lobby.style.display = 'none'; H.hud.style.display = 'block'; try { canvas.requestPointerLock(); } catch {}
+  H.lobby.style.display = 'none'; H.hud.style.display = 'block'; try { lockPointer(); } catch {}
   fade(1.2); banner('SPAWN ISLAND', 'WAITING FOR PLAYERS · PRACTICE WHILE THE LOBBY FILLS', 5);
 }
 const PROFILES: { name: string; skill: [number, number]; aggro: [number, number]; loot: number }[] = [
@@ -286,7 +295,7 @@ addEventListener('gamepaddisconnected', (e: GamepadEvent) => {
 addEventListener('keydown', e => { if (!keys.has(e.code)) pressed.add(e.code); keys.add(e.code); if (e.code === 'Tab' || e.code.startsWith('F') || e.code.startsWith('Alt')) e.preventDefault(); });
 addEventListener('keyup', e => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
-canvas.addEventListener('mousedown', e => { if (P.state === 'lobby') return; if (document.pointerLockElement !== canvas) { canvas.requestPointerLock(); return; } if (e.button === 0) { mouse.l = true; pressed.add('ML'); } if (e.button === 2) { mouse.r = true; pressed.add('MR'); } });
+canvas.addEventListener('mousedown', e => { if (P.state === 'lobby') return; if (document.pointerLockElement !== canvas) { lockPointer(); return; } if (e.button === 0) { mouse.l = true; pressed.add('ML'); } if (e.button === 2) { mouse.r = true; pressed.add('MR'); } });
 addEventListener('mouseup', e => { if (e.button === 0) mouse.l = false; if (e.button === 2) mouse.r = false; });
 addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousemove', e => { if (document.pointerLockElement === canvas) { mouse.dx += e.movementX; mouse.dy += e.movementY; } });
@@ -327,7 +336,7 @@ document.querySelectorAll<HTMLElement>('#lobby .plus').forEach(el => el.onclick 
 $('local').onclick = () => toast('LOCAL: everything runs in this browser. No account, no servers.');
 $('nametag').onclick = () => { const n = prompt('Display name', PR.name); if (n && n.trim()) { PR.name = n.trim().slice(0, 16); saveProfile(); refreshLobby(); } };
 $('lbot').querySelector('span')!.onclick = e => { const tx = (e.target as HTMLElement).textContent || ''; if (tx.includes('Controls')) { settingsOpen(true); SET.querySelector<HTMLElement>('[data-p=keys]')!.click(); } else openPage('LOCKER'); };
-H.pause.onclick = () => canvas.requestPointerLock();
+H.pause.onclick = () => lockPointer();
 document.addEventListener('pointerlockchange', () => { H.pause.style.display = document.pointerLockElement === canvas || P.state === 'lobby' || SET.style.display === 'block' || EW.style.display === 'flex' || dbgOpen() || P.over ? 'none' : 'flex'; });
 
 // ---------------- helpers ----------------
@@ -573,7 +582,7 @@ function drawChar(ch: CharMesh, root: M4, a: AnimIn) {
 
 // ---------------- settings, lobby scaling, emotes ----------------
 const SET = $('settings');
-function settingsOpen(on: boolean) { SET.style.display = on ? 'block' : 'none'; if (on) { document.exitPointerLock(); syncSettingsUI(); } else if (P.state !== 'lobby' && !P.over) canvas.requestPointerLock(); H.pause.style.display = 'none'; }
+function settingsOpen(on: boolean) { SET.style.display = on ? 'block' : 'none'; if (on) { document.exitPointerLock(); syncSettingsUI(); } else if (P.state !== 'lobby' && !P.over) lockPointer(); H.pause.style.display = 'none'; }
 function syncSettingsUI() { SET.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-s]').forEach(el => { const k = el.dataset.s as keyof typeof SDEF, v = (S as any)[k]; if (el instanceof HTMLInputElement && el.type === 'checkbox') el.checked = !!v; else el.value = String(v); const val = el.parentElement?.querySelector('.val'); if (val) val.textContent = typeof v === 'number' ? (v % 1 ? v.toFixed(2) : String(v)) : ''; }); }
 SET.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-s]').forEach(el => el.oninput = () => { const k = el.dataset.s as keyof typeof SDEF; (S as any)[k] = el instanceof HTMLInputElement && el.type === 'checkbox' ? el.checked : +el.value; const val = el.parentElement?.querySelector('.val'); if (val) val.textContent = String((S as any)[k]); });
 SET.querySelectorAll<HTMLElement>('.tabs div').forEach(tb => tb.onclick = () => { SET.querySelectorAll('.tabs div').forEach(x => x.classList.toggle('on', x === tb)); SET.querySelectorAll<HTMLElement>('.page').forEach(pg => pg.classList.toggle('on', pg.dataset.p === tb.dataset.p)); });
@@ -582,7 +591,7 @@ $('setReset').onclick = () => { Object.assign(S, SDEF); syncSettingsUI(); };
 $('setX').onclick = () => settingsOpen(false);
 $('lobbySettings').onclick = () => settingsOpen(true);
 $('pSettings').onclick = (e) => { e.stopPropagation(); settingsOpen(true); };
-$('pResume').onclick = (e) => { e.stopPropagation(); canvas.requestPointerLock(); };
+$('pResume').onclick = (e) => { e.stopPropagation(); lockPointer(); };
 $('pLobby').onclick = (e) => { e.stopPropagation(); toLobby(); };
 function fitHud() { document.documentElement.style.setProperty('--hs', String(clamp(innerWidth / 1920 * 0.9, 0.5, 0.85))); }
 addEventListener('resize', fitHud); fitHud();
@@ -591,13 +600,13 @@ addEventListener('resize', fitLobby); fitLobby(); refreshLobby(); lastEmote = PR
 // emotes: B opens the wheel (or repeats the last emote); bots emote when idle or after a kill
 const EMOTES = ['Dance', 'Wave', 'Floss', 'Take the L'];
 const EW = $('emoteWheel');
-EW.querySelectorAll<HTMLElement>('[data-e]').forEach(el => el.onclick = () => { startEmote(+el.dataset.e!); EW.style.display = 'none'; canvas.requestPointerLock(); });
+EW.querySelectorAll<HTMLElement>('[data-e]').forEach(el => el.onclick = () => { startEmote(+el.dataset.e!); EW.style.display = 'none'; lockPointer(); });
 function startEmote(i: number) { if (P.state !== 'play' || P.dead) return; lastEmote = i; P.emote = i; P.emoteT = 4.5; P.build = false; P.editing = null; emoteJingle(i); }
 function emoteJingle(i: number) { const notes = [[440, 554, 659, 880], [523, 659], [392, 494, 587, 494], [330, 262]][i]; notes.forEach((f, n) => setTimeout(() => beep(f, 0.18, 'triangle', 0.06), n * 160)); }
 
 // ---------------- F8 local testing panel ----------------
 const dbgOpen = () => H.dbg.style.display === 'block';
-function toggleDbg(on = !dbgOpen()) { H.dbg.style.display = on ? 'block' : 'none'; if (on) document.exitPointerLock(); else if (P.state !== 'lobby') canvas.requestPointerLock(); H.pause.style.display = 'none'; }
+function toggleDbg(on = !dbgOpen()) { H.dbg.style.display = on ? 'block' : 'none'; if (on) document.exitPointerLock(); else if (P.state !== 'lobby') lockPointer(); H.pause.style.display = 'none'; }
 $('dbgX').onclick = () => toggleDbg(false);
 $('btnRet').onclick = () => toLobby();
 ($('dPoi') as HTMLSelectElement).innerHTML = POIS.map((p, i) => `<option value="${i}">${p.name}</option>`).join('');
