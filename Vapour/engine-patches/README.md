@@ -5,6 +5,9 @@ Vapour 0.2.5-alpha's shadow pass ignored bone weights, so skinned characters cas
 `shaders/shadow_depth.wgsl`) that bind the frame's bone palette into the shadow pipeline and skin the
 caster's position exactly like `standard_pbr.wgsl` does.
 
+`static-snapshots/physics3d.rs` (vapour-core) stops `step()` from serialising every fixed body: a level made of
+thousands of static colliders otherwise spends ~7 ms per step building JSON for bodies that never move.
+
 Rebuild the runtime (Rust 1.98 + wasm32 target + wasm-bindgen 0.2.127, both installed here) with:
 
 ```sh

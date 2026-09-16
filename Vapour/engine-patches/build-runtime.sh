@@ -3,6 +3,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 cp engine-patches/skinned-shadows/shadow.rs engine-patches/skinned-shadows/mod.rs EngineSource/crates/vapour-render/src/surface/
 cp engine-patches/skinned-shadows/shadow_depth.wgsl EngineSource/crates/vapour-render/shaders/
+cp engine-patches/static-snapshots/physics3d.rs EngineSource/crates/vapour-core/src/
 (cd EngineSource && cargo build --release --target wasm32-unknown-unknown -p vapour-wasm)
 out=$(mktemp -d)
 wasm-bindgen --target web --out-dir "$out" --out-name vapour_runtime EngineSource/target/wasm32-unknown-unknown/release/vapour_wasm.wasm

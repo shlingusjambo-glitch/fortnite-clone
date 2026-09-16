@@ -7,6 +7,7 @@ import { setSeed } from './math';
 import { IN, REBINDABLE, bindLabel, rebind } from './input';
 import { bakeWorldNav, navBlock, navFrame, navPath } from './nav';
 import { fxDust, fxSpark, fxChip, fxExplosion, updateFx } from './fx';
+import { PH, moveCapsule, stepPhysics, syncWorld } from './physics';
 
 // ---------------- setup ----------------
 export const canvas = document.getElementById('vapour-game') as HTMLCanvasElement;
@@ -58,7 +59,7 @@ bakeStatics();
 /** Regenerates the whole map from a seed so every party member plays the identical world. */
 function rebuildWorld(seed: number) {
   if (seed === matchSeed) return; matchSeed = seed; setSeed(seed);
-  W = new World(R); bakeStatics(); propCells.clear(); drawMaps(); hookWorld(); bakeWorldNav(W);
+  W = new World(R); bakeStatics(); propCells.clear(); drawMaps(); hookWorld(); bakeWorldNav(W); syncWorld(W);
 }
 function hookWorld() { W.onRemove = p => { navBlock(p.key, p.pos, false); if (matchLive && NET.active() && NET.isHost()) NET.send({ t: 'piece', op: 'del', key: p.key }); }; W.onPlace = p => navBlock(p.key, p.pos, true); }
 hookWorld();
@@ -478,6 +479,7 @@ function swingPickaxe() {
 // ---------------- movement ----------------
 /** per-axis AABB mover shared by player and bots; returns true when it landed this step */
 function moveEntity(e: { pos: V3; vel: V3; grounded: boolean }, h: number, dt: number): boolean {
+  if (PH) { const landedNow = moveCapsule(e, h, dt); if (e.pos[1] < -1.6) { e.pos[1] = -1.6; e.vel[1] = 0; e.grounded = true; } return landedNow; }   // engine character controller; the sweep below is the pre-engine fallback
   const hw = 0.35, travel=Math.max(Math.abs(e.vel[0]),Math.abs(e.vel[1]),Math.abs(e.vel[2]))*dt, steps=Math.max(1,Math.ceil(travel/.16)), sdt=dt/steps; let landedNow = false;
   for(let step=0;step<steps;step++) {
     const boxes = W.solids(e.pos[0], e.pos[2]);
@@ -1002,14 +1004,14 @@ function updateBot(b: Bot, dt: number) {
 
 // ---------------- main loop ----------------
 let last = performance.now(), t = 0;
-const PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0 };
+const PROF = { bots: 0, submit: 0, flush: 0, hud: 0, frames: 0, items: 0 };
 function frame(now: number) {
   const dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
   fpsN++; fpsT += dt; if (fpsT > 0.5) { fpsV = Math.round(fpsN / fpsT); fpsN = 0; fpsT = 0;
     // adaptive quality: step down when the match runs slow (Chromebooks); session-only, saved settings untouched
     if (P.state === 'play') { lowT = fpsV < 30 ? lowT + 0.5 : 0; if (lowT >= 3) { lowT = 0; const step = S.shadows > 1 ? (S.shadows = 1) : S.grass > 0 ? (S.grass = 0) : S.scale > 0.75 ? (S.scale = 0.75) : S.shadows > 0 ? (S.shadows = 0) : S.scale > 0.6 ? (S.scale = 0.6) : S.viewDist > 0 ? (S.viewDist = 0) : -1; if (step !== -1) info('Low FPS: quality lowered (Settings > Video)'); } }
   }
-  IN.update(navigator.getGamepads ? Array.from(navigator.getGamepads()) : []); navFrame();
+  IN.update(navigator.getGamepads ? Array.from(navigator.getGamepads()) : []); navFrame(); stepPhysics(W, dt);
   const key = (a: string) => IN.justPressed(a), down = (a: string) => IN.pressed(a);
   const sun = norm([0.55, 0.62, 0.35] as V3), aspect = innerWidth / innerHeight;
   const locked = document.pointerLockElement === canvas, padSens = 650 * dt * S.padSens * (P.scoped ? 0.4 : P.ads ? 0.6 : 1.0);
@@ -1284,13 +1286,15 @@ function frame(now: number) {
     }
   }
   R.shadows = S.shadows; R.scale = S.scale; setListener(camPos, camFwd); setVolumes(S); updateFx(dt);
-  const pf2 = performance.now(); PROF.submit += pf2 - pf1;
+  const pf2 = performance.now(); PROF.submit += pf2 - pf1; PROF.items = R.itemCount;
   R.flush({ pos: camPos, fwd: camFwd, fov, aspect }, VP, sun, P.pos, t, true, P.state === 'play' ? (S.shadows > 1 ? 62 : 40) : 180);
   const pf3 = performance.now(); PROF.flush += pf3 - pf2;
   try { drawIcon(SKINS[P.skin]!); drawHud(); } catch (e) { if (!(window as any)._hudErr) { (window as any)._hudErr = e; console.error('drawHud', e); } }
   PROF.hud += performance.now() - pf3; PROF.frames++;
 }
 export { frame as tick, R as renderer };
+/** Called once the engine physics world exists (after the first world was generated at import time). */
+export const physicsReady = () => syncWorld(W);
 // ---------------- multiplayer glue ----------------
 const netPose = (build: boolean, crouch: boolean, emoteT: number, emote: number, dead: boolean) => (build ? 1 : 0) | (crouch ? 2 : 0) | (emoteT > 0 ? 4 : 0) | (dead ? 8 : 0) | (emote << 4);
 function netPiece(msg: Record<string, unknown>) { if (!NET.active()) return; NET.send(NET.isHost() ? { t: 'piece', ...msg } : { t: 'act', k: 'piece', ...msg }); }
@@ -1369,4 +1373,4 @@ NET.on('closed', () => { if (P.state !== 'lobby') info('Disconnected from party'
     }, 600);
   }, 1500);
 }
-(window as any).G = { NET, H, beep, unlockAudio, IN, fxExplosion, fxDust, explode, mmBg: () => mmBg, PROF, nades, chests, P, W, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };
+(window as any).G = { NET, H, beep, unlockAudio, IN, fxExplosion, fxDust, explode, moveCapsule, PH: () => PH, stepPhysics, mmBg: () => mmBg, PROF, nades, chests, P, get W() { return W; }, items, bots, mouse, fx, bus, storm, startMatch, D, spawnBot, nextStormPhase, endScreen, damage, dropItem, mkItem, toLobby, addFeed, banner };

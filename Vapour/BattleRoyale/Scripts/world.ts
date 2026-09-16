@@ -94,7 +94,7 @@ export interface Box { min: V3; max: V3; ref?: any; }
 export interface Hit { t: number; p: V3; n: V3; kind: 'terrain' | 'prop' | 'piece' | 'box' | 'static'; ref?: any; }
 
 export class World {
-  terrain!: Mesh; island!: Mesh; field!: TerrainHeightfield; terrainChunks: { mesh: Mesh; lod: Mesh; c: V3; r: number }[] = []; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
+  terrain!: Mesh; island!: Mesh; field!: TerrainHeightfield; islandField!: TerrainHeightfield; terrainChunks: { mesh: Mesh; lod: Mesh; c: V3; r: number }[] = []; props: Prop[] = []; statics: Static[] = []; houseMeshes: Mesh[] = []; houseBoxes: Box[] = []; pieces = new Map<string, Piece>();
   lootSpots: V3[] = []; chestSpots: V3[] = []; footprints: [number, number, number][] = [];
   /** 32m spatial hash of props + statics so collision/raycast only touch nearby objects */
   grid = new Map<number, { props: Prop[]; statics: Static[] }>();
@@ -121,7 +121,7 @@ export class World {
     const terrain = buildTerrain(0, 0, SIZE, STEP, terrainH, paint, 40); this.field = terrain.field;
     for (const ch of terrain.chunks) { tint(ch.fine); tint(ch.coarse); this.terrainChunks.push({ mesh: r.uploadRaw(ch.fine), lod: r.uploadRaw(ch.coarse), c: ch.c, r: ch.r }); }
     this.terrain = this.terrainChunks[0]!.mesh;
-    { const isl = buildTerrain(ISLAND[0], ISLAND[2], 150, STEP, terrainH, paint, 50).chunks[0]!; tint(isl.fine); this.island = r.uploadRaw(isl.fine); }
+    { const islT = buildTerrain(ISLAND[0], ISLAND[2], 150, STEP, terrainH, paint, 50), isl = islT.chunks[0]!; this.islandField = islT.field; tint(isl.fine); this.island = r.uploadRaw(isl.fine); }
     for (let k = 0; k < 14; k++) { const a = k / 14 * 6.283, rr = 30 + (k % 3) * 8; this.props.push({ type: k % 3 ? 'tree' : 'pine', pos: [ISLAND[0] + Math.cos(a) * rr, terrainH(ISLAND[0] + Math.cos(a) * rr, ISLAND[2] + Math.sin(a) * rr) - 0.2, ISLAND[2] + Math.sin(a) * rr], yaw: a, s: 1.5, hp: 250, r: 0.6, h: 9, dead: 0 }); }
     // wooden bridges where roads cross water
     for (const [ia, ib] of ROADS) { const A = POIS[ia], B = POIS[ib], L = Math.hypot(B!.x - A!.x, B!.z - A!.z), yaw = Math.atan2(B!.x - A!.x, B!.z - A!.z); for (let t = 4; t < L - 4; t += 8) { const x = A!.x + (B!.x - A!.x) * t / L, z = A!.z + (B!.z - A!.z) * t / L; if (terrainH(x, z) < 0.6) { const c = Math.cos(yaw), sn = Math.sin(yaw); this.statics.push({ mesh: 'bridge', pos: [x, 0.2, z], yaw, boxes: [{ min: [x - Math.abs(c) * 2.2 - Math.abs(sn) * 4, -1, z - Math.abs(sn) * 2.2 - Math.abs(c) * 4], max: [x + Math.abs(c) * 2.2 + Math.abs(sn) * 4, 0.55, z + Math.abs(sn) * 2.2 + Math.abs(c) * 4] }] }); } } }
