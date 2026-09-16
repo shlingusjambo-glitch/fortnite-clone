@@ -1,0 +1,15 @@
+# Engine patches
+
+Vapour 0.2.5-alpha's shadow pass ignored bone weights, so skinned characters cast bind-pose shadows.
+`skinned-shadows/` holds the three patched files (vapour-render `surface/shadow.rs`, `surface/mod.rs`,
+`shaders/shadow_depth.wgsl`) that bind the frame's bone palette into the shadow pipeline and skin the
+caster's position exactly like `standard_pbr.wgsl` does.
+
+Rebuild the runtime (Rust 1.98 + wasm32 target + wasm-bindgen 0.2.127, both installed here) with:
+
+```sh
+./engine-patches/build-runtime.sh
+```
+
+It copies the patched files into `EngineSource`, builds `vapour-wasm` for wasm32, runs wasm-bindgen and
+installs `vapour_runtime_bg.wasm` into `vapour-engine-0.2.5-alpha/runtime/` (the JS bindings are unchanged).

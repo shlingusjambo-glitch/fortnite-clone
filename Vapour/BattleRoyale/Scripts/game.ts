@@ -1,6 +1,6 @@
 import { V3, M4, add, sub, scale, norm, len, clamp, lerp, rand, mul, perspective, lookAt, trs, translate, rotY, rotX, rotZ, transformPoint, scaleM } from './math';
 import { Renderer, Mesh } from './renderer';
-import { buildModels, buildCharacter, editedPiece, CharMesh, SKINS, Skin } from './models';
+import { buildModels, buildCharacter, editedPiece, CharMesh, SKINS, Skin, BIND } from './models';
 import { World, terrainH, Piece, PieceType, Mat, Box, Prop, POIS, SIZE, TILES, ISLAND } from './world';
 import { NET, Member } from './net';
 import { setSeed } from './math';
@@ -563,6 +563,7 @@ function drawHud() {
 
 // ---------------- character drawing ----------------
 type Pose = 'idle' | 'aim' | 'pick' | 'sky' | 'glide' | 'lobby' | 'build' | 'crouch' | 'emote';
+const BONE_BUF = new Float32Array(10 * 16);
 interface AnimIn { anim: number; speed: number; grounded: boolean; pitch: number; pose: Pose; swing?: number; held?: string | undefined; sprint?: boolean; emote?: number; pitch2?: number; }
 function drawChar(ch: CharMesh, root: M4, a: AnimIn) {
   const st = ch.style, ph = a.anim, sp = clamp(a.speed / 6, 0, 1.3), s1 = Math.sin(ph), c1 = Math.cos(ph), idle = sp < 0.05 && a.grounded;
@@ -587,17 +588,22 @@ function drawChar(ch: CharMesh, root: M4, a: AnimIn) {
     else { uL = -2.9; fL = -1.3; zL = 0.2; uR = -0.4; fR = -1.5; zR = -0.5; thL = -0.9; thR = 0.3; shL = 1.6; shR = 0.5; drop = 0.35; yawWig = Math.sin(w) * 0.1; }
   }
   if (a.pose === 'crouch') { drop = 0.5; thL = thR = -1.15; shL = shR = 1.6; lean = 0.4; uR = -1.35 - a.pitch; fR = -0.35; uL = -1.1 - a.pitch; fL = -1.0; zL = 0.55; }
-  const m = mul(mul(mul(root, translate(0, bob - drop, 0)), rotY(yawWig)), scaleM(0.93, 0.93, 0.93));
-  const hip = mul(m, translate(0, 1.0, 0));
+  // bone palette in the instance's local space: each joint's posed matrix times the inverse of its rest position
+  const local = mul(mul(translate(0, bob - drop, 0), rotY(yawWig)), scaleM(0.93, 0.93, 0.93)), m = mul(root, local);
+  const hip = mul(local, translate(0, 1.0, 0));
   const upper = mul(mul(hip, rotX(lean)), rotY(twist));                                  // torso + arms + head pivot at hips
-  R.draw(ch.torso, upper, [1, 1, 1], 1, st);
-  R.draw(ch.head, mul(mul(upper, translate(0, 0.66, 0)), rotX(-a.pitch * 0.5 - lean * 0.7)), [1, 1, 1], 1, st);
-  const armM = (side: number, u: number, z: number, f: number) => { const sh = mul(mul(mul(upper, translate(side * 0.27, 0.5, 0)), rotZ(-side * z)), rotX(u)); R.draw(ch.upperArm, sh, [1, 1, 1], 1, st); const el = mul(mul(sh, translate(0, -0.31, 0)), rotX(f)); R.draw(ch.foreArm, el, [1, 1, 1], 1, st); return mul(el, translate(0, -0.38, 0)); };
-  const handR = armM(-1, uR, zR, fR); armM(1, uL, zL, fL);
-  const legM = (side: number, th: number, sh: number) => { const h = mul(mul(hip, translate(side * 0.12, 0, 0)), rotX(th)); R.draw(ch.thigh, h, [1, 1, 1], 1, st); R.draw(ch.shin, mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), [1, 1, 1], 1, st); };
+  const bones = BONE_BUF; let bi = 0;
+  const put = (j: M4, bind: V3) => { const b = mul(j, translate(-bind[0], -bind[1], -bind[2])); bones.set(b, bi * 16); bi++; };
+  put(upper, BIND.upper);
+  put(mul(mul(upper, translate(0, 0.66, 0)), rotX(-a.pitch * 0.5 - lean * 0.7)), BIND.head);
+  const armM = (side: number, u: number, z: number, f: number) => { const sh = mul(mul(mul(upper, translate(side * 0.27, 0.5, 0)), rotZ(-side * z)), rotX(u)); const el = mul(mul(sh, translate(0, -0.31, 0)), rotX(f)); put(sh, side > 0 ? BIND.shL : BIND.shR); put(el, side > 0 ? BIND.elL : BIND.elR); return el; };
+  armM(1, uL, zL, fL); const handR = mul(root, armM(-1, uR, zR, fR));
+  const legM = (side: number, th: number, sh: number) => { const h = mul(mul(hip, translate(side * 0.12, 0, 0)), rotX(th)); put(h, side > 0 ? BIND.hipL : BIND.hipR); put(mul(mul(h, translate(0, -0.46, 0)), rotX(sh)), side > 0 ? BIND.kneeL : BIND.kneeR); };
   legM(1, thL, shL); legM(-1, thR, shR);
+  R.drawSkinned(ch.mesh, root, bones.slice(), st);   // the palette is read at frame submit, so each character needs its own copy
+  const upperW = mul(root, upper);
   if (a.held === 'pickaxe') R.draw(M.pickaxe, mul(handR, mul(translate(0, 0.05, 0.04), rotX(1.4))));
-  else if (a.held) { const aiming = a.pose === 'aim' || a.pose === 'crouch'; const gm = aiming ? mul(mul(upper, translate(-0.2, 0.36, 0.34)), mul(rotY(-0.08), rotX(-a.pitch * 0.6))) : mul(mul(upper, translate(-0.28, -0.02, 0.2)), mul(rotY(0.45), rotX(-0.95))); R.draw(M[a.held]!, mul(gm, trs([0, 0, 0], 0, 0, 1.45))); }
+  else if (a.held) { const aiming = a.pose === 'aim' || a.pose === 'crouch'; const gm = aiming ? mul(mul(upperW, translate(-0.2, 0.36, 0.34)), mul(rotY(-0.08), rotX(-a.pitch * 0.6))) : mul(mul(upperW, translate(-0.28, -0.02, 0.2)), mul(rotY(0.45), rotX(-0.95))); R.draw(M[a.held]!, mul(gm, trs([0, 0, 0], 0, 0, 1.45))); }
   if (a.pose === 'glide') R.draw(M.glider, mul(m, translate(0, 2.6, 0.15)));
 }
 

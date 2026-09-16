@@ -1,3 +1,4 @@
+import { SeededRandom } from '@vapour/engine';
 export type V3 = [number, number, number];
 export type M4 = Float32Array;
 
@@ -11,12 +12,12 @@ export const len = (a: V3) => Math.hypot(a[0], a[1], a[2]);
 export const norm = (a: V3): V3 => { const l = len(a) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 export const clamp = (x: number, a: number, b: number) => Math.max(a, Math.min(b, x));
-// World generation must be identical on every machine in a party, so `rand` is a seeded generator (mulberry32).
-// Gameplay randomness can use it too; `setSeed` is called with the match seed before the world is (re)built.
-let seedState = 0x9e3779b9;
-export function setSeed(seed: number) { seedState = (seed >>> 0) || 1; }
-export function srand() { seedState = (seedState + 0x6d2b79f5) >>> 0; let t = seedState; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
-export const rand = (a = 0, b = 1) => a + srand() * (b - a);
+// World generation must be identical on every machine in a party, so `rand` draws from the engine's deterministic
+// SeededRandom; `setSeed` is called with the match seed before the world is (re)built.
+let rng = new SeededRandom(1);
+export function setSeed(seed: number) { rng = new SeededRandom((seed >>> 0) || 1); }
+export function srand() { return rng.next(); }
+export const rand = (a = 0, b = 1) => a + rng.next() * (b - a);
 
 export const ident = (): M4 => new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
 

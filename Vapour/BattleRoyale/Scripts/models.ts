@@ -200,14 +200,32 @@ export const SKINS: Skin[] = [
   { name: 'Grid Leader', skin: rgb(0x9bd9fa), top: rgb(0xefa2e4), top2: rgb(0x8cd5ff), pants: rgb(0x9bd9fa), boots: rgb(0xefa2e4), hair: rgb(0x9bd9fa), hat: 'spiky', style: 1 },
 ];
 
-export interface CharMesh {
-  torso: Mesh;
-  head: Mesh;
-  upperArm: Mesh;
-  foreArm: Mesh;
-  thigh: Mesh;
-  shin: Mesh;
-  style: number;
+/** Skinned character: one engine mesh; `bones` are the joint rest positions in character space, in palette order. */
+export interface CharMesh { mesh: Mesh; style: number; }
+export const BONES = ['upper', 'head', 'shL', 'elL', 'shR', 'elR', 'hipL', 'kneeL', 'hipR', 'kneeR'] as const;
+export const BIND: Record<(typeof BONES)[number], V3> = { upper: [0, 1, 0], head: [0, 1.66, 0], shL: [0.27, 1.5, 0], elL: [0.27, 1.19, 0], shR: [-0.27, 1.5, 0], elR: [-0.27, 1.19, 0], hipL: [0.12, 1, 0], kneeL: [0.12, 0.54, 0], hipR: [-0.12, 1, 0], kneeR: [-0.12, 0.54, 0] };
+type Part = 'torso' | 'head' | 'upperArm' | 'foreArm' | 'thigh' | 'shin';
+const sstep3 = (t: number) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+/** Secondary bone + weight for a vertex at part-local y, so limbs bend at the joints instead of breaking. */
+function jointBlend(part: Part, y: number): number {
+  switch (part) {
+    case 'upperArm': return sstep3((-0.22 - y) / 0.09) * 0.55;   // towards the elbow
+    case 'foreArm': return sstep3((y + 0.07) / 0.07) * 0.5;      // towards the shoulder
+    case 'thigh': return sstep3((-0.36 - y) / 0.1) * 0.55;       // towards the knee
+    case 'shin': return sstep3((y + 0.08) / 0.08) * 0.5;         // towards the hip
+    case 'head': return sstep3((0.02 - y) / 0.06) * 0.5;         // neck follows the torso
+    default: return 0;
+  }
+}
+/** Appends a part's triangles into the character mesh with bone indices/weights; the part is authored around its joint origin. */
+function skinPart(out: { pos: number[]; nrm: number[]; col: number[]; bi: number[]; bw: number[] }, d: number[], part: Part, bone: number, second: number, bind: V3, mirrorX = false) {
+  const n = d.length / 9, base = out.pos.length / 3, sx = mirrorX ? -1 : 1;
+  for (let i = 0; i < n; i++) {
+    const o = i * 9, y = d[o + 1]!, w2 = jointBlend(part, y);
+    out.pos.push(d[o]! * sx + bind[0], y + bind[1], d[o + 2]! + bind[2]); out.nrm.push(d[o + 3]! * sx, d[o + 4]!, d[o + 5]!); out.col.push(d[o + 6]!, d[o + 7]!, d[o + 8]!);
+    out.bi.push(bone, second, 0, 0); out.bw.push(1 - w2, w2, 0, 0);
+  }
+  if (mirrorX) for (let i = 0; i < n; i += 3) { const a = base + i, c = base + i + 2; for (const arr of [out.pos, out.nrm, out.col]) for (let k = 0; k < 3; k++) { const t = arr[a * 3 + k]!; arr[a * 3 + k] = arr[c * 3 + k]!; arr[c * 3 + k] = t; } for (const [arr, w] of [[out.bi, 4], [out.bw, 4]] as [number[], number][]) for (let k = 0; k < w; k++) { const t = arr[a * w + k]!; arr[a * w + k] = arr[c * w + k]!; arr[c * w + k] = t; } }   // keep winding after the mirror
 }
 
 /**
@@ -215,11 +233,21 @@ export interface CharMesh {
  * Anatomical curves, detailed facial features, tactical harnesses, ammo pouches, knee-pads, laced boots.
  */
 export function buildCharacter(r: Renderer, s: Skin, bulk = 1): CharMesh {
-  const mk = (f: (b: MB) => void, ao?: [number, number, number]) => { const b = new MB(); f(b); if (ao) aoY(b.d, ao[0], ao[1], ao[2]); return b.build(r); };
+  const mk = (f: (b: MB) => void, ao?: [number, number, number]) => { const b = new MB(); f(b); if (ao) aoY(b.d, ao[0], ao[1], ao[2]); return b.d; };
+  const parts = buildCharacterParts(mk, s, bulk), out = { pos: [] as number[], nrm: [] as number[], col: [] as number[], bi: [] as number[], bw: [] as number[] };
+  skinPart(out, parts.torso, 'torso', 0, 1, BIND.upper); skinPart(out, parts.head, 'head', 1, 0, BIND.head);
+  skinPart(out, parts.upperArm, 'upperArm', 2, 3, BIND.shL); skinPart(out, parts.foreArm, 'foreArm', 3, 2, BIND.elL);
+  skinPart(out, parts.upperArm, 'upperArm', 4, 5, BIND.shR, true); skinPart(out, parts.foreArm, 'foreArm', 5, 4, BIND.elR, true);
+  skinPart(out, parts.thigh, 'thigh', 6, 7, BIND.hipL); skinPart(out, parts.shin, 'shin', 7, 6, BIND.kneeL);
+  skinPart(out, parts.thigh, 'thigh', 8, 9, BIND.hipR, true); skinPart(out, parts.shin, 'shin', 9, 8, BIND.kneeR, true);
+  const n = out.pos.length / 3, colors = new Float32Array(n * 4); for (let i = 0; i < n; i++) { colors[i * 4] = Math.pow(out.col[i * 3]!, 2.2); colors[i * 4 + 1] = Math.pow(out.col[i * 3 + 1]!, 2.2); colors[i * 4 + 2] = Math.pow(out.col[i * 3 + 2]!, 2.2); colors[i * 4 + 3] = 1; }
+  const indices = new Uint32Array(n); for (let i = 0; i < n; i++) indices[i] = i;
+  return { style: s.style, mesh: r.uploadRaw({ positions: new Float32Array(out.pos), normals: new Float32Array(out.nrm), colors, indices, boneIndices: new Uint32Array(out.bi), boneWeights: new Float32Array(out.bw) }) };
+}
+function buildCharacterParts(mk: (f: (b: MB) => void, ao?: [number, number, number]) => number[], s: Skin, bulk: number): Record<Part, number[]> {
   // Proportions ~7 heads: hips at 0.95, shoulders at 1.5, head top ~1.92. Meshes are built around their joint origins.
   const sw = (s.female ? 0.86 : 1.0) * bulk, black = rgb(0x1e1e24), darkGrey = rgb(0x30333b), gold = rgb(0xe6b422), leather = rgb(0x4a3a2c);
   return {
-    style: s.style,
     torso: mk(b => {   // origin = hip joint
       b.sphere([0, 0.0, 0], 0.2 * sw, s.pants, 14, 0.7, true);                                        // pelvis
       b.cyl([0, -0.02, 0], 0.19 * sw, 0.17 * sw, 0.16, s.pants, 16, false, true);                     // waistband

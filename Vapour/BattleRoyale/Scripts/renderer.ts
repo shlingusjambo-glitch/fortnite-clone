@@ -8,7 +8,7 @@ const norm = (a: V3): V3 => { const l = Math.hypot(a[0], a[1], a[2]) || 1; retur
 const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
 
 export interface Mesh { id: string; n: number; data?: Float32Array; raw?: MeshUpload; }
-interface Item { m: Mesh; mat: M4; tint: V3; alpha: number; style: number; shadow: boolean; two: boolean; }
+interface Item { m: Mesh; mat: M4; tint: V3; alpha: number; style: number; shadow: boolean; two: boolean; bones?: Float32Array; }
 export interface Cam { pos: V3; fwd: V3; fov: number; aspect: number; }
 
 /** style → material asset + surface response. Styles mirror the old shader switch. */
@@ -79,6 +79,8 @@ export class Renderer {
     return m;
   }
   draw(m: Mesh, mat: M4, tint: V3 = [1, 1, 1], alpha = 1, style = 0, shadow = true, two = false) { if (!m) { console.error('draw(): undefined mesh'); return; } this.items.push({ m, mat, tint, alpha, style, shadow, two }); }
+  /** Skinned draw: `bones` is the palette (16 column-major floats per bone) in the instance's local space. */
+  drawSkinned(m: Mesh, mat: M4, bones: Float32Array, style = 0, tint: V3 = [1, 1, 1]) { this.items.push({ m, mat, tint, alpha: 1, style, shadow: true, two: false, bones }); }
   get itemCount() { return this.items.length; }
   /** Submits everything queued this frame. `sky` false = lobby/gallery lighting. */
   flush(cam: Cam, _vp: M4, sun: V3, _focus: V3, _t: number, sky = true, _shadowRange = 90) {
@@ -99,7 +101,7 @@ export class Renderer {
     for (const it of this.items) {
       const st = STYLE[it.style] ?? STYLE[0]!;
       const material = it.alpha < 1 && st.material !== 'm:water' && st.material !== 'm:unlit' && st.material !== 'm:holo' && st.material !== 'm:storm' ? 'm:blend' : it.two && it.alpha >= 1 ? 'm:twosided' : st.material;
-      const opts: { color: [number, number, number, number]; material: string; roughness: number; metallic: number; emissive?: number } = { color: [it.tint[0], it.tint[1], it.tint[2], it.alpha], material, roughness: st.roughness, metallic: st.metallic }; if (st.emissive !== undefined) opts.emissive = st.emissive;
+      const opts: { color: [number, number, number, number]; material: string; roughness: number; metallic: number; emissive?: number; bones?: Float32Array } = { color: [it.tint[0], it.tint[1], it.tint[2], it.alpha], material, roughness: st.roughness, metallic: st.metallic }; if (st.emissive !== undefined) opts.emissive = st.emissive; if (it.bones) opts.bones = it.bones;
       g.frame.draw(it.m.id, it.mat, opts);
     }
     this.items.length = 0;
